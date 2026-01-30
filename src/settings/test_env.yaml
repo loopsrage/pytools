@@ -1,0 +1,40 @@
+TestFeature:
+  Enabled: true
+  Something: "Else"
+  Nested:
+    Data:
+      - 1
+      - 2
+      - 3
+      - 4
+      - 5
+    Some: "thing"
+
+TestFeature2:
+  Enabled: true
+  Proxy:
+    Enabled: false
+  Something: "Else"
+  Nested:
+  Data:
+    - 1
+    - 2
+    - 3
+    - 4
+    - 5
+  Some: "thing"
+
+Global:
+  ShallowInt: 1
+  Proxy:
+    Enabled: false
+    LocalAddress: "0.0.0.0:8080"
+    LocalPort: 5114
+  Connections:
+    Enabled: true
+  Data:
+    - 1
+    - 2
+    - 3
+    - 4
+    - 5
