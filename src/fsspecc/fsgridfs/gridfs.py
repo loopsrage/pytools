@@ -7,8 +7,9 @@ from pathlib import Path
 import gridfs
 from gridfs import errors
 
-from src.fsspecc.base_fsspecfs.base_fsspecfs import FSpecFS
 from pymongo import MongoClient
+
+from src.fsspecc.atomic_writefs.atomic_writefs import AtomicWriteFs
 
 
 def _aggregate_last_version(db, fs, filename=None, collection=None):
@@ -28,7 +29,7 @@ def _aggregate_last_version(db, fs, filename=None, collection=None):
     for entry in latest_files_cursor:
         yield fs.get(entry['latest_id'])
 
-class MongoFS(FSpecFS):
+class MongoFS(AtomicWriteFs):
     _client = None
     _name = None
     def __init__(self, dsn: str, database_name: str):

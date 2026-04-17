@@ -32,7 +32,7 @@ class Test(unittest.IsolatedAsyncioTestCase):
             ld = []
             while x < 100:
 
-                connection, was_loaded = idx.register("postgres")
+                connection, was_loaded = idx.connection("postgres")
                 if not was_loaded:
                     print("MOCK OPEN")
 
@@ -58,7 +58,7 @@ class Test(unittest.IsolatedAsyncioTestCase):
             x = 0
             ld = []
             while x < 100:
-                connection, was_loaded = idx.register("postgres", pool)
+                connection, was_loaded = idx.connection("postgres", pool)
                 if not was_loaded:
                     print("MOCK OPEN")
 

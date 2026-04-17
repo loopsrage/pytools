@@ -1,9 +1,9 @@
 import io
 
-from src.fsspecc.base_fsspecfs.base_fsspecfs import FSpecFS, get_file_path
+from lib.fsspecc.base_fsspecfs.base_fsspecfs import FSBase, get_file_path
 
 
-class ImagesFs(FSpecFS):
+class ImagesFs(FSBase):
 
     def __init__(self, filesystem: str = None):
         super().__init__(filesystem)

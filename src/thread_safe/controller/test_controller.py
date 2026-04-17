@@ -3,7 +3,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
-from lib.thread_safe.controller.controller import Controller
+from src.thread_safe.controller.controller import Controller
 
 
 def action(ct: Controller, index: int):
@@ -19,6 +19,7 @@ class TestController(unittest.IsolatedAsyncioTestCase):
     async def test_controller(self):
         routines = []
         with ThreadPoolExecutor() as executor:
+
             ct = Controller(interval=1, start_now=False)
             routines.append(executor.submit(action, ct, index=0))
 

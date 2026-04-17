@@ -1,4 +1,4 @@
-from src.fsspecc.base_fsspecfs.base_fsspecfs import FSpecFS
+from src.fsspecc.base_fsspecfs.base_fsspecfs import FSBase
 from src.thread_safe.index import Index
 
 
@@ -11,16 +11,14 @@ class FilesystemIndex:
         self._namespace = "filesystems"
         self._index.new(self._namespace)
 
-    def register(self, name, filesystem):
+    def filesystem(self, name, filesystem = None):
         return self._index.load_or_store_in_index(
             index_name=self._namespace,
             key=name,
             value=filesystem
         )
 
-    def register_filesystems(self, filesystems: dict[str, FSpecFS]):
+    def register_filesystems(self, filesystems: dict[str, FSBase]):
         for name, filesystem in filesystems.items():
-            self.register(name, filesystem)
+            self.filesystem(name, filesystem)
 
-    def filesystem(self, name: str, filesystem = None):
-        return self.register(name, filesystem)

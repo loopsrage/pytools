@@ -1,6 +1,6 @@
 import unittest
 
-from lib.thread_safe.containers.xml_containers.xcontainers import build_xml_container_tree
+from src.thread_safe.containers.xml_containers.xcontainers import build_xml_container_tree
 import xml.etree.ElementTree as ET
 
 xml_data = """
@@ -26,6 +26,6 @@ class Test(unittest.TestCase):
         tree = build_xml_container_tree(root_element=root_el)
 
         for n, c in tree.range_values:
-            print(f"{n}:{tree.read_primitive_value(n)}")
+            print(f"{n}:{tree.read_primitive_value(c.path)}")
 
 

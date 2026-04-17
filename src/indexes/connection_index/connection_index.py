@@ -1,5 +1,5 @@
-from src.thread_safe.index import Index
 
+from lib.thread_safe.index import Index
 
 class ConnectionIndex:
     _index = None
@@ -19,7 +19,5 @@ class ConnectionIndex:
 
     def register_connections(self, connections):
         for name, connection in connections.items():
-            self.register(name, connection)
+            self.connection(name, connection)
 
-    def register(self, name: str, connection = None):
-        return self.register(name, connection)

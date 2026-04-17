@@ -1,6 +1,6 @@
 from abc import abstractmethod, ABC
 
-from src.fsspecc.base_fsspecfs.base_fsspecfs import FSpecFS
+from src.fsspecc.base_fsspecfs.base_fsspecfs import FSBase
 from src.thread_safe.index import Index
 
 
@@ -9,7 +9,7 @@ class Datasource(ABC):
     def query_datasource(self):
         pass
 
-class FsDatasource(FSpecFS, Datasource):
+class FsDatasource(FSBase, Datasource):
     def __init__(self, filesystem: str):
         super().__init__(filesystem=filesystem)
 
@@ -26,19 +26,17 @@ class DatasourceIndex:
         self._namespace = "datasource"
         self._index.new(self._namespace)
 
-    def register(self, name, datasource: Datasource):
+    def datasource(self, name, datasource: Datasource):
         return self._index.load_or_store_in_index(
             index_name=self._namespace,
             key=name,
             value=datasource
         )
 
-    def register_datasource(self, datasource: dict[str, Datasource]):
+    def register_datasources(self, datasource: dict[str, Datasource]):
         for name, datasource in datasource.items():
-            self.register(name, datasource)
+            self.datasource(name, datasource)
 
-    def datasource(self, name: str, datasource: Datasource = None):
-        return self.register(name, datasource)
 
     def list_datasource(self):
         for key, value in self._index.range_index(self._namespace):

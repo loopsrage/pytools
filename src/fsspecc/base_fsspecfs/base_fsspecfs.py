@@ -1,9 +1,10 @@
 import io
-import uuid
+import shutil
 from pathlib import Path
-from typing import Any, List
+from typing import List, Optional
 
 import fsspec
+from pydantic import errors
 
 from src.thread_safe.index import Index
 
@@ -19,22 +20,20 @@ def get_file_path(request_id: str, file_name: str, sub_dir: str | List[str] = No
 
     return f"{core}/{sub_dir}/{file_name}"
 
-
-class FSpecFS:
-    _fs: Any = None
-    _filesystem = None
-    _index = None
+class FSBase:
     _key = "directories"
-
-    def __init__(self, filesystem: str = None):
-        self._filesystem = filesystem or "memory"
-        if self._filesystem == "mongodb":
-            return
-
-        self._fs = fsspec.filesystem(self._filesystem)
+    def __init__(self, filesystem: str = "memory", storage_options: Optional[dict] = None, path=None):
+        """
+        :param filesystem: The fsspec protocol (e.g., 'abfs' for Azure, 's3', 'gcs', 'file')
+        :param storage_options: Credentials (e.g., {'account_name': '...', 'account_key': '...'})
+        """
+        self._filesystem = filesystem
+        self._storage_options = storage_options or {}
+        self._fs = fsspec.filesystem(self._filesystem, **self._storage_options)
         self._index = Index()
         self._index.new(self._key)
-
+        if path is not None:
+            self.index(path)
 
     @property
     def client(self):
@@ -44,10 +43,8 @@ class FSpecFS:
     def filesystem(self):
         return self._filesystem
 
-    def write(self, file_path: str, file_buffer: io.BytesIO, use_pipe=None):
+    def write(self, file_path: str, file_buffer: io.BytesIO, use_pipe=False):
         file_buffer.seek(0)
-        errors = []
-        temp_path = f"{file_path}.{uuid.uuid4()}.tmp"
 
         if use_pipe is None:
             use_pipe = False
@@ -55,28 +52,44 @@ class FSpecFS:
         try:
             if use_pipe:
                 try:
-                    self.client.pipe_file(temp_path, file_buffer.getvalue())
+                    self.client.pipe_file(file_path, file_buffer.getvalue())
                 except Exception as pipe_err:
                     errors.append(pipe_err)
             else:
-                with self.client.open(temp_path, "wb") as fs:
+                with self.client.open(file_path, "wb") as fs:
                     fs.write(file_buffer.getbuffer())
-
-            self.client.rename(temp_path, file_path)
-        except Exception as write_err:
-            if self.client.exists(temp_path):
-                self.client.rm(temp_path)
-            raise ExceptionGroup("Atomic write failed", [*errors, write_err])
         finally:
             file_buffer.truncate(0)
             file_buffer.seek(0)
 
-    def read(self, file_path: str, file_buffer: io.BytesIO, use_pipe=None):
+    def append(self, file_path: str, file_buffer: io.BytesIO):
+        """
+        Appends content to the end of an existing file.
+        Note: Not all object stores (e.g., standard S3) support native append.
+        """
+        file_buffer.seek(0)
+
+        try:
+            # "ab" = Append Binary mode
+            with self.client.open(file_path, "ab") as fs:
+                fs.write(file_buffer.getbuffer())
+        finally:
+            # Maintain consistency with your write() method's cleanup logic
+            file_buffer.truncate(0)
+            file_buffer.seek(0)
+
+    def make_dirs(self, path: str, exist_ok: bool = True):
+        try:
+            self.client.makedirs(path, exist_ok=exist_ok)
+        except Exception as dir_err:
+            # Some fsspec implementations might behave differently with permissions
+            if not exist_ok:
+                raise dir_err
+
+    def read(self, file_path: str, file_buffer: io.BytesIO, use_pipe=False):
+        """Reads the file content into the provided buffer."""
         file_buffer.seek(0)
         file_buffer.truncate(0)
-
-        if use_pipe is None:
-            use_pipe = False
 
         errors = []
 
@@ -88,7 +101,6 @@ class FSpecFS:
                 return
             except Exception as pipe_err:
                 errors.append(pipe_err)
-
         try:
             with self.client.open(file_path, "rb") as fs:
                 file_buffer.write(fs.read())
@@ -99,37 +111,6 @@ class FSpecFS:
     def list(self, glob_pattern):
         for i in self.client.glob(glob_pattern):
             yield i
-
-    def load_or_store(self, file_path: str, get_bytes):
-        """
-        Attempts to load a binary index. If it doesn't exist, stores default_data.
-        Returns: (bytes, was_loaded_from_storage)
-        """
-        # Create a temporary buffer for the potential read
-        temp_buffer = io.BytesIO()
-        try:
-            if self.client.exists(file_path):
-                self.read(file_path, temp_buffer)
-                return temp_buffer.getvalue(), True
-        except (FileNotFoundError, Exception):
-            # If read fails or file vanished, proceed to attempt a store
-            pass
-
-        data = get_bytes()
-        temp_buffer.seek(0)
-        temp_buffer.truncate(0)
-        temp_buffer.write(data)
-
-        try:
-            self.write(file_path, temp_buffer)
-            return data, False
-
-        except ExceptionGroup:
-            temp_buffer.seek(0)
-            temp_buffer.truncate(0)
-
-            self.read(file_path, temp_buffer)
-            return temp_buffer.getvalue(), True
 
     def walk(self, path):
         if self._filesystem == "mongodb":
@@ -175,4 +156,57 @@ class FSpecFS:
         if hasattr(self._fs, "close"):
             self._fs.close()
 
+    def load_or_store(self, file_path: str, get_bytes):
+        """
+        Attempts to load a binary index. If it doesn't exist, stores default_data.
+        Returns: (bytes, was_loaded_from_storage)
+        """
+        # Create a temporary buffer for the potential read
+        temp_buffer = io.BytesIO()
+        try:
+            if self.client.exists(file_path):
+                self.read(file_path, temp_buffer)
+                return temp_buffer.getvalue(), True
+        except (FileNotFoundError, Exception):
+            # If read fails or file vanished, proceed to attempt a store
+            pass
 
+        data = get_bytes()
+        temp_buffer.seek(0)
+        temp_buffer.truncate(0)
+        temp_buffer.write(data)
+
+        try:
+            self.write(file_path, temp_buffer)
+            return data, False
+
+        except ExceptionGroup:
+            temp_buffer.seek(0)
+            temp_buffer.truncate(0)
+
+            self.read(file_path, temp_buffer)
+            return temp_buffer.getvalue(), True
+
+    def transfer(self, to: "FSBase", pattern, target_directory):
+        if target_directory is None:
+            raise AttributeError("target_directory cannot be None")
+
+        dest_dir = Path(f"{target_directory}")
+        dest_dir.mkdir(parents=True, exist_ok=True)
+
+        for remote_path in self.list(pattern):
+            clean_filename = Path(remote_path).name
+            to_file_path = dest_dir / clean_filename
+            with self.client.open(str(remote_path), 'rb') as remote_file:
+                to.load_or_store(str(to_file_path), remote_file.read)
+
+    def sync(self, to: "FSBase", local_path, remote_path):
+        self.transfer(to, f"{local_path}/*", f"{remote_path}/")
+        to.transfer(self.client, f"{remote_path}/*", local_path)
+
+    def open(self, path: str, mode: str = "rb", **kwargs):
+        return self.client.open(path, mode, **kwargs)
+
+    def put(self, local_path: str, remote_path: str):
+        """Uploads a local file to the remote filesystem, clearing block lists."""
+        self.client.put(local_path, remote_path)

@@ -5,6 +5,10 @@ from src.langchain_agent_ltm_stm.agent import arun_commands
 from src.langlib.pgstore import PGS
 
 
+class Get:
+    pass
+
+
 class Test(unittest.IsolatedAsyncioTestCase):
 
     async def test_build_governed_node(self):

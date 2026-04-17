@@ -2,25 +2,23 @@ import os
 import unittest
 
 from dotenv import load_dotenv
+from pymongo import AsyncMongoClient
 
-from src.fsspecc.base_fsspecfs.base_fsspecfs import FSpecFS
-from src.fsspecc.base_fsspecfs.base_tool_agent import fs_agent
-from src.fsspecc.imagefs.imagesfs_tool_agent import imagesfs_agent
-from src.fsspecc.memfs.memfs_tool_agent import memfs_agent
-from src.indexes.connection_index.connection_index import ConnectionIndex
-from src.indexes.specialist_index.specialist_index import SpecialistIndex
-from src.langlib.pgstore import PGS
-from src.markov.mongo_mdp import MongoMDP
-from src.settings.helper import restore, setting
+from connections.connections import get_async_connection_pool
+from lib.fsspecc.base_fsspecfs.base_fsspecfs import FSBase
+from lib.fsspecc.base_fsspecfs.base_tool_agent import fs_agent
+from lib.fsspecc.cleanfs.cleanfs_tool_agent import cleanfs_agent
+from lib.fsspecc.imagefs.imagesfs_tool_agent import imagesfs_agent
+from lib.fsspecc.memfs.memfs_tool_agent import memfs_agent
+from lib.indexes.connection_index.connection_index import ConnectionIndex
+from lib.langlib.pgstore import PGS
+from lib.markov.mongo_mdp import MongoMDP
+from lib.indexes.specialist_index.specialist_index import SpecialistIndex
+from lib.settings.helper import setting
 
 load_dotenv()
 conn_index = ConnectionIndex()
 restore(os.getenv("ENV_FILE"))
-
-
-def get_async_connection_pool(dsn):
-    pass
-
 
 class Test(unittest.IsolatedAsyncioTestCase):
     _mk = None
@@ -32,6 +30,7 @@ class Test(unittest.IsolatedAsyncioTestCase):
         age = {
             "filesystem": await fs_agent(pool, store),
             "memory": await memfs_agent(pool, store),
+            "clean_fs": await cleanfs_agent(pool, store),
             "images": await imagesfs_agent(pool, store)
         }
         registry.register_agents(age)
@@ -48,6 +47,7 @@ class Test(unittest.IsolatedAsyncioTestCase):
         store=PGS()
         age = {
             "memory": await memfs_agent(pool, store),
+            "clean_fs": await cleanfs_agent(pool, store),
             "filesystem": await fs_agent(pool, store),
             "images": await imagesfs_agent(pool, store)
         }
@@ -61,16 +61,29 @@ class Test(unittest.IsolatedAsyncioTestCase):
         assert registry.agent_name_from_reverse_index(ri) == "filesystem"
 
 
-def fs_inj(filesystem: FSpecFS):
+
+    async def test_mk_m(self):
+        registry = SpecialistIndex("testing")
+        pool, _ = conn_index.register("pool", get_async_connection_pool(dsn=setting("LocalDatabase", "DSN")))
+        store=PGS()
+        pool = None
+        store = None
+        age = {
+            "filesystem": await fs_agent(pool, store),
+            "memory": await memfs_agent(pool, store),
+            "clean_fs": await cleanfs_agent(pool, store),
+            "images": await imagesfs_agent(pool, store)
+        }
+        registry.register_agents(age)
+        router = Router(registry)
+        await router.test("user_id", "create a file for me named 'file1.txt' with the letter 'a' as content, then list the files")
+        print(router.build_friendly())
+
+def fs_inj(filesystem: FSBase):
     async def norm_mag(nxt, current):
         print(nxt, current)
         return 1
     return norm_mag
-
-
-class AsyncMongoClient:
-    pass
-
 
 class TestSp(unittest.IsolatedAsyncioTestCase):
     _mk = None
@@ -81,11 +94,12 @@ class TestSp(unittest.IsolatedAsyncioTestCase):
     async def test_mk_other(self):
         registry = SpecialistIndex("testing")
         pool = None
-        fs = FSpecFS(filesystem="memory")
+        fs = FSBase(filesystem="memory")
         store = None
         age = {
             "filesystem": await fs_agent(pool, store),
             "memory": await memfs_agent(pool, store),
+            "clean_fs": await cleanfs_agent(pool, store),
             "images": await imagesfs_agent(pool, store)
         }
         registry.register_agents(age)

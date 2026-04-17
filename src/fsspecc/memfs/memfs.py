@@ -1,15 +1,11 @@
 import io
 from typing import Any
 
-from fastapi import Request
+from src.fsspecc.atomic_writefs.atomic_writefs import AtomicWriteFs
+from src.fsspecc.base_fsspecfs.base_fsspecfs import get_file_path
 
-from src.fsspecc.base_fsspecfs.base_fsspecfs import FSpecFS, get_file_path
 
-
-def get_storage(request: Request) -> "FSpecFS":
-    return request.app.state.storage
-
-class MemFS(FSpecFS):
+class MemFS(AtomicWriteFs):
 
     def __init__(self):
         super().__init__("memory")

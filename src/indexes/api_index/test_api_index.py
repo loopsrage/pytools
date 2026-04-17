@@ -2,6 +2,7 @@ import unittest
 
 from src.indexes.api_index.api_index import ApiIndex
 from src.jdelib.jdelib import JdeApi
+from src.otmlib.otmlib import OtmApi
 
 
 class Test(unittest.TestCase):
@@ -15,4 +16,5 @@ class Test(unittest.TestCase):
     def test_api_index(self):
         self.idx.register_api({
             "JDE": JdeApi(self._ais_server, self._ais_port),
+            "OTM": OtmApi(self._otm_server, auth=None),
         })

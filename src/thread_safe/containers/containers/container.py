@@ -1,12 +1,27 @@
 import collections
 import threading
 
-from lib.thread_safe.index import Index
-from lib.thread_safe.tslist import TsList
+from src.thread_safe.index import Index
+from src.thread_safe.tslist import TsList
 
 # Constants used in the Go code
 VALUES_STRING = "Values"
 CONTAINERS_STRING = "Containers"
+
+def flatten(data: dict):
+    fmt = []
+    cont = build_container_tree(start=data, path_delim=".")
+    for n, c in cont.range_containers:
+        for k, v in enumerate(c.value):
+            if isinstance(v, (dict, tuple, list)):
+                continue
+
+            if isinstance(c.value, dict):
+                val = c.value[v]
+                if isinstance(val, tuple):
+                    continue
+                fmt.append(c.value[v])
+    return fmt
 
 class Container:
     """
@@ -52,6 +67,21 @@ class Container:
         """Returns the parent container."""
         with self._lock:
             return self._parent
+
+    @property
+    def flatten(self):
+        out = {}
+        for n, c in self.range_containers:
+            for k, v in enumerate(c.value):
+                if isinstance(v, (dict, tuple, list)):
+                    continue
+
+                if isinstance(c.value, dict):
+                    val = c.value[v]
+                    if isinstance(val, tuple):
+                        continue
+                    out[f"{n}.{v}"] = val
+        return out
 
     def children(self) -> list:
         """Returns a list of all child containers."""

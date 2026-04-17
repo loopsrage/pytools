@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from src.fsspecc.base_fsspecfs.validate_input_node import validate_request_id
 from src.fsspecc.imagefs.imagesfs import ImagesFs
 
+
 class SavePNGInput(BaseModel):
     file_name: str
 
