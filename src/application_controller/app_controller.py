@@ -13,7 +13,7 @@ from pydantic_settings import BaseSettings
 from starlette.datastructures import MutableHeaders
 from starlette.staticfiles import StaticFiles
 
-from src.fsspecc.base_fsspecfs.base_fsspecfs import FSpecFS
+from src.fsspecc.base_fsspecfs.base_fsspecfs import FSBase
 from src.indexes.api_index.api_index import ApiIndex
 from src.indexes.connection_index.connection_index import ConnectionIndex
 from src.indexes.fsindex.fsindex import FilesystemIndex
@@ -106,7 +106,7 @@ class App:
         self._fast_api.include_router(router)
 
     def serve_with_static_files(self):
-        self._fast_api.state.storage = FSpecFS(filesystem="memory")
+        self._fast_api.state.storage = FSBase(filesystem="memory")
         static_dir = setting("FastApi", "static_files")
         try:
 

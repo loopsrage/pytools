@@ -5,21 +5,10 @@ from asyncio import iscoroutinefunction
 from sqlalchemy import func, cast
 from sqlalchemy.dialects.postgresql import insert, JSONB
 
+from src.postgreslib.datagrid_adapter import to_binary
 from src.postgreslib.engine import Base
 from src.postgreslib.util import  extract_model_kwargs
 
-
-def to_binary(data, subtype=0):
-    if data is None:
-        return None
-
-    if isinstance(data, str) and "```" in data:
-        data = re.sub(r"```(?:yaml|json|jsonb)?|```", "", data).strip()
-
-    return {
-        "Data": data,
-        "Subtype": subtype
-    }
 
 async def load_or_compute_once(model: type[Base], column, callback, filter_value, filter_column, **kwargs):
     session = kwargs.get("session")

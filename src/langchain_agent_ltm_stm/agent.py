@@ -1,6 +1,7 @@
 import uuid
 from typing import Any, AsyncGenerator, Dict, Union, List, Generator
 
+from langchain_core.messages.utils import count_tokens_approximately
 from pydantic import BaseModel
 
 from src.langlib.langlib import create_agent_pg_ltm_stm, Config

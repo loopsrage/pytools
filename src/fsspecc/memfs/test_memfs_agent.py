@@ -1,8 +1,9 @@
 import unittest
 
-from lib.langchain_agent_ltm_stm.agent import get_pool, arun_commands
-from lib.fsspecc.memfs.memfs_tool_agent import memfs_agent
-from lib.langlib.pgstore import PGS
+from src.fsspecc.cleanfs.test_cleanfs_agent import get_pool
+from src.fsspecc.memfs.memfs_tool_agent import memfs_agent
+from src.langchain_agent_ltm_stm.agent import arun_commands
+from src.langlib.pgstore import PGS
 
 
 class Test(unittest.IsolatedAsyncioTestCase):

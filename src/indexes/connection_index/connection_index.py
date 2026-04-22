@@ -1,5 +1,5 @@
+from src.thread_safe.index import Index
 
-from lib.thread_safe.index import Index
 
 class ConnectionIndex:
     _index = None

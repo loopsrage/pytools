@@ -1,5 +1,5 @@
-from lib.httpclient.api import Api
-from lib.thread_safe.index import Index
+from src.httpclient.api import Api
+from src.thread_safe.index import Index
 
 class ApiIndex:
     _index = None

@@ -1,7 +1,8 @@
 import collections
 import threading
-from lib.thread_safe.index import Index
-from lib.thread_safe.tslist import TsList
+
+from src.thread_safe.index import Index
+from src.thread_safe.tslist import TsList
 
 VALUES_STRING = "Values"
 CONTAINERS_STRING = "Containers"

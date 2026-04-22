@@ -21,6 +21,7 @@ dependencies = [
     "postgres>=4.0",
     "psycopg>=3.3.2",
     "psycopg-pool>=3.3.0",
+    "puremagic>=2.2.0",
     "pyautogui>=0.9.54",
     "pydantic>=2.12.5",
     "pydantic-settings>=2.12.0",

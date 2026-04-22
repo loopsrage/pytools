@@ -1,10 +1,10 @@
 import io
 
-from src.fsspecc.base_fsspecfs.base_fsspecfs import FSpecFS
+from src.fsspecc.base_fsspecfs.base_fsspecfs import FSBase
 from src.settings.helper import restore
 
 
-class FsSettings(FSpecFS):
+class FsSettings(FSBase):
 
     def __init__(self, filesystem: str, path: str, use_pipe=None):
         super().__init__(filesystem=filesystem)

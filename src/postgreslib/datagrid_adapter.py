@@ -1,6 +1,6 @@
 import re
 
-from sqlalchemy import select, func, and_,  or_, true
+from sqlalchemy import select, func, and_, or_, true
 from sqlalchemy.orm import Session
 
 from src.postgreslib.engine import Base

@@ -1,6 +1,6 @@
 import io
 
-from lib.fsspecc.base_fsspecfs.base_fsspecfs import FSBase, get_file_path
+from src.fsspecc.base_fsspecfs.base_fsspecfs import get_file_path, FSBase
 
 
 class ImagesFs(FSBase):
