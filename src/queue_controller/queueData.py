@@ -16,12 +16,16 @@ class QueueData(MutableMapping):
     _lock: threading.RLock = None
     _uuid: uuid.UUID = None
 
-    def __init__(self):
+
+    def __init__(self, **kwargs):
         self._index = Index().new("")
         self._trace = TsList()
         self._trace_durations = TsList()
         self._lock = threading.RLock()
         self._uuid = uuid.uuid4()
+
+        for key, value in kwargs.items():
+            self.set_attribute(key, value)
 
     def __setitem__(self, key, value):
         self.set_attribute(key, value)

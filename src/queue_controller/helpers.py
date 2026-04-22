@@ -8,7 +8,6 @@ from typing import Callable, Iterable, Coroutine, Any
 from queue_controller.queueController import QueueController
 from queue_controller.queueData import QueueData
 
-
 def simple_error_handler(e: Exception) -> bool:
     traceback.print_exception(e)
     return True
@@ -27,7 +26,11 @@ def link_pipeline(nodes: Iterable[QueueController]) -> list[QueueController]:
     return node_list
 
 def start_pipeline(tg: TaskGroup, nodes: list[QueueController]) -> list[asyncio.Task]:
-    return [tg.create_task(node.queue_action()) for node in nodes]
+    tasks = []
+    for node in nodes:
+        for _ in range(node.worker_count):
+            tasks.append(tg.create_task(node.queue_action()))
+    return tasks
 
 def gather_results(futures: list[Future]):
     return [f.result() for f in futures]
@@ -43,7 +46,7 @@ def default_queue_action(queue_data: QueueData) -> None:
         if total % 1000 == 0:
             print(total, list(zip(queue_data.trace(), queue_data.trace_duration())))
 
-def new_controller(identity: str = None, executor: ThreadPoolExecutor = None, action: Callable[[QueueData], Exception | None] | Coroutine[Any, Any, Exception | None] = None, **kwargs) -> QueueController:
+def new_controller(identity: str = None, executor: ThreadPoolExecutor = None, action: Callable[[QueueData], Exception | None] | Coroutine[Any, Any, Exception | None] = None, worker_count: int = 5, **kwargs) -> QueueController:
     if action is None:
         action = default_queue_action
 
@@ -51,7 +54,7 @@ def new_controller(identity: str = None, executor: ThreadPoolExecutor = None, ac
         identity = f"{uuid.uuid4().hex}-{action.__name__}"
 
     def _controller() -> QueueController:
-        return QueueController(identity=identity, action=action, executor=executor, **kwargs)
+        return QueueController(identity=identity, action=action, executor=executor, worker_count=worker_count, **kwargs)
 
     return _controller()
 

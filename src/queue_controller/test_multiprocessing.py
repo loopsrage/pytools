@@ -3,10 +3,11 @@ import unittest
 
 import pytest
 
-from queue_controller.helpers import new_controller, start_pipeline, link_pipeline, stop_pipeline
-from queue_controller.queueData import QueueData
-from stats_collector.stats_collector import aggregate_action
 from thread_safe.index import Index
+from queue_controller.helpers import new_controller, link_pipeline, start_pipeline, stop_pipeline
+from queue_controller.queueData import QueueData
+
+from stats_collector.stats_collector import aggregate_action
 
 stats = Index()
 
@@ -92,16 +93,17 @@ class Test(unittest.IsolatedAsyncioTestCase):
         async with asyncio.TaskGroup() as tg:
             try:
                 start_pipeline(nodes=pl, tg=tg)
-
+                tasks = []
                 for j in range(1000):
-                    await m0.enqueue(QueueData())
+                    tasks.append(m0.enqueue(QueueData()))
                 for k in range(5000):
-                    await m1.enqueue(QueueData())
-                    await m2.enqueue(QueueData())
-                    await m3.enqueue(QueueData())
+                    tasks.append(m1.enqueue(QueueData()))
+                    tasks.append(m2.enqueue(QueueData()))
+                    tasks.append(m3.enqueue(QueueData()))
 
                 for k in range(10000):
-                    await m7.enqueue(QueueData())
+                    tasks.append( m7.enqueue(QueueData()))
+                await asyncio.gather(*tasks)
             except ExceptionGroup as eg:
                 pytest.fail(f"Pipeline node failed: {eg}")
             finally:

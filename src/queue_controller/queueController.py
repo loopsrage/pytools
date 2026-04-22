@@ -6,7 +6,6 @@ from concurrent import futures
 from typing import Optional, Callable, Union, Coroutine, Any
 
 from queue_controller.queueData import QueueData
-
 logging.basicConfig(level=logging.ERROR)
 logger = logging.getLogger(__name__)
 
@@ -16,7 +15,7 @@ def debug_action(item: QueueData) -> None:
 def handle_error(e: Exception) -> bool:
     traceback.print_exception(e)
     logger.error("An error occurred during queue execution", exc_info=True)
-    return False
+    return True
 
 class QueueController:
     _identity: str
@@ -26,18 +25,19 @@ class QueueController:
     _action: Callable[[QueueData], Exception | None] | Coroutine[Any, Any, Exception | None]
     _next_queue_controller: Optional['QueueController'] = None
     _error_handler: Callable[[Exception], bool]
+    worker_count: int
 
     def __init__(self,
                  action: Callable[[QueueData], Exception | None] | Coroutine[Any, Any, Exception | None],
                  executor: futures.ThreadPoolExecutor = None,
                  max_queue_size: int = None,
                  identity: str = None,
-                 error_handler: Callable[[Exception], bool] = None) -> None:
+                 error_handler: Callable[[Exception], bool] = None, worker_count=5) -> None:
 
         self._error_handler = error_handler
         if self._error_handler is None:
             self._error_handler = handle_error
-
+        self.worker_count = worker_count
         if max_queue_size is None:
             max_queue_size = 1024
 
@@ -76,7 +76,8 @@ class QueueController:
         await self.queue.put(queue_data)
 
     async def close(self) -> None:
-        await self.queue.put(None)
+        for _ in range(self.worker_count):
+            await self.queue.put(None)
         await self.queue.join()
 
     async def broadcast(self, item) -> None:
