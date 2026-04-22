@@ -1,7 +1,7 @@
 import uuid
 
 from azure.search.documents import SearchClient
-from azure.search.documents._generated.models import VectorizedQuery
+from azure.search.documents.models import VectorizedQuery
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings
 from openai import AsyncAzureOpenAI
