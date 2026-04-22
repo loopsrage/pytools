@@ -4,21 +4,24 @@ import time
 import traceback
 import uuid
 from contextlib import asynccontextmanager
-from typing import Literal
+from typing import Literal, List
 
 import uvicorn
 from aiohttp.web_request import Request
 from fastapi import FastAPI
 from pydantic_settings import BaseSettings
 from starlette.datastructures import MutableHeaders
+from starlette.middleware.cors import CORSMiddleware
 from starlette.staticfiles import StaticFiles
 
 from fsspecc.base_fsspecfs.base_fsspecfs import FSBase
 from indexes.api_index.api_index import ApiIndex
+from indexes.app_ctrl_index.appctrl import ApplicationIndex
 from indexes.connection_index.connection_index import ConnectionIndex
 from indexes.fsindex.fsindex import FilesystemIndex
 from indexes.specialist_index.specialist_index import SpecialistIndex
 from settings.helper import unmarshal_app_settings, setting
+from thread_safe.controller.controller import Controller
 
 
 class LogConfig(BaseSettings):
@@ -33,20 +36,20 @@ class LogConfig(BaseSettings):
     errors: str | None = None
 
 class UvicornSettings(BaseSettings):
-    host: str = None
-    port: int = None
-    ssl_keyfile: str = None
-    ssl_certfile: str = None
-    timeout_keep_alive: int = None
-    log_level: int = None
-    access_log: bool = None
-    forwarded_allow_ips: str = None
-    limit_concurrency: int = None
-    workers: int = None
-    proxy_headers: str = None
-    loop: str = None
+    host: str | None = None
+    port: int | None= None
+    ssl_keyfile: str| None = None
+    ssl_certfile: str | None= None
+    timeout_keep_alive: int | None = 5
+    log_level: int | None = 1
+    access_log: bool | None= None
+    forwarded_allow_ips: str| None = None
+    limit_concurrency: int | None= None
+    workers: int | None= None
+    proxy_headers: str| None = None
+    loop: str | None= None
 
-class AppIndex(FilesystemIndex, ConnectionIndex, ApiIndex, SpecialistIndex):
+class AppIndex(ApplicationIndex, FilesystemIndex, ConnectionIndex, ApiIndex, SpecialistIndex):
     pass
 
 class App:
@@ -56,9 +59,10 @@ class App:
     _controllers = None
     _app_index = None
 
-    def __init__(self, uvcorn_settings: UvicornSettings):
-        self._closers = None
+    def __init__(self, uvcorn_settings: UvicornSettings, controllers: List[Controller] = None):
         self._settings = uvcorn_settings
+        self._controllers = controllers
+        self._app_index = AppIndex()
 
     @property
     def app_index(self):
@@ -69,19 +73,26 @@ class App:
         @asynccontextmanager
         async def lifespan(api: FastAPI):
             # --- STARTUP LOGIC ---
-            self._app_index = AppIndex()
             cfg = unmarshal_app_settings("Logging", LogConfig)
             logging.basicConfig(**cfg.model_dump())
             self._logger = logging.getLogger("default_logger")
             yield  # --- The app is now running and handling requests ---
 
-            for c in self._closers:
+            for c in self._controllers:
                 if hasattr(c, "close"):
                     c.close()
                 self._logger.info(f"Shutdown complete.")
 
         self._fast_api = FastAPI(lifespan=lifespan)
         self._fast_api.state.app_index = self._app_index
+
+        self._fast_api.add_middleware(
+            CORSMiddleware,
+            allow_origins=["*"],
+            allow_credentials=True,
+            allow_methods=["*"],  # This enables OPTIONS, GET, POST, etc.
+            allow_headers=["*"],
+        )
 
         @self._fast_api.middleware("http")
         async def add_process_time_header(request: Request, call_next):
