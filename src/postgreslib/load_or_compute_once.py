@@ -7,7 +7,7 @@ from sqlalchemy.dialects.postgresql import insert, JSONB
 
 from postgreslib.datagrid_adapter import to_binary
 from postgreslib.engine import Base
-from src.postgreslib.util import  extract_model_kwargs
+from postgreslib.util import  extract_model_kwargs
 
 
 async def load_or_compute_once(model: type[Base], column, callback, filter_value, filter_column, **kwargs):
