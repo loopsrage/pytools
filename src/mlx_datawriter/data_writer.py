@@ -4,9 +4,9 @@ import io
 import random
 import threading
 
-from lib.fsspecc.base_fsspecfs.base_fsspecfs import FSBase
-from lib.thread_safe.index import Index
-from lib.thread_safe.tslist import TsList
+from fsspecc.base_fsspecfs.base_fsspecfs import FSBase
+from thread_safe.index import Index
+from thread_safe.tslist import TsList
 
 
 class MLXDataWriter:
