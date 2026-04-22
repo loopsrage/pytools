@@ -2,8 +2,8 @@ from functools import partial
 
 from pydantic import BaseModel
 
-from lib.apis.shared_schemas.shared_schemas import OtmSettings
-from lib.httpclient.api import Api
+from src.httpclient.api import Api
+
 
 def headers(**kwargs):
     return {"Content-Type": f"application/json", **kwargs}
