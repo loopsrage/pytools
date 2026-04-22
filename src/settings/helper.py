@@ -6,11 +6,12 @@ import re
 import time
 
 import yaml
-from typing import Any, Iterator, IO, Callable, TypeVar, Type, Union, Container
+from typing import Any, Iterator, IO, Callable, TypeVar, Type, Union
 
+from pydantic import BaseModel
 from pydantic_settings import BaseSettings
 
-from thread_safe.containers.containers.container import build_container_tree
+from thread_safe.containers.containers.container import build_container_tree, Container
 from thread_safe.index import Index
 
 # Initialize the provided Index class
@@ -226,7 +227,9 @@ def unmarshal_app_settings_dict(app_name: str, app_config: dict) -> None:
         app_config.update(app_data)
 
 
-T = TypeVar("T", bound=BaseSettings)
+T = TypeVar("T", bound=Union[BaseModel, BaseSettings])
+def unmarshal(app: dict, settings_cls: Type[T]) -> T:
+    return settings_cls.model_validate(app)
 
 def unmarshal_app_settings(app_name: str, settings_cls: Type[T]) -> T:
     """Loads and unmarshals app settings into a Pydantic BaseSettings class."""
