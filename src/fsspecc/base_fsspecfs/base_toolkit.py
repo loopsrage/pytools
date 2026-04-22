@@ -5,8 +5,8 @@ from langchain_core.tools import BaseTool, tool, BaseToolkit
 from langgraph.prebuilt import ToolRuntime
 from pydantic import ConfigDict
 
-from src.fsspecc.base_fsspecfs.base_fsspecfs import FSBase, get_file_path
-from src.fsspecc.base_fsspecfs.validate_input_node import validate_request_id
+from fsspecc.base_fsspecfs.base_fsspecfs import FSBase, get_file_path
+from fsspecc.base_fsspecfs.validate_input_node import validate_request_id
 
 
 class FSToolkit(BaseToolkit):

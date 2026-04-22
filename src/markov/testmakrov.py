@@ -6,9 +6,9 @@ import numpy as np
 import pyautogui
 from pymongo import AsyncMongoClient
 
-from src.markov.markov import Markov
-from src.markov.mongo_markov import MongoMarkov
-from src.markov.mongo_mdp import MongoMDP
+from markov.markov import Markov
+from markov.mongo_markov import MongoMarkov
+from markov.mongo_mdp import MongoMDP
 
 
 def round_mp():

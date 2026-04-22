@@ -1,7 +1,7 @@
 import io
 
-from src.fsspecc.base_fsspecfs.base_fsspecfs import FSBase
-from src.settings.helper import restore
+from fsspecc.base_fsspecfs.base_fsspecfs import FSBase
+from settings.helper import restore
 
 
 class FsSettings(FSBase):

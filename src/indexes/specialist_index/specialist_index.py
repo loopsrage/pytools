@@ -1,8 +1,8 @@
 import hashlib
 from typing import List
 
-from src.langchain_agent_ltm_stm.agent import run_command, run_commands, arun_command, arun_commands
-from src.thread_safe.index import Index
+from langchain_agent_ltm_stm.agent import run_command, run_commands, arun_command, arun_commands
+from thread_safe.index import Index
 
 
 def get_global_index(name_identifier):

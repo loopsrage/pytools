@@ -1,7 +1,7 @@
 from sqlalchemy import inspect, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 
-from src.postgreslib.engine import Base
+from postgreslib.engine import Base
 
 def get_pk_names(model: type[Base]):
     return [key.name for key in inspect(model).primary_key]

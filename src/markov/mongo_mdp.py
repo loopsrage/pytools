@@ -2,8 +2,8 @@ import random
 import time
 from typing import Any
 
-from src.indexes.specialist_index.test_specialist_index import AsyncMongoClient
-from src.markov.mongo_markov import MongoMarkov
+from indexes.specialist_index.test_specialist_index import AsyncMongoClient
+from markov.mongo_markov import MongoMarkov
 
 
 class MongoMDP:

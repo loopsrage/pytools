@@ -5,8 +5,8 @@ from langchain_core.tools import BaseToolkit, tool
 from langgraph.prebuilt import InjectedState, ToolRuntime
 from pydantic import ConfigDict
 
-from src.fsspecc.base_fsspecfs.validate_input_node import validate_request_id
-from src.fsspecc.memfs.memfs import MemFS
+from fsspecc.base_fsspecfs.validate_input_node import validate_request_id
+from fsspecc.memfs.memfs import MemFS
 
 
 def _validate_key(tool_name: str, state: Annotated[dict, InjectedState]):

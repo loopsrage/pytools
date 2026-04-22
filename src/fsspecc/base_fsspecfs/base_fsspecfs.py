@@ -5,7 +5,7 @@ from typing import List, Optional
 import fsspec
 from pydantic import errors
 
-from src.thread_safe.index import Index
+from thread_safe.index import Index
 
 
 def get_file_path(request_id: str, file_name: str, sub_dir: str | List[str] = None):

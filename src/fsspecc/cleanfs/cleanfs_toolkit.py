@@ -7,8 +7,8 @@ from langchain_core.tools import BaseToolkit, tool
 from langgraph.prebuilt import InjectedState, ToolRuntime
 from pydantic import ConfigDict
 
-from src.fsspecc.base_fsspecfs.validate_input_node import validate_request_id
-from src.fsspecc.cleanfs.cleanfs import CleanFs
+from fsspecc.base_fsspecfs.validate_input_node import validate_request_id
+from fsspecc.cleanfs.cleanfs import CleanFs
 
 
 def _validate_csv_data(tool_name: str, csv_data, state: Annotated[dict, InjectedState]):

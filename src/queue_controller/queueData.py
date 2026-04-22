@@ -3,8 +3,8 @@ import uuid
 from typing import Any
 from collections.abc import MutableMapping
 
-from src.thread_safe.index import Index
-from src.thread_safe.tslist import TsList
+from thread_safe.index import Index
+from thread_safe.tslist import TsList
 
 ERRORS_KEY = "error"
 

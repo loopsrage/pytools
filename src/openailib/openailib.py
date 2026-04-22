@@ -6,8 +6,8 @@ from pydantic import BaseModel
 from pydantic_settings import BaseSettings
 from openai import AsyncAzureOpenAI
 from bs4 import BeautifulSoup
-from src.thread_safe.index import Index
-from src.thread_safe.tslist import TsList
+from thread_safe.index import Index
+from thread_safe.tslist import TsList
 
 from azure.core.credentials import AzureKeyCredential
 

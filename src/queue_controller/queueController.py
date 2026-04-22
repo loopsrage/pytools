@@ -5,7 +5,7 @@ import traceback
 from concurrent import futures
 from typing import Optional, Callable, Union, Coroutine, Any
 
-from src.queue_controller.queueData import QueueData
+from queue_controller.queueData import QueueData
 
 logging.basicConfig(level=logging.ERROR)
 logger = logging.getLogger(__name__)

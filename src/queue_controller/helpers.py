@@ -5,8 +5,8 @@ from asyncio import TaskGroup
 from concurrent.futures import ThreadPoolExecutor, Future
 from typing import Callable, Iterable, Coroutine, Any
 
-from src.queue_controller.queueController import QueueController
-from src.queue_controller.queueData import QueueData
+from queue_controller.queueController import QueueController
+from queue_controller.queueData import QueueData
 
 
 def simple_error_handler(e: Exception) -> bool:

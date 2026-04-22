@@ -2,9 +2,9 @@ import asyncio
 import traceback
 from typing import Callable, Union, Any
 
-from src.queue_controller.queueController import QueueController
-from src.queue_controller.queueData import QueueData
-from src.thread_safe.controller.controller import AsyncController
+from queue_controller.queueController import QueueController
+from queue_controller.queueData import QueueData
+from thread_safe.controller.controller import AsyncController
 
 
 def handle_error(e: Exception) -> bool:

@@ -7,7 +7,7 @@ from typing import Optional, Callable, Tuple
 import fsspec
 from pydantic_settings import BaseSettings
 
-from src.fsspecc.base_fsspecfs.base_fsspecfs import FSBase
+from fsspecc.base_fsspecfs.base_fsspecfs import FSBase
 
 
 class AzureBlobConfig(BaseSettings):

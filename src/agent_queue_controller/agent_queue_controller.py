@@ -1,6 +1,6 @@
-from src.queue_controller.helpers import new_controller
-from src.queue_controller.queueData import QueueData
-from src.indexes.specialist_index.specialist_index import SpecialistIndex
+from queue_controller.helpers import new_controller
+from queue_controller.queueData import QueueData
+from indexes.specialist_index.specialist_index import SpecialistIndex
 
 def specialist_index_queue_data(specialist_index: SpecialistIndex, exchange_with_nodes = False) -> QueueData:
     """Sets QueueData state with specialist_index"""

@@ -1,8 +1,8 @@
 import collections
 import threading
 
-from src.thread_safe.index import Index
-from src.thread_safe.tslist import TsList
+from thread_safe.index import Index
+from thread_safe.tslist import TsList
 
 # Constants used in the Go code
 VALUES_STRING = "Values"

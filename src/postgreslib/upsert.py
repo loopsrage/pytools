@@ -4,8 +4,8 @@ from sqlalchemy import func, cast
 from sqlalchemy.dialects.postgresql import insert, JSONB
 from sqlalchemy.orm import Session
 
-from src.postgreslib.engine import Base
-from src.postgreslib.util import extract_model_kwargs, get_all_unique_columns
+from postgreslib.engine import Base
+from postgreslib.util import extract_model_kwargs, get_all_unique_columns
 
 
 def upsert_entry(session: Session, model: type[Base], index_elements: list[str], force_update: set[str] | None = None, **kwargs):

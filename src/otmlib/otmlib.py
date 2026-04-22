@@ -2,7 +2,7 @@ from functools import partial
 
 from pydantic import BaseModel
 
-from src.httpclient.api import Api
+from httpclient.api import Api
 
 
 def headers(**kwargs):

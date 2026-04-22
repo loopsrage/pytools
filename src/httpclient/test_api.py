@@ -4,7 +4,7 @@ from typing import Union
 
 from pydantic import BaseModel
 from pytest_httpserver import HTTPServer
-from src.httpclient.api import Api
+from httpclient.api import Api
 
 DEFAULT_REQUEST = {}
 DEFAULT_CLIENT = {}

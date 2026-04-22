@@ -1,8 +1,8 @@
 import unittest
 
 
-from src.settings.helper import restore, enabled, setting, print_all_types, write_all_types, settings_for_namespace
-from src.settings.schemas.schemas import AppSettings, Example, NestedSettings, Example2, Example3, Example4
+from settings.helper import restore, enabled, setting, print_all_types, write_all_types, settings_for_namespace
+from settings.schemas.schemas import AppSettings, Example, NestedSettings, Example2, Example3, Example4
 
 
 class Test(unittest.TestCase):

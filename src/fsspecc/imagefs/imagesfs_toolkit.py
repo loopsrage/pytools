@@ -5,8 +5,8 @@ from langgraph.prebuilt import ToolRuntime
 from pydantic import ConfigDict, BaseModel
 import matplotlib.pyplot as plt
 
-from src.fsspecc.base_fsspecfs.validate_input_node import validate_request_id
-from src.fsspecc.imagefs.imagesfs import ImagesFs
+from fsspecc.base_fsspecfs.validate_input_node import validate_request_id
+from fsspecc.imagefs.imagesfs import ImagesFs
 
 
 class SavePNGInput(BaseModel):

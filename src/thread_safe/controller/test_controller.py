@@ -3,7 +3,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
-from src.thread_safe.controller.controller import Controller
+from thread_safe.controller.controller import Controller
 
 
 def action(ct: Controller, index: int):

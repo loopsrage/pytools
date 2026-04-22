@@ -4,12 +4,12 @@ import unittest
 from dotenv import load_dotenv
 from starlette.routing import Router
 
-from src.fsspecc.base_fsspecfs.base_fsspecfs import FSBase
-from src.fsspecc.base_fsspecfs.base_tool_agent import fs_agent
-from src.fsspecc.cleanfs.cleanfs_tool_agent import cleanfs_agent
-from src.fsspecc.imagefs.imagesfs_tool_agent import imagesfs_agent
-from src.fsspecc.memfs.memfs_tool_agent import memfs_agent
-from src.indexes.connection_index.connection_index import ConnectionIndex
+from fsspecc.base_fsspecfs.base_fsspecfs import FSBase
+from fsspecc.base_fsspecfs.base_tool_agent import fs_agent
+from fsspecc.cleanfs.cleanfs_tool_agent import cleanfs_agent
+from fsspecc.imagefs.imagesfs_tool_agent import imagesfs_agent
+from fsspecc.memfs.memfs_tool_agent import memfs_agent
+from indexes.connection_index.connection_index import ConnectionIndex
 from src.indexes.specialist_index.specialist_index import SpecialistIndex
 from src.langlib.pgstore import PGS
 from src.markov.mongo_mdp import MongoMDP

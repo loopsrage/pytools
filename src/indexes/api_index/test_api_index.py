@@ -1,8 +1,8 @@
 import unittest
 
-from src.indexes.api_index.api_index import ApiIndex
-from src.jdelib.jdelib import JdeApi
-from src.otmlib.otmlib import OtmApi
+from indexes.api_index.api_index import ApiIndex
+from jdelib.jdelib import JdeApi
+from otmlib.otmlib import OtmApi
 
 
 class Test(unittest.TestCase):

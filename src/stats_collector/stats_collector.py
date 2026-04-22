@@ -1,9 +1,9 @@
 import datetime
 
-from src.superlative_times.superlative_times import SuperlativeTimes
-from src.thread_safe.index import Index
-from src.queue_controller.queueData import QueueData
-from src.thread_safe.onceler import Onceler
+from superlative_times.superlative_times import SuperlativeTimes
+from thread_safe.index import Index
+from queue_controller.queueData import QueueData
+from thread_safe.onceler import Onceler
 
 once = Onceler()
 

@@ -5,7 +5,7 @@ from typing import Callable, Awaitable
 
 from aiohttp import ClientSession, ClientResponse
 
-from src.thread_safe.index import Index
+from thread_safe.index import Index
 
 type JSON = dict[str, "JSON"] | list["JSON"] | str | int | float | bool | None
 

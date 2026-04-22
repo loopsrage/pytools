@@ -1,8 +1,8 @@
 import unittest
 
-from src.fsspecc.cleanfs.cleanfs_tool_agent import cleanfs_agent
-from src.langchain_agent_ltm_stm.agent import arun_commands
-from src.langlib.pgstore import PGS
+from fsspecc.cleanfs.cleanfs_tool_agent import cleanfs_agent
+from langchain_agent_ltm_stm.agent import arun_commands
+from langlib.pgstore import PGS
 
 
 async def get_pool():

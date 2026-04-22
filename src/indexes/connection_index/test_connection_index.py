@@ -6,8 +6,8 @@ from psycopg import AsyncConnection
 from psycopg.rows import DictRow, dict_row
 from psycopg_pool import AsyncConnectionPool
 
-from src.indexes.connection_index.connection_index import ConnectionIndex
-from src.settings.helper import restore, setting
+from indexes.connection_index.connection_index import ConnectionIndex
+from settings.helper import restore, setting
 
 idx = ConnectionIndex()
 load_dotenv()

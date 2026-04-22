@@ -5,8 +5,8 @@ from asyncio import iscoroutinefunction
 from sqlalchemy import func, cast
 from sqlalchemy.dialects.postgresql import insert, JSONB
 
-from src.postgreslib.datagrid_adapter import to_binary
-from src.postgreslib.engine import Base
+from postgreslib.datagrid_adapter import to_binary
+from postgreslib.engine import Base
 from src.postgreslib.util import  extract_model_kwargs
 
 

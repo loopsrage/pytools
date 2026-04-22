@@ -1,9 +1,9 @@
 import asyncio
 import unittest
 
-from src.periodic_producer.periodic_producer import PeriodicProducer, get_producer_result
-from src.queue_controller.queueController import QueueController
-from src.queue_controller.queueData import QueueData
+from periodic_producer.periodic_producer import PeriodicProducer, get_producer_result
+from queue_controller.queueController import QueueController
+from queue_controller.queueData import QueueData
 
 
 def context_for_mock_action(*args, **kwargs):

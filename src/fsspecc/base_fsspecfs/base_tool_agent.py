@@ -2,9 +2,9 @@ from typing import NotRequired, TypedDict, Annotated
 
 from langgraph.graph import add_messages
 
-from src.fsspecc.base_fsspecfs.base_fsspecfs import FSBase
-from src.fsspecc.base_fsspecfs.base_toolkit import FSToolkit
-from src.langchain_agent_ltm_stm.agent import base_agent
+from fsspecc.base_fsspecfs.base_fsspecfs import FSBase
+from fsspecc.base_fsspecfs.base_toolkit import FSToolkit
+from langchain_agent_ltm_stm.agent import base_agent
 
 
 class AgentFsRequest(TypedDict):

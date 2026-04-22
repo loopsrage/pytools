@@ -5,11 +5,11 @@ import traceback
 from pydantic_settings import BaseSettings
 
 import playwright
-from src.queue_controller.helpers import new_controller
-from src.queue_controller.queueController import QueueController
-from src.queue_controller.queueData import QueueData
-from src.thread_safe.index import Index
-from src.thread_safe.onceler import Onceler
+from queue_controller.helpers import new_controller
+from queue_controller.queueController import QueueController
+from queue_controller.queueData import QueueData
+from thread_safe.index import Index
+from thread_safe.onceler import Onceler
 
 
 class ScrapeUrls(BaseSettings):

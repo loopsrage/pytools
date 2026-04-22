@@ -13,12 +13,12 @@ from pydantic_settings import BaseSettings
 from starlette.datastructures import MutableHeaders
 from starlette.staticfiles import StaticFiles
 
-from src.fsspecc.base_fsspecfs.base_fsspecfs import FSBase
-from src.indexes.api_index.api_index import ApiIndex
-from src.indexes.connection_index.connection_index import ConnectionIndex
-from src.indexes.fsindex.fsindex import FilesystemIndex
-from src.indexes.specialist_index.specialist_index import SpecialistIndex
-from src.settings.helper import unmarshal_app_settings, setting
+from fsspecc.base_fsspecfs.base_fsspecfs import FSBase
+from indexes.api_index.api_index import ApiIndex
+from indexes.connection_index.connection_index import ConnectionIndex
+from indexes.fsindex.fsindex import FilesystemIndex
+from indexes.specialist_index.specialist_index import SpecialistIndex
+from settings.helper import unmarshal_app_settings, setting
 
 
 class LogConfig(BaseSettings):

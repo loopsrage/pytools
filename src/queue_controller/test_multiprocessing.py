@@ -3,10 +3,10 @@ import unittest
 
 import pytest
 
-from src.queue_controller.helpers import new_controller, start_pipeline, link_pipeline, stop_pipeline
-from src.queue_controller.queueData import QueueData
-from src.stats_collector.stats_collector import aggregate_action
-from src.thread_safe.index import Index
+from queue_controller.helpers import new_controller, start_pipeline, link_pipeline, stop_pipeline
+from queue_controller.queueData import QueueData
+from stats_collector.stats_collector import aggregate_action
+from thread_safe.index import Index
 
 stats = Index()
 

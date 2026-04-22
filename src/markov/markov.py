@@ -6,7 +6,7 @@ from typing import List, Any
 
 from pydantic import BaseModel
 
-from src.thread_safe.tslist import TsList
+from thread_safe.tslist import TsList
 
 
 class MarkovData(BaseModel):

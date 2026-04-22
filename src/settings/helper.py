@@ -10,8 +10,8 @@ from typing import Any, Iterator, IO, Callable, TypeVar, Type, Union, Container
 
 from pydantic_settings import BaseSettings
 
-from src.thread_safe.containers.containers.container import build_container_tree
-from src.thread_safe.index import Index
+from thread_safe.containers.containers.container import build_container_tree
+from thread_safe.index import Index
 
 # Initialize the provided Index class
 APP_INDEX = Index()

@@ -5,9 +5,9 @@ from typing import List, Any, Union, Optional
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 
-from src.azurelib.sql import AzureSqlConfig, AzureSql
-from src.settings.helper import unmarshal_app_settings, restore
-from src.thread_safe.index import Index
+from azurelib.sql import AzureSqlConfig, AzureSql
+from settings.helper import unmarshal_app_settings, restore
+from thread_safe.index import Index
 
 load_dotenv()
 restore(os.getenv("ENV_FILE"))

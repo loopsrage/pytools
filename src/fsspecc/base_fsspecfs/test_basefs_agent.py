@@ -1,8 +1,8 @@
 import unittest
 
-from src.fsspecc.base_fsspecfs.base_tool_agent import fs_agent
-from src.langchain_agent_ltm_stm.agent import arun_commands
-from src.langlib.pgstore import PGS
+from fsspecc.base_fsspecfs.base_tool_agent import fs_agent
+from langchain_agent_ltm_stm.agent import arun_commands
+from langlib.pgstore import PGS
 
 
 class Get:

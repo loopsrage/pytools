@@ -9,7 +9,7 @@ from gridfs import errors
 
 from pymongo import MongoClient
 
-from src.fsspecc.atomic_writefs.atomic_writefs import AtomicWriteFs
+from fsspecc.atomic_writefs.atomic_writefs import AtomicWriteFs
 
 
 def _aggregate_last_version(db, fs, filename=None, collection=None):

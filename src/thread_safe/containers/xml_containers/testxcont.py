@@ -1,6 +1,6 @@
 import unittest
 
-from src.thread_safe.containers.xml_containers.xcontainers import build_xml_container_tree
+from thread_safe.containers.xml_containers.xcontainers import build_xml_container_tree
 import xml.etree.ElementTree as ET
 
 xml_data = """

@@ -1,7 +1,7 @@
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from src.postgreslib.engine import Base
+from postgreslib.engine import Base
 
 
 def count_column(session: Session, model: type[Base], column_name, order_column=None):

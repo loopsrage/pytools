@@ -3,7 +3,7 @@ import unittest
 
 from concurrent_collections import ConcurrentDictionary
 
-from src.thread_safe.index import Index
+from thread_safe.index import Index
 
 
 class MyTestCase(unittest.TestCase):

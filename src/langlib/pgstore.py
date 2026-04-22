@@ -2,7 +2,7 @@ from typing import List
 
 from langgraph.store.postgres.base import PostgresIndexConfig
 
-from src.thread_safe.index import Index
+from thread_safe.index import Index
 
 _idx = Index()
 

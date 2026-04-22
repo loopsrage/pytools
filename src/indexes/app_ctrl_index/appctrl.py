@@ -1,4 +1,4 @@
-from src.thread_safe.index import Index
+from thread_safe.index import Index
 
 
 class ApplicationIndex:

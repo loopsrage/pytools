@@ -2,9 +2,9 @@ from typing import Annotated, TypedDict, NotRequired
 
 from langgraph.graph import add_messages
 
-from src.fsspecc.cleanfs.cleanfs import CleanFs
-from src.fsspecc.cleanfs.cleanfs_toolkit import CleanFSToolkit
-from src.langchain_agent_ltm_stm.agent import base_agent
+from fsspecc.cleanfs.cleanfs import CleanFs
+from fsspecc.cleanfs.cleanfs_toolkit import CleanFSToolkit
+from langchain_agent_ltm_stm.agent import base_agent
 
 
 class AgentRequestIdCsvData(TypedDict):

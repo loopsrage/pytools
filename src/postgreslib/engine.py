@@ -5,7 +5,7 @@ from pydantic_settings import BaseSettings
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-from src.settings.helper import unmarshal_app_settings
+from settings.helper import unmarshal_app_settings
 logging.getLogger('sqlalchemy.engine').setLevel(logging.WARNING)
 
 Base = declarative_base()

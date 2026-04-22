@@ -2,9 +2,9 @@ from typing import NotRequired, TypedDict, Any, Annotated
 
 from langgraph.graph import add_messages
 
-from src.fsspecc.memfs.memfs import MemFS
-from src.fsspecc.memfs.memfs_toolkit import MemFSToolkit
-from src.langchain_agent_ltm_stm.agent import base_agent
+from fsspecc.memfs.memfs import MemFS
+from fsspecc.memfs.memfs_toolkit import MemFSToolkit
+from langchain_agent_ltm_stm.agent import base_agent
 
 
 class AgentRequestIdKeyValue(TypedDict):

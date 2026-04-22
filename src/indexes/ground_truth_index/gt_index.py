@@ -3,7 +3,7 @@ import re
 import pandas as pd
 from pandas import DataFrame
 
-from src.thread_safe.index import Index
+from thread_safe.index import Index
 
 
 class GTIndex:

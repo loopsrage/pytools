@@ -1,5 +1,5 @@
-from src.fsspecc.base_fsspecfs.base_fsspecfs import FSBase
-from src.thread_safe.index import Index
+from fsspecc.base_fsspecfs.base_fsspecfs import FSBase
+from thread_safe.index import Index
 
 
 class FilesystemIndex:

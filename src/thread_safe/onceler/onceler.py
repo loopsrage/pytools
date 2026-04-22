@@ -2,7 +2,7 @@ import asyncio
 import threading
 from typing import Any, Callable
 
-from src.thread_safe.index import Index
+from thread_safe.index import Index
 
 
 class Onceler:

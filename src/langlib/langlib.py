@@ -6,7 +6,7 @@ from langchain.agents import create_agent
 from langchain.agents.middleware import SummarizationMiddleware
 from langchain_core.messages import SystemMessage
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
-from src.fsspecc.base_fsspecfs.base_fsspecfs import FSpecFS
+from fsspecc.base_fsspecfs.base_fsspecfs import FSpecFS
 
 
 def _system_message(inject: str):

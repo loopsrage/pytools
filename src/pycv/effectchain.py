@@ -7,10 +7,10 @@ from typing import List
 
 import pytesseract
 
-from src.pycv.effects import ErodeEffect, AdaptiveThresholdEffect, GaussianBlurEffect, GrayScaleEffect, DilateEffect, \
+from pycv.effects import ErodeEffect, AdaptiveThresholdEffect, GaussianBlurEffect, GrayScaleEffect, DilateEffect, \
     Effect
-from src.pycv.helpers import get_horizontal_and_vertical_lines, extract_cell_bounds, sort_and_filter_rects
-from src.queue_controller.helpers import new_controller, start_pipeline, stop_pipeline
+from pycv.helpers import get_horizontal_and_vertical_lines, extract_cell_bounds, sort_and_filter_rects
+from queue_controller.helpers import new_controller, start_pipeline, stop_pipeline
 from src.queue_controller.queueController import QueueController
 from src.queue_controller.queueData import QueueData
 from src.thread_safe.index import Index

@@ -1,7 +1,7 @@
 import threading
 
-from src.httpclient.api import Api
-from src.jdelib.schemas.schemas import Auth, DataServiceRequest, FileDownload, ListMediaFiles, AppstackExecute, \
+from httpclient.api import Api
+from jdelib.schemas.schemas import Auth, DataServiceRequest, FileDownload, ListMediaFiles, AppstackExecute, \
     ReportDiscover, ReportExecute, ReportStatus
 
 

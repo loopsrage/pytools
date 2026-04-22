@@ -2,7 +2,7 @@ import threading
 import pypdfium2
 from pypdfium2 import PdfDocument
 
-from src.thread_safe.index import Index
+from thread_safe.index import Index
 
 
 class PDFM:

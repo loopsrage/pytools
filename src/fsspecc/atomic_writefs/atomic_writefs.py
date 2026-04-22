@@ -1,7 +1,7 @@
 import io
 import uuid
 
-from src.fsspecc.base_fsspecfs.base_fsspecfs import FSBase
+from fsspecc.base_fsspecfs.base_fsspecfs import FSBase
 
 
 class AtomicWriteFs(FSBase):

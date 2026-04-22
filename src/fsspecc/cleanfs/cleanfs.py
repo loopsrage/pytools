@@ -2,8 +2,8 @@ import io
 
 import pandas as pd
 
-from src.fsspecc.atomic_writefs.atomic_writefs import AtomicWriteFs
-from src.fsspecc.base_fsspecfs.base_fsspecfs import get_file_path
+from fsspecc.atomic_writefs.atomic_writefs import AtomicWriteFs
+from fsspecc.base_fsspecfs.base_fsspecfs import get_file_path
 
 
 class CleanFs(AtomicWriteFs):

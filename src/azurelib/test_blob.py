@@ -3,10 +3,10 @@ import unittest
 
 from dotenv import load_dotenv
 
-from src.azurelib.blob import AzureBlobConfig, AzureBlob
-from src.fsspecc.base_fsspecfs.base_fsspecfs import FSBase
-from src.indexes.fsindex.fsindex import FilesystemIndex
-from src.settings.helper import unmarshal_app_settings, restore
+from azurelib.blob import AzureBlobConfig, AzureBlob
+from fsspecc.base_fsspecfs.base_fsspecfs import FSBase
+from indexes.fsindex.fsindex import FilesystemIndex
+from settings.helper import unmarshal_app_settings, restore
 
 load_dotenv()
 restore(os.getenv("ENV_FILE"))
