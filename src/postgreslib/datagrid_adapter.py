@@ -44,6 +44,9 @@ def to_binary(data, subtype=0, meta: object =None):
     if data is None:
         return None
 
+    if meta is None:
+        meta = {}
+
     if isinstance(data, str) and "```" in data:
         data = re.sub(r"```(?:yaml|json|jsonb)?|```", "", data).strip()
 
