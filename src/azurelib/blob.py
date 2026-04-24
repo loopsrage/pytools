@@ -1,18 +1,23 @@
 import base64
 import hashlib
 import shutil
+import ssl
 from pathlib import Path
-from typing import Optional, Callable, Tuple
+from typing import Optional, Callable, Tuple, Any
 
 import fsspec
+import truststore
+from pydantic import ConfigDict
 from pydantic_settings import BaseSettings
 
 from fsspecc.base_fsspecfs.base_fsspecfs import FSBase
 
 
 class AzureBlobConfig(BaseSettings):
+    model_config = ConfigDict(extra="allow")
     account_name: str
     account_key: str
+    ssl: Any
 
 def calculate_local_md5(data: bytes) -> str:
     """Calculates MD5 hash of local bytes."""
