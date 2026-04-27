@@ -80,9 +80,10 @@ class App:
             self._logger = logging.getLogger("default_logger")
             yield  # --- The app is now running and handling requests ---
 
-            for c in self._controllers:
-                if hasattr(c, "close"):
-                    c.close()
+            if self._controllers is not None:
+                for c in self._controllers:
+                    if hasattr(c, "close"):
+                        c.close()
                 self._logger.info(f"Shutdown complete.")
 
         self._fast_api = FastAPI(lifespan=lifespan)
