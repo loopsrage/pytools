@@ -128,6 +128,6 @@ class App:
             else:
                 self._logger.warning(f"Static directory '{static_dir}' not found. Skipping mount.")
             uvicorn.run(self._fast_api, **self._settings.model_dump())
-        except Exception as e:
+        except BaseException as e:
             traceback.print_exception(e)
             self._logger.error(str(e))
