@@ -9,6 +9,7 @@ from typing import Literal, List
 import uvicorn
 from aiohttp.web_request import Request
 from fastapi import FastAPI
+from pydantic import ConfigDict
 from pydantic_settings import BaseSettings
 from starlette.datastructures import MutableHeaders
 from starlette.middleware.cors import CORSMiddleware
@@ -40,14 +41,15 @@ class UvicornSettings(BaseSettings):
     port: int | None= None
     ssl_keyfile: str| None = None
     ssl_certfile: str | None= None
+    reload: bool | None = False
     timeout_keep_alive: int | None = 5
     log_level: int | None = 1
     access_log: bool | None= None
     forwarded_allow_ips: str| None = None
     limit_concurrency: int | None= None
-    workers: int | None= None
+    workers: int | None= 1
     proxy_headers: str| None = None
-    loop: str | None= None
+    loop: str | None= "uvloop"
 
 class AppIndex(ApplicationIndex, FilesystemIndex, ConnectionIndex, ApiIndex, SpecialistIndex):
     pass
