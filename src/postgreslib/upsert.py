@@ -32,13 +32,13 @@ def upsert_entry(session: Session, model: type[Base], index_elements: list[str],
 
             update_dict[k] = func.coalesce(col_attr, update_val)
 
-    if not update_dict:
-        update_stmt = stmt.on_conflict_do_nothing(index_elements=index_elements)
-    else:
+    if update_dict:
         update_stmt = stmt.on_conflict_do_update(
             index_elements=index_elements,
             set_=update_dict
         )
+    else:
+        return
 
     try:
         session.execute(update_stmt)
