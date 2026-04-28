@@ -15,7 +15,7 @@ def get_all_unique_columns(model: type[Base]):
 
     for index in model.__table__.indexes:
         if index.unique:
-            columns.update(c.name for c in index.columns if c.name != "id")
+            columns.update(c.name for c in index.columns)
 
     columns.update(c.name for c in model.__table__.columns if c.unique)
     return list(columns)
