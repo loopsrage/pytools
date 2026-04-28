@@ -13,12 +13,8 @@ def upsert_entry(session: Session, model: type[Base], index_elements: list[str],
     valid_kwargs = extract_model_kwargs(model, **kwargs)
 
     stmt = insert(model).values(**valid_kwargs)
-    unique_cols = get_all_unique_columns(model)
-
     update_dict = {}
     for k, v in valid_kwargs.items():
-        if k in unique_cols or k in index_elements:
-            continue
 
         col_attr = getattr(model, k)
 
@@ -32,13 +28,13 @@ def upsert_entry(session: Session, model: type[Base], index_elements: list[str],
 
             update_dict[k] = func.coalesce(col_attr, update_val)
 
-    if update_dict:
-        update_stmt = stmt.on_conflict_do_update(
-            index_elements=index_elements,
-            set_=update_dict
-        )
-    else:
+    if not update_dict:
         return
+
+    update_stmt = stmt.on_conflict_do_update(
+        index_elements=index_elements,
+        set_=update_dict
+    )
 
     try:
         session.execute(update_stmt)
