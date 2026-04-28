@@ -15,6 +15,8 @@ def upsert_entry(session: Session, model: type[Base], index_elements: list[str],
     stmt = insert(model).values(**valid_kwargs)
     update_dict = {}
     for k, v in valid_kwargs.items():
+        if k in index_elements:
+            continue
 
         col_attr = getattr(model, k)
 
