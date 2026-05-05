@@ -9,6 +9,7 @@ from typing import Literal, List
 import uvicorn
 from aiohttp.web_request import Request
 from fastapi import FastAPI
+from fastapi.routing import APIRoute
 from pydantic import ConfigDict
 from pydantic_settings import BaseSettings
 from starlette.datastructures import MutableHeaders
@@ -115,6 +116,10 @@ class App:
                 f"Method: {request.method}, RequestId: {request_id}, Path: {request.url.path} Time: {process_time:.4f}s")
 
             return response
+
+    def api_routes(self):
+        return [r for r in self._fast_api.routes
+            if isinstance(r, APIRoute)]
 
     def register_router(self, router):
         self._fast_api.include_router(router)
