@@ -131,14 +131,14 @@ class AzureAIClient:
         query_vector = await self.get_embedding(vector_query)
         vector_query = VectorizedQuery(
             vector=query_vector,
-            k_nearest_neighbors=2,
-            weight=.1,
+            k_nearest_neighbors=5,
+            weight=.5,
             fields="snippet_vector"
         )
         search_results = self._search_client.search(
-            search_text=None,
+            search_text=query,
             vector_queries=[vector_query],
-            top=2,
+            top=5,
             select=["snippet"]
         )
         cleaned_data = clean_hts_context(search_results)
