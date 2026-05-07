@@ -131,23 +131,27 @@ class AzureAIClient:
         query_vector = await self.get_embedding(vector_query)
         vector_query = VectorizedQuery(
             vector=query_vector,
-            k_nearest_neighbors=5,
-            weight=.5,
+            k_nearest_neighbors=100,
+            weight=.1,
             fields="snippet_vector"
         )
         search_results = self._search_client.search(
+            search_mode="all",
+            query_type="full",
             search_text=query,
             vector_queries=[vector_query],
-            top=5,
-            select=["snippet"]
+            top=10,
+            select=["*"]
         )
-        cleaned_data = clean_hts_context(search_results)
-        return "\n".join(cleaned_data)
+        results = [doc for doc in search_results]
+        cleaned_data = clean_hts_context(results)
+        return "\n".join(cleaned_data), results
 
     async def parse_response(self, query: str, vector_query, response_model: BaseModel, **kwargs):
+        cleaned, _ = await self.inject_vector_context(query, vector_query)
         result = await self.client.responses.parse(
             model=self.config.azure_deployment,
-            input=await self.inject_vector_context(query, vector_query),
+            input=cleaned,
             reasoning={"effort": "high"},
             text_format=response_model,
             **kwargs
