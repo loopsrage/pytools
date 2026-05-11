@@ -4,14 +4,30 @@ import shutil
 import ssl
 from pathlib import Path
 from typing import Optional, Callable, Tuple, Any
+from llama_index.embeddings.azure_openai import AzureOpenAIEmbedding
 
 import fsspec
 import truststore
 from pydantic import ConfigDict
 from pydantic_settings import BaseSettings
 
+from azurelib.sql import AzureSqlConfig
 from fsspecc.base_fsspecfs.base_fsspecfs import FSBase
+from openailib.openailib import AzureOpenAIConfig, AzureSearchClientConfig
 
+
+class AzureSearchVectorStoreConfig(BaseSettings):
+    index_key: str | None
+    embedding_dimensionality: int | None
+
+class AzureIndexAgentSearchConfig(BaseSettings):
+    model_config = ConfigDict(extra='allow')
+    Sql: Optional[AzureSqlConfig] = None
+    Openai: Optional[AzureOpenAIConfig] = None
+    Search: Optional[AzureSearchClientConfig] = None
+    Storage: Optional[AzureBlobConfig] = None
+    Embed: Optional[AzureOpenAIEmbedding] = None
+    Vector: Optional[AzureSearchVectorStoreConfig] = None
 
 class AzureBlobConfig(BaseSettings):
     model_config = ConfigDict(extra="allow")
