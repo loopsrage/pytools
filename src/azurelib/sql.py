@@ -6,11 +6,11 @@ from sqlalchemy import create_engine, inspect, Table, MetaData, bindparam, text
 
 
 class AzureSqlConfig(BaseSettings):
-    driver: str
-    server: str
-    database: str
-    username: str
-    password: str
+    driver: str | None
+    server: str | None
+    database: str | None
+    username: str | None
+    password: str | None
 
     def con_str(self):
         params = self.model_dump()

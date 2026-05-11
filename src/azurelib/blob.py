@@ -15,9 +15,9 @@ from fsspecc.base_fsspecfs.base_fsspecfs import FSBase
 
 class AzureBlobConfig(BaseSettings):
     model_config = ConfigDict(extra="allow")
-    account_name: str
-    account_key: str
-    ssl: Any
+    account_name: str | None = None
+    account_key: str | None = None
+    ssl: Any | None = None
 
 def calculate_local_md5(data: bytes) -> str:
     """Calculates MD5 hash of local bytes."""

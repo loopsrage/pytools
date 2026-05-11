@@ -119,7 +119,7 @@ class OtmAuth(BaseModel):
 class OtmApi(Api):
     _token: str = None
 
-    def __init__(self, settings: OtmSettings, default_client_args: dict = None, default_request_args: dict = None):
+    def __init__(self, settings: OtmAuth, default_client_args: dict = None, default_request_args: dict = None):
         self._auth = OtmAuth(user=settings.user, password=settings.password)
         base_url = f"https://{settings.server}.oraclecloud.com"
         super().__init__(base_url, default_client_args, default_request_args)

@@ -13,17 +13,17 @@ from azure.core.credentials import AzureKeyCredential
 
 
 class AzureOpenAIConfig(BaseSettings):
-    azure_deployment: str
-    embedding_deployment: str
-    index_name: str
-    api_key: str
-    azure_endpoint: str
-    api_version: str
+    azure_deployment: str | None
+    embedding_deployment: str | None
+    index_name: str | None
+    api_key: str | None
+    azure_endpoint: str | None
+    api_version: str | None
 
 class AzureSearchClientConfig(BaseSettings):
-    endpoint: str
-    index_name: str
-    key: str
+    endpoint: str | None
+    index_name: str | None
+    key: str | None
 
 class Messages:
     _response_index: Index = None
