@@ -2,10 +2,12 @@ import os
 import unittest
 
 from dotenv import load_dotenv
+
+from meta_models.file import UploadedFiles
+from meta_models.working import select_work
 from postgreslib.engine import named_session
 from settings.helper import setting, restore
 
-from tweak_similarity.lib.models.file import select_work, UploadedFiles
 
 load_dotenv()
 restore(os.getenv("ENV_FILE"))
