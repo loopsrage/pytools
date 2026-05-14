@@ -1,8 +1,8 @@
 import datetime
 
-from psycopg2.extensions import JSONB
 from pydantic import BaseModel
 from sqlalchemy import Column, Index, text, cast, DateTime, Integer, func, select, or_, update
+from sqlalchemy.dialects.postgresql import JSONB
 
 
 class Working(BaseModel):

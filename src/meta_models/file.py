@@ -7,7 +7,6 @@ from postgreslib.engine import Base
 from postgreslib.upsert import upsert_entry
 from pydantic import BaseModel
 from sqlalchemy import Column, Integer, String, DateTime, func, Index, cast, text, select, update, or_, LargeBinary
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import declared_attr
 
 
