@@ -1,4 +1,5 @@
 import json
+from collections.abc import Callable
 
 import yaml
 from mlx_lm import stream_generate, load
@@ -6,14 +7,10 @@ from mlx_lm.sample_utils import make_sampler
 
 def user_string(prompt, tables):
     for v in tables["tables"]:
-        prompt = f"{prompt}:\n\n{yaml.dump(json.loads(tables["tables"][v]))}\n\n"
+        prompt = f"\n{prompt}:\n\n{yaml.dump(json.loads(tables["tables"][v]))}\n\n"
     return prompt
 
-def developer_string():
-    return (f"Check for similarities between description strings.\n"
-            f"Provide an detailed analysis and audit of the difference.\n")
-
-async def unfuzed_parse_response( query, adapter, model, verbose=False, max_tokens=2048, temp = 0.0):
+async def unfuzed_parse_response(query, adapter, model, verbose=False, max_tokens=2048, temp = 0.0, dev_str = Callable):
 
     if adapter == model or adapter is None:
         actual_adapter = None
@@ -30,7 +27,7 @@ async def unfuzed_parse_response( query, adapter, model, verbose=False, max_toke
 
     prompt = (
         f"<|im_start|>developer\n"
-        f"{developer_string()}<|im_end|>\n"
+        f"{dev_str()}<|im_end|>\n"
         f"<|im_start|>user\n"
         f"{query}<|im_end|>\n"
         f"<|im_start|>assistant\n"

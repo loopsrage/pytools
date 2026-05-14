@@ -20,6 +20,8 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from starlette.requests import Request
 
+from settings.helper import setting
+
 
 def select_by_id(session, model, id):
     stmt = select(model).where(model.id == id)
@@ -142,11 +144,11 @@ def create_crud_router(router, named_sess, model, schema_model, index_elements):
                 return {"error": str(e)}
 
         @router.post("/compare")
-        async def compare(self, model: str, tables: dict):
+        async def compare(self, prompt, tables: dict):
             result = await unfuzed_parse_response(
-                user_string(tables),
+                user_string(prompt, tables),
                 None,
-                model,
+                setting("LocalAI", "compare_model"),
                 temp=0.0,
                 verbose=True)
             return result
