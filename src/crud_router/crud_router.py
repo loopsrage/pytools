@@ -5,11 +5,12 @@ import uuid
 from typing import Any, Optional
 
 from application_controller.app_controller import App, AppIndex
-from fastapi import Depends, Body, UploadFile, File
+from fastapi import Depends, UploadFile, File
 from fastapi_restful.cbv import cbv
 from fsspecc.base_fsspecfs.base_fsspecfs import FSBase
 from meta_models.file import upsert_file
 from meta_models.working import Working
+from openaiunfused.openaiunfused import unfuzed_parse_response, user_string
 from postgreslib.count_column import count_column
 from postgreslib.datagrid_adapter import mui_datagrid_select_many
 from postgreslib.engine import named_session
@@ -139,6 +140,16 @@ def create_crud_router(router, named_sess, model, schema_model, index_elements):
             except Exception as e:
                 traceback.print_exception(e)
                 return {"error": str(e)}
+
+        @router.post("/compare")
+        async def compare(self, model: str, tables: dict):
+            result = await unfuzed_parse_response(
+                user_string(tables),
+                None,
+                model,
+                temp=0.0,
+                verbose=True)
+            return result
 
         @router.post("/upload")
         async def upload(self, file: UploadFile = File(...)):

@@ -21,6 +21,7 @@ dependencies = [
     "llama-index-core>=0.14.21",
     "llama-index-embeddings-azure-openai>=0.5.2",
     "matplotlib>=3.10.8",
+    "mlx-lm>=0.31.3",
     "numpy>=2.4.1",
     "openai>=2.32.0",
     "opencv-python>=4.13.0.92",
