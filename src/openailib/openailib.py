@@ -164,7 +164,7 @@ class AzureAIClient:
 
     async def parse_response(self, config: InjectConfig, response_model: BaseModel, **kwargs):
         if config:
-            cleaned, _ = await self.inject_vector_context(config)
+            cleaned, raw_results = await self.inject_vector_context(config)
         else:
             cleaned = config.query
 
@@ -175,7 +175,7 @@ class AzureAIClient:
             text_format=response_model,
             **kwargs
         )
-        return result
+        return result, raw_results, cleaned
 
 
     async def ollama_parse_response(self, client, model, query: str, vector_query, response_model: BaseModel, **kwargs):
