@@ -1,3 +1,4 @@
+import re
 import uuid
 
 from azure.search.documents import SearchClient
@@ -38,7 +39,7 @@ class Messages:
         self._response_index.store_in_index(identity, position, message)
         return position
 
-def clean_hts_context(search_results):
+def clean_context(search_results):
     # 1. Join snippets and parse
     context_html = "\n".join([doc['snippet'] for doc in search_results])
     soup = BeautifulSoup(context_html, 'html.parser')
@@ -127,24 +128,29 @@ class AzureAIClient:
         for j in await self.list_fine_tuning_jobs():
             yield await self.client.fine_tuning.jobs.retrieve(j.id)
 
-    async def inject_vector_context(self, query, vector_query: str):
+    async def inject_vector_context(self, top: int, knn: int, search_fields: list[str], select: list[str], vector_field, query, vector_query: str):
         query_vector = await self.get_embedding(vector_query)
+
+        lucene_chars = r'[\+\-\&\|\!\(\)\{\}\[\]\^\"\~\*\?\:\\\/]'
+        query = re.sub(lucene_chars, r'\\\g<0>', query)
+
         vector_query = VectorizedQuery(
             vector=query_vector,
-            k_nearest_neighbors=100,
+            k_nearest_neighbors=knn,
             weight=.1,
-            fields="snippet_vector"
+            fields=vector_field
         )
         search_results = self._search_client.search(
             search_mode="all",
             query_type="full",
             search_text=query,
+            search_fields=search_fields,
             vector_queries=[vector_query],
-            top=10,
-            select=["*"]
+            top=top,
+            select=select
         )
         results = [doc for doc in search_results]
-        cleaned_data = clean_hts_context(results)
+        cleaned_data = clean_context(results)
         return "\n".join(cleaned_data), results
 
     async def parse_response(self, query: str, vector_query, response_model: BaseModel, **kwargs):
