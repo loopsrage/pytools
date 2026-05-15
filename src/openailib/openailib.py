@@ -68,7 +68,7 @@ def clean_context(search_results):
     # 5. Return as a clean Markdown-style block
     return cleaned_data
 
-class InjectConfig:
+class InjectConfig(BaseSettings):
     top: int = 100
     knn: int = 100
     search_fields: list[str] = ["snippet"]
