@@ -72,7 +72,7 @@ class InjectConfig(BaseSettings):
     top: int = 100
     knn: int = 100
     search_fields: list[str] = ["snippet"]
-    select: list[str] = "*"
+    select: list[str] = ["*"]
     vector_field: str = "snippet_vector"
     query: str
     vector_query: str = ""
