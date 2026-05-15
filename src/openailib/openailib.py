@@ -68,6 +68,15 @@ def clean_context(search_results):
     # 5. Return as a clean Markdown-style block
     return cleaned_data
 
+class InjectConfig:
+    top: int = 100
+    knn: int = 100
+    search_fields: list[str] = ["snippet"]
+    select: list[str] = "*"
+    vector_field: str = "snippet_vector"
+    query: str
+    vector_query: str = ""
+
 class AzureAIClient:
 
     _identity: str = None
@@ -128,33 +137,37 @@ class AzureAIClient:
         for j in await self.list_fine_tuning_jobs():
             yield await self.client.fine_tuning.jobs.retrieve(j.id)
 
-    async def inject_vector_context(self, top: int, knn: int, search_fields: list[str], select: list[str], vector_field, query, vector_query: str):
-        query_vector = await self.get_embedding(vector_query)
+    async def inject_vector_context(self, config: InjectConfig):
+        query_vector = await self.get_embedding(config.vector_query)
 
         lucene_chars = r'[\+\-\&\|\!\(\)\{\}\[\]\^\"\~\*\?\:\\\/]'
-        query = re.sub(lucene_chars, r'\\\g<0>', query)
+        query = re.sub(lucene_chars, r'\\\g<0>', config.query)
 
         vector_query = VectorizedQuery(
             vector=query_vector,
-            k_nearest_neighbors=knn,
+            k_nearest_neighbors=config.knn,
             weight=.1,
-            fields=vector_field
+            fields=config.vector_field
         )
         search_results = self._search_client.search(
             search_mode="all",
             query_type="full",
             search_text=query,
-            search_fields=search_fields,
+            search_fields=config.search_fields,
             vector_queries=[vector_query],
-            top=top,
-            select=select
+            top=config.top,
+            select=config.select
         )
         results = [doc for doc in search_results]
         cleaned_data = clean_context(results)
         return "\n".join(cleaned_data), results
 
-    async def parse_response(self, query: str, vector_query, response_model: BaseModel, **kwargs):
-        cleaned, _ = await self.inject_vector_context(query, vector_query)
+    async def parse_response(self, config: InjectConfig, response_model: BaseModel, **kwargs):
+        if config:
+            cleaned, _ = await self.inject_vector_context(config)
+        else:
+            cleaned = config.query
+
         result = await self.client.responses.parse(
             model=self.config.azure_deployment,
             input=cleaned,
