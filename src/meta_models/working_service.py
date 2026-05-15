@@ -26,13 +26,15 @@ class WorkerService(ServiceController):
     identity: str = None
     config: WorkerServiceConfig
     action: Any
+    model = None
     _lock = threading.RLock
 
-    def __init__(self, session_name: str, config: WorkerServiceConfig, action: Any):
+    def __init__(self, session_name: str, model, config: WorkerServiceConfig, action: Any):
         self.session_name = session_name
         self._lock = threading.RLock()
         self.config = config
         self.action = action
+        self.model = model
         self.start()
 
     def start(self):
@@ -50,11 +52,12 @@ class WorkerService(ServiceController):
                     set_stage = self.config.set_stage
                     limit = self.config.limit
                     retries = self.config.retries
+                    mod = self.model
 
                 with named_session(sn) as session:
                     res = select_work(
                         session=session,
-                        model=UploadedFiles,
+                        model=mod,
                         stage=stage,
                         limit=limit,
                         retries=retries,
