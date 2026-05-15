@@ -7,6 +7,7 @@ from meta_models.file import UploadedFiles
 from meta_models.working import select_work
 from periodic_producer.periodic_producer import PeriodicProducer
 from postgreslib.engine import named_session
+from postgreslib.util import to_dict
 from queue_controller.helpers import new_controller
 from service_controller.service_controller import ServiceController
 
@@ -59,7 +60,8 @@ class WorkerService(ServiceController):
                         retries=retries,
                         set_stage=set_stage
                     )
-                return res
+                    results = [to_dict(r) for r in res]
+                return results
             return action
 
         initq = new_controller(
