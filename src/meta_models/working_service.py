@@ -12,7 +12,6 @@ from service_controller.service_controller import ServiceController
 
 class WorkerServiceConfig(BaseSettings):
     identity: str
-    session_name: str
     enabled: bool = True
     stage: str = "initial"
     limit: int = 10
