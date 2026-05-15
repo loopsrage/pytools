@@ -14,7 +14,7 @@ def developer_string():
     return (f"Check for similarities between description strings.\n"
             f"Provide an detailed analysis and audit of the difference.\n")
 
-async def unfuzed_parse_response( query, adapter, model, verbose=False, max_tokens=2048, temp = 0.0):
+def unfuzed_parse_response( query, adapter, model, verbose=False, max_tokens=2048, temp = 0.0):
 
     if adapter == model or adapter is None:
         actual_adapter = None
