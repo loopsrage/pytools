@@ -17,7 +17,6 @@ class WorkerServiceConfig(BaseSettings):
     limit: int = 10
     retries: int = 3
     set_stage: str | None = None
-    action: Any
     worker_count: int = 5
     worker_interval: int = 1
     start_now: bool = True
@@ -25,12 +24,14 @@ class WorkerServiceConfig(BaseSettings):
 class WorkerService(ServiceController):
     identity: str = None
     config: WorkerServiceConfig
+    action: Any
     _lock = threading.RLock
 
-    def __init__(self, session_name: str, config: WorkerServiceConfig):
+    def __init__(self, session_name: str, config: WorkerServiceConfig, action: Any):
         self.session_name = session_name
         self._lock = threading.RLock()
         self.config = config
+        self.action = action
         self.start()
 
     def start(self):
@@ -62,7 +63,7 @@ class WorkerService(ServiceController):
             return action
 
         initq = new_controller(
-            action=self.config.action,
+            action=self.action,
             worker_count=self.config.worker_count)
         result = PeriodicProducer(
             queue=initq,
