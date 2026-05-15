@@ -38,8 +38,14 @@ def to_dict(obj):
         if not isinstance(c.type, JSONB)
     }
 
-def get_fts_expression(model):
+def to_dict_jsonb(obj):
+    return {
+        c.name: getattr(obj, c.name)
+        for c in obj.__table__.columns
+    }
+
+def get_fts_expression(model, name):
     for index in model.__table__.indexes:
-        if index.name == "idx_windchill_fts":
+        if index.name == f"idx_{name}_fts":
             return index.expressions[0]
     return None

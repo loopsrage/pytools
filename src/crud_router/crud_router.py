@@ -144,8 +144,8 @@ def create_crud_router(router, named_sess, model, schema_model, index_elements):
                 return {"error": str(e)}
 
         @router.post("/compare")
-        async def compare(self, prompt, tables: dict):
-            result = await unfuzed_parse_response(
+        def compare(self, prompt, tables: dict):
+            result = unfuzed_parse_response(
                 user_string(prompt, tables),
                 None,
                 setting("LocalAI", "compare_model"),
