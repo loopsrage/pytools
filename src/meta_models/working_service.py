@@ -23,7 +23,6 @@ class WorkerServiceConfig(BaseSettings):
     start_now: bool = True
 
 class WorkerService(ServiceController):
-    identity: str = None
     config: WorkerServiceConfig
     action: Any
     model = None
@@ -68,6 +67,7 @@ class WorkerService(ServiceController):
             return action
 
         initq = new_controller(
+            identity=self.config.identity,
             action=self.action,
             worker_count=self.config.worker_count)
         result = PeriodicProducer(
