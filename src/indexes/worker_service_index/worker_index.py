@@ -25,7 +25,7 @@ class WorkerServiceIndex:
 
     @property
     def range_workers(self):
-        for name, worker in self._index.range_index(self._namespace):
+        for name, worker in self._index.range_index("workers"):
             yield name, worker
 
     async def close_workers(self):
