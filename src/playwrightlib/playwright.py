@@ -11,6 +11,7 @@ from queue_controller.queueController import QueueController
 from queue_controller.queueData import QueueData
 from thread_safe.index import Index
 from thread_safe.onceler import Onceler
+from playwright.async_api import async_playwright
 
 
 class ScrapeUrls(BaseSettings):

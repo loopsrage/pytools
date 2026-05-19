@@ -27,6 +27,7 @@ dependencies = [
     "opencv-python>=4.13.0.92",
     "optuna>=4.7.0",
     "pandas>=3.0.0",
+    "playwright>=1.60.0",
     "postgres>=4.0",
     "psycopg>=3.3.2",
     "psycopg-pool>=3.3.0",
