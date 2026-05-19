@@ -1,6 +1,7 @@
 import asyncio
 import re
 import traceback
+from typing import List
 
 from pydantic_settings import BaseSettings
 
@@ -84,7 +85,7 @@ class Playwright:
     _queue: asyncio.Queue = None
     p_node: QueueController
     onceler: Onceler
-    def __init__(self,urls: ScrapeUrls, output: QueueController):
+    def __init__(self,urls: List[ScrapeUrls], output: QueueController):
         self._data = Index()
         self._urls = urls
         self._queue = asyncio.Queue()
