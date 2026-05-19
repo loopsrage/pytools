@@ -10,11 +10,11 @@ class WorkerServiceIndex:
     def __init__(self):
         self._index = Index()
         self._namespace = "workers"
-        self._index.new(self._namespace)
+        self._index.new("workers")
 
     def worker(self, name, workers=None):
         return self._index.load_or_store_in_index(
-            index_name=self._namespace,
+            index_name="workers",
             key=name,
             value=workers
         )
