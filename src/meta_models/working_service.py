@@ -1,4 +1,6 @@
+import asyncio
 import threading
+from asyncio import iscoroutinefunction
 from typing import Any
 
 from pydantic_settings import BaseSettings
@@ -22,6 +24,27 @@ class WorkerServiceConfig(BaseSettings):
     worker_interval: int = 1
     start_now: bool = True
 
+class WorkerActionService(ServiceController):
+    config: WorkerServiceConfig
+    action: Any
+
+    def start(self):
+        if self.config.enabled:
+            self.initial()
+
+    def initial(self):
+        async def action():
+            if asyncio.iscoroutinefunction(self.action):
+               await self.action()
+            else:
+               await asyncio.to_thread(self.action)
+
+        result = PeriodicProducer(
+            action=action,
+            interval=self.config.worker_interval,
+            start_now=self.config.start_now)
+        self.controllers.append(result)
+
 class WorkerService(ServiceController):
     config: WorkerServiceConfig
     action: Any
@@ -38,7 +61,6 @@ class WorkerService(ServiceController):
 
     def start(self):
         if self.config.enabled:
-            self.either = True
             self.initial()
 
     def initial(self):
