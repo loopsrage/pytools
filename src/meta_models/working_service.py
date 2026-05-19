@@ -11,6 +11,7 @@ from periodic_producer.periodic_producer import PeriodicProducer
 from postgreslib.engine import named_session
 from postgreslib.util import to_dict_jsonb
 from queue_controller.helpers import new_controller
+from queue_controller.queueController import QueueController
 from service_controller.service_controller import ServiceController
 
 class WorkerServiceConfig(BaseSettings):
@@ -54,14 +55,16 @@ class WorkerService(ServiceController):
     config: WorkerServiceConfig
     action: Any
     model = None
+    next_queue = None
     _lock = threading.RLock
 
-    def __init__(self, session_name: str, model, config: WorkerServiceConfig, action: Any):
+    def __init__(self, session_name: str, model, config: WorkerServiceConfig, action: Any, next_queue: QueueController = None):
         self.session_name = session_name
         self._lock = threading.RLock()
         self.config = config
         self.action = action
         self.model = model
+        self.next_queue = next_queue
         self.start()
 
     def start(self):
@@ -97,6 +100,8 @@ class WorkerService(ServiceController):
             identity=self.config.identity,
             action=self.action,
             worker_count=self.config.worker_count)
+        if self.next_queue:
+            initq.set_next(self.next_queue)
         result = PeriodicProducer(
             queue=initq,
             action=cba(),
