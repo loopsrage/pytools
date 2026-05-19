@@ -28,6 +28,12 @@ class WorkerActionService(ServiceController):
     config: WorkerServiceConfig
     action: Any
 
+    def __init__(self, session_name: str, config: WorkerServiceConfig, action: Any):
+        self.session_name = session_name
+        self.config = config
+        self.action = action
+        self.start()
+
     def start(self):
         if self.config.enabled:
             self.initial()
