@@ -158,5 +158,5 @@ class App:
     async def start(self, stop_event, loop):
         async with asyncio.TaskGroup() as tg:
             tg_proxy = ThreadSafeTG(tg, loop)
-            await self.app_index.start_workers(stop_event, tg_proxy)
+            self.app_index.start_workers(stop_event, tg_proxy)
             tg.create_task(self.aserve())
