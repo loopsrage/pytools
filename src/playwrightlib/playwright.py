@@ -5,6 +5,7 @@ import traceback
 from pydantic_settings import BaseSettings
 
 import playwright
+from meta_models.working_service import WorkerServiceConfig
 from queue_controller.helpers import new_controller
 from queue_controller.queueController import QueueController
 from queue_controller.queueData import QueueData
@@ -18,11 +19,9 @@ class ScrapeUrls(BaseSettings):
     filter: str
 
 class PlaywrightSettings(BaseSettings):
-    enabled: bool
+    worker: WorkerServiceConfig
     headless: bool
     scrape_urls: list[ScrapeUrls]
-    interval: int
-    start_now: bool
 
 
 semaphore = asyncio.Semaphore(5)
