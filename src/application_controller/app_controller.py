@@ -1,8 +1,10 @@
+import asyncio
 import logging
 import os
 import time
 import traceback
 import uuid
+from asyncio import TaskGroup
 from contextlib import asynccontextmanager
 from typing import Literal, List
 
@@ -10,7 +12,6 @@ import uvicorn
 from aiohttp.web_request import Request
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
-from pydantic import ConfigDict
 from pydantic_settings import BaseSettings
 from starlette.datastructures import MutableHeaders
 from starlette.middleware.cors import CORSMiddleware
@@ -22,8 +23,17 @@ from indexes.app_ctrl_index.appctrl import ApplicationIndex
 from indexes.connection_index.connection_index import ConnectionIndex
 from indexes.fsindex.fsindex import FilesystemIndex
 from indexes.specialist_index.specialist_index import SpecialistIndex
+from indexes.worker_service_index.worker_index import WorkerServiceIndex
 from settings.helper import unmarshal_app_settings, setting
 from thread_safe.controller.controller import Controller
+
+class ThreadSafeTG(TaskGroup):
+    def __init__(self, tg, loop):
+        self._tg = tg
+        self._loop = loop
+
+    def create_task(self, coro):
+        return self._loop.call_soon_threadsafe(self._tg.create_task, coro)
 
 
 class LogConfig(BaseSettings):
@@ -52,7 +62,7 @@ class UvicornSettings(BaseSettings):
     proxy_headers: str| None = None
     loop: str | None= "uvloop"
 
-class AppIndex(ApplicationIndex, FilesystemIndex, ConnectionIndex, ApiIndex, SpecialistIndex):
+class AppIndex(ApplicationIndex, WorkerServiceIndex, FilesystemIndex, ConnectionIndex, ApiIndex, SpecialistIndex):
     pass
 
 class App:
@@ -60,7 +70,7 @@ class App:
     _fast_api = None
     _logger = None
     _controllers = None
-    _app_index = None
+    _app_index: AppIndex = None
 
     def __init__(self, uvcorn_settings: UvicornSettings, controllers: List[Controller] = None):
         self._settings = uvcorn_settings
@@ -137,3 +147,16 @@ class App:
         except BaseException as e:
             traceback.print_exception(e)
             self._logger.error(str(e))
+
+    async def aserve(self):
+        try:
+            await asyncio.to_thread(self.serve_with_static_files)
+        except BaseException as e:
+            print(e)
+            raise
+
+    async def start(self, stop_event, loop):
+        async with asyncio.TaskGroup() as tg:
+            tg_proxy = ThreadSafeTG(tg, loop)
+            await self.app_index.start_workers(stop_event, tg_proxy)
+            tg.create_task(self.aserve())

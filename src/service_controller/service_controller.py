@@ -1,3 +1,4 @@
+import asyncio
 from asyncio import TaskGroup
 
 from periodic_producer.periodic_producer import PeriodicProducer
