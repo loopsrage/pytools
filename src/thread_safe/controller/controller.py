@@ -93,6 +93,7 @@ class AsyncController:
     async def wait(self):
         """Async equivalent to self._tick_event.wait()."""
         await self._tick_event.wait()
+        self._tick_event.clear()
 
     def ticker(self) -> asyncio.Event:
         return self._tick_event
@@ -102,6 +103,8 @@ class AsyncController:
         self.running = False
         if self._task:
             self._task.cancel()
+        if self._sleep_task:
+            self._sleep_task.cancel()
         self._tick_event.set()
 
     def clear(self):
