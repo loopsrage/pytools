@@ -55,7 +55,7 @@ class AsyncController:
         self._tick_event = asyncio.Event()
         self.running = True
         self._task = None
-
+        self._sleep_task = None
         # Start the background ticking task
         # We use create_task so it runs concurrently with your other code
         initial_delay = 0 if start_now else self.interval
@@ -69,15 +69,21 @@ class AsyncController:
         """Internal loop that acts like the threading.Timer."""
         try:
             if initial_delay > 0:
-                await asyncio.sleep(initial_delay)
+                try:
+                    self._sleep_task = asyncio.create_task(asyncio.sleep(initial_delay))
+                    await self._sleep_task
+                except asyncio.CancelledError:
+                    pass
 
             while self.running:
                 self._tick_event.set()
                 # Crucial: asyncio.Event.set() doesn't auto-clear like some Go channels.
                 # We clear immediately so the NEXT wait() actually blocks.
                 self._tick_event.clear()
-
-                await asyncio.sleep(self.interval)
+                try:
+                    await asyncio.sleep(self.interval)
+                except asyncio.CancelledError:
+                    pass
         except asyncio.CancelledError:
             pass
 

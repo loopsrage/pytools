@@ -7,7 +7,7 @@ from queue_controller.queueData import QueueData
 from thread_safe.controller.controller import AsyncController
 
 
-def handle_error(e: Exception) -> bool:
+def handle_error_f(e: Exception) -> bool:
     traceback.print_exception(e)
     return False
 
@@ -18,7 +18,7 @@ class PeriodicProducer:
     _handle_error = None
     def __init__(self,action: Callable[[], Any],  queue: QueueController = None, interval: int = 1, start_now: bool = False, handle_error=None):
         if handle_error is None:
-            self._handle_error = handle_error
+            self._handle_error = handle_error_f
         self._controller = AsyncController(interval, start_now)
         self._queue = queue
         self._action = action
