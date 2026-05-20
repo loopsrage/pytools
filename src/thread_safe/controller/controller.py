@@ -64,6 +64,8 @@ class AsyncController:
     def trigger(self):
         """Manually trigger the event to bypass the current sleep interval."""
         self._tick_event.set()
+        if self._sleep_task and not self._sleep_task.done():
+            self._sleep_task.cancel()
 
     async def _run_ticker(self, initial_delay):
         """Internal loop that acts like the threading.Timer."""
