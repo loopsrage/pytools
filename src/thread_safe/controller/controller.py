@@ -83,7 +83,8 @@ class AsyncController:
                 # We clear immediately so the NEXT wait() actually blocks.
                 self._tick_event.clear()
                 try:
-                    await asyncio.sleep(self.interval)
+                    self._sleep_task = asyncio.create_task(asyncio.sleep(self.interval))
+                    await self._sleep_task
                 except asyncio.CancelledError:
                     pass
         except asyncio.CancelledError:
