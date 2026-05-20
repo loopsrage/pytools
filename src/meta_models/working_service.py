@@ -93,6 +93,7 @@ class WorkerService(ServiceController):
                         set_stage=set_stage
                     )
                     results = [to_dict_jsonb(r) for r in res]
+                    print(f"worker {self.config.action.__name__} found results {len(results)}")
                 return results
             return action
 
