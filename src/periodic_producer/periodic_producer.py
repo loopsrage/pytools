@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import traceback
 from typing import Callable, Union, Any
 
@@ -36,7 +37,7 @@ class PeriodicProducer:
                 if not self._controller.running:
                     break
 
-                if asyncio.iscoroutinefunction(self._action):
+                if inspect.iscoroutinefunction(self._action):
                     result = await self._action()
                 else:
                     result = await asyncio.to_thread(self._action)
