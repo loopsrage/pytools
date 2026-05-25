@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import logging
 import time
 import traceback
@@ -95,7 +96,7 @@ class QueueController:
 
             try:
                 start_time = time.perf_counter()
-                if asyncio.iscoroutinefunction(self._action):
+                if inspect.iscoroutinefunction(self._action):
                     result = await self._action(item)
                 else:
                     result = await asyncio.to_thread(self._action, item)
