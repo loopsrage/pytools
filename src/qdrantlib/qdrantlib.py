@@ -113,7 +113,7 @@ class QdrantBGEM3:
 @dataclass
 class Document:
     id: Any = None
-    payload: dict = None
+    payload: str = None
     collection: str = None
 
 def only_new_docs(client: QdrantClient, documents: list[Document]):
@@ -161,7 +161,7 @@ def embed_upload_documents(client: QdrantBGEM3, documents: list[Document]):
                 "bge-m3-dense": dense_vector,
                 "bge-m3-sparse": sparse_vector
             },
-            payload=doc.payload
+            payload={"text": doc.payload}
         ))
 
     for k, v in collections.items():
