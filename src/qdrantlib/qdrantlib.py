@@ -114,6 +114,7 @@ class QdrantBGEM3:
 class Document:
     id: Any = None
     payload: str = None
+    payload_hash: str = None
     collection: str = None
 
 def only_new_docs(client: QdrantClient, documents: list[Document]):
