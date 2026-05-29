@@ -110,9 +110,8 @@ class QdrantBGEM3:
             query=models.FusionQuery(fusion=models.Fusion.DBSF),
             limit=limit
         )
-
 @dataclass
-class Document(BaseModel):
+class Document:
     id: Any = None
     payload: dict = None
     collection: str = None
