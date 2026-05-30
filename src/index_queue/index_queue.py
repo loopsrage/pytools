@@ -15,6 +15,13 @@ class ActionConfig:
     def __init__(self, queue: QueueController):
         self.queue = queue
 
+
+async def _gather_and_trigger(tasks):
+    try:
+        await asyncio.gather(*tasks)
+    except Exception as e:
+        raise e
+
 class IndexQueue:
     index: Index = None
 
@@ -39,12 +46,13 @@ class IndexQueue:
                 for k, x in items:
                     self.index.delete_from_index(action_key, k)
                     queued.append(self.load_stage_action(action_key).queue.enqueue(QueueData(key=action_key, obj=x, index_queue=self)))
+
+                if queued:
+                    asyncio.create_task(_gather_and_trigger(queued))
+
             except Exception as e:
                 traceback.print_exception(e)
                 pass
-            finally:
-                if queued:
-                    await asyncio.gather(*queued)
 
         return WorkerActionService(
             config=config,
