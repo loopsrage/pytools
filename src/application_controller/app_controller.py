@@ -17,7 +17,7 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.staticfiles import StaticFiles
 
 from fsspecc.base_fsspecfs.base_fsspecfs import FSBase
-from index_queue.index_queue import IndexQueue
+from index_queue.index_queue import IndexQueue, ActionConfig
 from indexes.api_index.api_index import ApiIndex
 from indexes.app_ctrl_index.appctrl import ApplicationIndex
 from indexes.connection_index.connection_index import ConnectionIndex
@@ -83,11 +83,11 @@ class WorkerApp(AppBase):
 
 class SimpleApp(AppBase):
     action_queues: IndexQueue = None
-    actions: dict[str, QueueController]
+    actions: dict[str, ActionConfig]
 
-    def __init__(self, actions: dict[str, QueueController]):
-        self.queues.extend([controller for _, controller in actions.items()])
-        self.action_queues = IndexQueue({name: controller for name, controller in actions})
+    def __init__(self, actions: dict[str, ActionConfig]):
+        self.queues.extend([controller.queue for _, controller in actions.items()])
+        self.action_queues = IndexQueue({name: controller for name, controller in actions.items()})
 
 class WebApp(AppBase):
     _settings: UvicornSettings = None
