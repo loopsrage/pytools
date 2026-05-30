@@ -160,5 +160,11 @@ class WebApp(AppBase):
             raise
 
     async def init(self, stop_event, tg, logger=None):
-        self.app_index.start_workers(stop_event, tg)
+        super().init(stop_event, tg, logger)
         tg.create_task(self.aserve())
+
+class WebAppWithWorkers(WebApp, WorkerApp):
+    pass
+
+class SimpleAppWithWorkers(SimpleApp, WorkerApp):
+    pass
