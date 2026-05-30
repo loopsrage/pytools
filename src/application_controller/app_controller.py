@@ -165,8 +165,8 @@ class WebApp(AppBase):
 
 class WebAppWithWorkers(WebApp, WorkerApp):
     def init(self, stop_event, tg, logger=None):
-        WebApp.init(stop_event, tg, logger)
-        WorkerApp.init(stop_event, tg, logger)
+        WebApp.init(self, stop_event, tg, logger)
+        WorkerApp.init(self, stop_event, tg, logger)
 
 class SimpleAppWithWorkers(SimpleApp, WorkerApp):
     pass
