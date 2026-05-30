@@ -74,6 +74,9 @@ class AppBase(ServiceController):
 
     @property
     def app_index(self):
+        if not self._app_index:
+            self._app_index = AppIndex()
+
         return self._app_index
 
 class WorkerApp(AppBase):
