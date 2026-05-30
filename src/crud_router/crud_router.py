@@ -4,9 +4,10 @@ import traceback
 import uuid
 from typing import Any, Optional
 
-from application_controller.app_controller import App, AppIndex
 from fastapi import Depends, UploadFile, File
 from fastapi_restful.cbv import cbv
+
+from application_controller.app_controller import AppIndex, AppBase, WorkerApp, SimpleApp, WebAppWithWorkers, WebApp
 from fsspecc.base_fsspecfs.base_fsspecfs import FSBase
 from meta_models.file import upsert_file
 from meta_models.working import Working
@@ -18,8 +19,6 @@ from postgreslib.util import to_dict
 from pydantic import BaseModel
 from sqlalchemy import select
 from starlette.requests import Request
-
-from settings.helper import setting
 
 
 def select_by_id(session, model, id):
@@ -93,7 +92,7 @@ class BaseApi:
         return f
 
     @property
-    def app(self) -> App:
+    def app(self) -> AppBase | WorkerApp | SimpleApp | WebApp | WebAppWithWorkers:
         a, _ = self.app_index.application("app")
         return a
 
