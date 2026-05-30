@@ -82,12 +82,12 @@ class WorkerApp(AppBase):
         self.app_index.start_workers(stop_event, tg)
 
 class SimpleApp(AppBase):
-    _action_queues: IndexQueue = None
+    action_queues: IndexQueue = None
     actions: dict[str, QueueController]
 
     def __init__(self, actions: dict[str, QueueController]):
         self.queues.extend([controller for _, controller in actions])
-        self._action_queues = IndexQueue({name: controller for name, controller in actions})
+        self.action_queues = IndexQueue({name: controller for name, controller in actions})
 
 class WebApp(AppBase):
     _settings: UvicornSettings = None
