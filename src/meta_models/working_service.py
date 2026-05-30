@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import threading
 from asyncio import iscoroutinefunction
 from typing import Any
@@ -40,7 +41,7 @@ class WorkerActionService(ServiceController):
 
     def initial(self):
         async def action():
-            if asyncio.iscoroutinefunction(self.action):
+            if inspect.iscoroutinefunction(self.action):
                await self.action()
             else:
                await asyncio.to_thread(self.action)
