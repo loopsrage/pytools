@@ -164,7 +164,9 @@ class WebApp(AppBase):
         tg.create_task(self.aserve())
 
 class WebAppWithWorkers(WebApp, WorkerApp):
-    pass
+    def init(self, stop_event, tg, logger=None):
+        WebApp.init(stop_event, tg, logger)
+        WorkerApp.init(stop_event, tg, logger)
 
 class SimpleAppWithWorkers(SimpleApp, WorkerApp):
     pass
