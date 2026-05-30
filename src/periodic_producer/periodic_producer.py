@@ -23,11 +23,18 @@ class PeriodicProducer:
         self._controller = AsyncController(interval, start_now)
         self._queue = queue
         self._action = action
-        self._task = asyncio.create_task(self.run_loop())
+
+        try:
+            loop = asyncio.get_running_loop()
+            self._task = loop.create_task(self.run_loop())
+        except RuntimeError:
+            self._task = asyncio.ensure_future(self.run_loop())
+            self._task = asyncio.create_task(self.run_loop())
 
     def close(self):
         self._controller.close()
-        self._task.cancel()
+        if not self._task.done():
+            self._task.cancel()
 
     async def run_loop(self):
         try:
@@ -48,13 +55,16 @@ class PeriodicProducer:
                 if isinstance(result, Exception):
                     raise result
 
-                tasks = []
-                if result is not None:
-                    for r in result:
-                        tasks.append(self._queue.enqueue(QueueData(result=r)))
-                await asyncio.gather(*tasks)
-                if len(tasks) > 0:
-                    self._controller.trigger()
+                if isinstance(result, (list, tuple, set)):
+                    tasks = [self._queue.enqueue(QueueData(result=r)) for r in result]
+                else:
+                    tasks = [self._queue.enqueue(QueueData(result=result))]
+
+                if tasks:
+                    asyncio.create_task(self._gather_and_trigger(tasks))
+
+        except asyncio.CancelledError:
+            raise
         except Exception as e:
             traceback.print_exception(e)
             if not self._handle_error(e):
@@ -62,6 +72,13 @@ class PeriodicProducer:
         finally:
             self._controller.close()
             self._task.cancel()
+
+    async def _gather_and_trigger(self, tasks):
+        try:
+            await asyncio.gather(*tasks)
+            self._controller.trigger()
+        except Exception as e:
+            self._handle_error(e)
 
 def get_producer_result(queue_data: QueueData) -> Any:
     return queue_data.attribute("result")
