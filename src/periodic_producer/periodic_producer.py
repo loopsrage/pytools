@@ -29,7 +29,6 @@ class PeriodicProducer:
             self._task = loop.create_task(self.run_loop())
         except RuntimeError:
             self._task = asyncio.ensure_future(self.run_loop())
-            self._task = asyncio.create_task(self.run_loop())
 
     def close(self):
         self._controller.close()
@@ -71,7 +70,6 @@ class PeriodicProducer:
                 raise e
         finally:
             self._controller.close()
-            self._task.cancel()
 
     async def _gather_and_trigger(self, tasks):
         try:

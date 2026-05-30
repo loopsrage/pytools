@@ -56,16 +56,11 @@ class AsyncController:
         self.running = True
         self._task = None
         self._sleep_task = None
-        # Start the background ticking task
-        # We use create_task so it runs concurrently with your other code
-        initial_delay = 0 if start_now else self.interval
-        self._task = asyncio.create_task(self._run_ticker(initial_delay))
+        self._start_now = start_now
 
     def trigger(self):
         """Manually trigger the event to bypass the current sleep interval."""
         self._tick_event.set()
-        if self._sleep_task and not self._sleep_task.done():
-            self._sleep_task.cancel()
 
     async def _run_ticker(self, initial_delay):
         """Internal loop that acts like the threading.Timer."""
@@ -91,9 +86,24 @@ class AsyncController:
             pass
 
     async def wait(self):
-        """Async equivalent to self._tick_event.wait()."""
-        await self._tick_event.wait()
-        self._tick_event.clear()
+        """Blocks until the interval passes OR trigger() is called."""
+        if not self.running:
+            return
+
+        # If it's the very first run and start_now is True, skip the sleep
+        if self._start_now:
+            self._start_now = False
+            return
+
+        try:
+            # Wait for either the interval to finish OR a manual trigger event
+            await asyncio.wait_for(self._tick_event.wait(), timeout=self.interval)
+        except asyncio.TimeoutError:
+            # Timeout means the interval naturally completed!
+            pass
+        finally:
+            # Clear the manual trigger so it resets for the next loop iteration
+            self._tick_event.clear()
 
     def ticker(self) -> asyncio.Event:
         return self._tick_event
@@ -101,10 +111,6 @@ class AsyncController:
     def close(self):
         """Stops the ticker and cleans up the background task."""
         self.running = False
-        if self._task:
-            self._task.cancel()
-        if self._sleep_task:
-            self._sleep_task.cancel()
         self._tick_event.set()
 
     def clear(self):
