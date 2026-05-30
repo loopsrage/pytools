@@ -1,5 +1,4 @@
 import asyncio
-import logging
 import os
 import time
 import traceback
@@ -18,12 +17,15 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.staticfiles import StaticFiles
 
 from fsspecc.base_fsspecfs.base_fsspecfs import FSBase
+from index_queue.index_queue import IndexQueue
 from indexes.api_index.api_index import ApiIndex
 from indexes.app_ctrl_index.appctrl import ApplicationIndex
 from indexes.connection_index.connection_index import ConnectionIndex
 from indexes.fsindex.fsindex import FilesystemIndex
 from indexes.specialist_index.specialist_index import SpecialistIndex
 from indexes.worker_service_index.worker_index import WorkerServiceIndex
+from queue_controller.queueController import QueueController
+from service_controller.service_controller import ServiceController
 from settings.helper import unmarshal_app_settings, setting
 from thread_safe.controller.controller import Controller
 
@@ -65,46 +67,51 @@ class UvicornSettings(BaseSettings):
 class AppIndex(ApplicationIndex, WorkerServiceIndex, FilesystemIndex, ConnectionIndex, ApiIndex, SpecialistIndex):
     pass
 
-class App:
+class AppBase(ServiceController):
+    _app_index = AppIndex = None
+    _controllers = None
+    _logger = None
+
+    @property
+    def app_index(self):
+        return self._app_index
+
+class WorkerApp(AppBase):
+    async def init(self, stop_event, tg, logger=None):
+        super().init(stop_event, tg, logger)
+        self.app_index.start_workers(stop_event, tg)
+
+class SimpleApp(AppBase):
+    _action_queues: IndexQueue = None
+    actions: dict[str, QueueController]
+
+    def __init__(self, actions: dict[str, QueueController]):
+        self.queues.extend([controller for _, controller in actions])
+        self._action_queues = IndexQueue({name: controller for name, controller in actions})
+
+class WebApp(AppBase):
     _settings: UvicornSettings = None
     _fast_api = None
-    _logger = None
-    _controllers = None
-    _app_index: AppIndex = None
 
     def __init__(self, uvcorn_settings: UvicornSettings, controllers: List[Controller] = None):
         self._settings = uvcorn_settings
         self._controllers = controllers
         self._app_index = AppIndex()
 
-    @property
-    def app_index(self):
-        return self._app_index
-
     def async_lifespan(self):
 
         @asynccontextmanager
         async def lifespan(api: FastAPI):
-            # --- STARTUP LOGIC ---
-            cfg = unmarshal_app_settings("Logging", LogConfig)
-            logging.basicConfig(**cfg.model_dump())
-            self._logger = logging.getLogger("default_logger")
-            yield  # --- The app is now running and handling requests ---
-
-            if self._controllers is not None:
-                for c in self._controllers:
-                    if hasattr(c, "close"):
-                        c.close()
-                self._logger.info(f"Shutdown complete.")
+            yield
+            await self.close()
 
         self._fast_api = FastAPI(lifespan=lifespan)
         self._fast_api.state.app_index = self._app_index
-
         self._fast_api.add_middleware(
             CORSMiddleware,
             allow_origins=["*"],
             allow_credentials=True,
-            allow_methods=["*"],  # This enables OPTIONS, GET, POST, etc.
+            allow_methods=["*"],
             allow_headers=["*"],
         )
 
@@ -122,9 +129,7 @@ class App:
             response.headers["X-Process-Time"] = f"{process_time:.4f}s"
             response.headers["X-Request-Id"] = str(request_id)
 
-            self._logger.info(
-                f"Method: {request.method}, RequestId: {request_id}, Path: {request.url.path} Time: {process_time:.4f}s")
-
+            self.logger.info(f"Method: {request.method}, RequestId: {request_id}, Path: {request.url.path} Time: {process_time:.4f}s")
             return response
 
     def api_routes(self):
@@ -138,15 +143,14 @@ class App:
         self._fast_api.state.storage = FSBase(filesystem="memory")
         static_dir = setting("FastApi", "static_files")
         try:
-
             if os.path.exists(static_dir):
                 self._fast_api.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
             else:
-                self._logger.warning(f"Static directory '{static_dir}' not found. Skipping mount.")
+                self.logger.warning(f"Static directory '{static_dir}' not found. Skipping mount.")
             uvicorn.run(self._fast_api, **self._settings.model_dump())
         except BaseException as e:
             traceback.print_exception(e)
-            self._logger.error(str(e))
+            self.logger.error(str(e))
 
     async def aserve(self):
         try:
@@ -155,8 +159,6 @@ class App:
             print(e)
             raise
 
-    async def start(self, stop_event, loop):
-        async with asyncio.TaskGroup() as tg:
-            tg_proxy = ThreadSafeTG(tg, loop)
-            self.app_index.start_workers(stop_event, tg_proxy)
-            tg.create_task(self.aserve())
+    async def init(self, stop_event, tg, logger=None):
+        self.app_index.start_workers(stop_event, tg)
+        tg.create_task(self.aserve())
