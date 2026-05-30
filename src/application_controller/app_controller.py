@@ -86,7 +86,7 @@ class SimpleApp(AppBase):
     actions: dict[str, QueueController]
 
     def __init__(self, actions: dict[str, QueueController]):
-        self.queues.extend([controller for _, controller in actions])
+        self.queues.extend([controller for _, controller in actions.items()])
         self.action_queues = IndexQueue({name: controller for name, controller in actions})
 
 class WebApp(AppBase):
