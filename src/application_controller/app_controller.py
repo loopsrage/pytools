@@ -77,7 +77,7 @@ class AppBase(ServiceController):
         return self._app_index
 
 class WorkerApp(AppBase):
-    async def init(self, stop_event, tg, logger=None):
+    def init(self, stop_event, tg, logger=None):
         super().init(stop_event, tg, logger)
         self.app_index.start_workers(stop_event, tg)
 
@@ -159,7 +159,7 @@ class WebApp(AppBase):
             print(e)
             raise
 
-    async def init(self, stop_event, tg, logger=None):
+    def init(self, stop_event, tg, logger=None):
         super().init(stop_event, tg, logger)
         tg.create_task(self.aserve())
 
