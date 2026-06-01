@@ -9,6 +9,8 @@ from typing import Literal, List
 
 import uvicorn
 from aiohttp.web_request import Request
+from alembic import command
+from alembic.config import Config
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
 from pydantic_settings import BaseSettings
@@ -78,6 +80,14 @@ class AppBase(ServiceController):
             self._app_index = AppIndex()
 
         return self._app_index
+
+class AlembicApp(AppBase):
+    config: Config
+    def __init__(self, path, script_location: str, sqlalchemy_url: str):
+        self.config = Config(path)
+        self.config.set_main_option("script_location", script_location)
+        self.config.set_main_option("sqlalchemy.url", sqlalchemy_url)
+        command.upgrade(self.config, "head")
 
 class WorkerApp(AppBase):
     def init(self, stop_event, tg, logger=None):
