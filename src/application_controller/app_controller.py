@@ -1,4 +1,6 @@
 import asyncio
+import io
+import logging
 import os
 import time
 import traceback
@@ -11,6 +13,7 @@ import uvicorn
 from aiohttp.web_request import Request
 from alembic import command
 from alembic.config import Config
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
 from pydantic_settings import BaseSettings
@@ -18,6 +21,7 @@ from starlette.datastructures import MutableHeaders
 from starlette.middleware.cors import CORSMiddleware
 from starlette.staticfiles import StaticFiles
 
+from azurelib.blob import AzureIndexAgentSearchConfig, AzureBlob
 from fsspecc.base_fsspecfs.base_fsspecfs import FSBase
 from index_queue.index_queue import IndexQueue, ActionConfig
 from indexes.api_index.api_index import ApiIndex
@@ -28,7 +32,7 @@ from indexes.specialist_index.specialist_index import SpecialistIndex
 from indexes.worker_service_index.worker_index import WorkerServiceIndex
 from queue_controller.queueController import QueueController
 from service_controller.service_controller import ServiceController
-from settings.helper import unmarshal_app_settings, setting
+from settings.helper import unmarshal_app_settings, setting, restore
 from thread_safe.controller.controller import Controller
 
 class ThreadSafeTG(TaskGroup):
@@ -71,7 +75,6 @@ class AppIndex(ApplicationIndex, WorkerServiceIndex, FilesystemIndex, Connection
 
 class AppBase(ServiceController):
     _app_index = AppIndex = None
-    _controllers = None
     _logger = None
 
     @property
@@ -80,6 +83,57 @@ class AppBase(ServiceController):
             self._app_index = AppIndex()
 
         return self._app_index
+
+def load_azure_app_settings(remote_path: str, azure_settings_key=None, ):
+    if azure_settings_key is None:
+        azure_settings_key = "Azure"
+
+    load_dotenv()
+    restore(os.getenv("ENV_FILE"))
+    if os.path.exists("/proc/1/cgroup") or os.path.exists("/.dockerenv"):
+        azure_config = unmarshal_app_settings(azure_settings_key, AzureIndexAgentSearchConfig)
+        azure_config.Storage.ssl = False
+        azure_config.Storage.connection_verify = False
+
+        azure_fs = AzureBlob(storage_options=azure_config.Storage)
+
+        buff = io.BytesIO()
+        azure_fs.read(remote_path, buff, use_pipe=False)
+        restore(buff.getvalue())
+
+
+def logger_from_settings(remote_path: str):
+    load_azure_app_settings(remote_path)
+    cfg = unmarshal_app_settings("Logging", LogConfig)
+    logging.basicConfig(**cfg.model_dump())
+    logger = logging.getLogger("default_logger")
+    return logger
+
+async def run_app(app, settings_path: str, logger=None):
+    stop_event = asyncio.Event()
+    loop = asyncio.get_running_loop()
+
+    if logger is None:
+        logger = logger_from_settings(settings_path)
+
+    try:
+        async with TaskGroup() as tg:
+            tg_proxy = ThreadSafeTG(tg, loop)
+
+            async def wrap_init():
+                try:
+                    app.init(stop_event, tg_proxy, logger)
+                except Exception as e:
+                    traceback.print_exception(e)
+                    raise
+
+            tg.create_task(wrap_init())
+    except* (Exception, SystemExit) as eg:
+        for e in eg.exceptions:
+            traceback.print_exception(e)
+        stop_event.set()
+    finally:
+        await app.close()
 
 class AlembicApp(AppBase):
     config: Config
@@ -180,6 +234,14 @@ class WebAppWithWorkers(WebApp, WorkerApp):
     def init(self, stop_event, tg, logger=None):
         WebApp.init(self, stop_event, tg, logger)
         WorkerApp.init(self, stop_event, tg, logger)
+
+class AlembicWebAppWithWorkers(WebAppWithWorkers, AlembicApp):
+    def __init__(self, uvicorn_settings, path, script_location, sql_alchemy_url):
+        WebAppWithWorkers.__init__(self, uvicorn_settings)
+        AlembicApp.__init__(self, path, script_location, sql_alchemy_url)
+
+    def init(self, stop_event, tg, logger=None):
+        WebAppWithWorkers.init(self, stop_event, tg, logger)
 
 class SimpleAppWithWorkers(SimpleApp, WorkerApp):
     pass
