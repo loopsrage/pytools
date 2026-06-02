@@ -1,5 +1,7 @@
 import asyncio
 import threading
+
+import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, TextIteratorStreamer
 from peft import PeftModel
 from thread_safe.onceler import Onceler
@@ -7,17 +9,20 @@ from thread_safe.onceler import Onceler
 
 one_time = Onceler()
 
-def query_torch_model(query, adapter, dev_str, model, verbose=False, max_tokens=2048, temp=0.0):
+def query_torch_model(query, adapter, dev_str, model, verbose=False, max_tokens=2048, temp=0.0, dtype = None):
 
     if adapter == model or adapter is None:
         actual_adapter = None
     else:
         actual_adapter = adapter
 
+    if dtype is None:
+        dtype = torch.bfloat16
+
     def load_torch_model(m, a):
         def loader():
             tokenizer = AutoTokenizer.from_pretrained(m)
-            base_model = AutoModelForCausalLM.from_pretrained(m, device_map="auto")
+            base_model = AutoModelForCausalLM.from_pretrained(m, device_map="auto", torch_dtype=dtype)
             if a:
                 model = PeftModel.from_pretrained(base_model, a)
             else:
