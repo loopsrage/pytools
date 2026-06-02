@@ -24,13 +24,7 @@ def query_torch_model(query, adapter, dev_str, model, verbose=False, max_tokens=
             tokenizer = AutoTokenizer.from_pretrained(m)
 
             if quantized:
-                config = BitsAndBytesConfig(
-                    load_in_4bit=True,
-                    bnb_4bit_quant_type="nf4",
-                    bnb_4bit_compute_dtype=dtype,
-                    bnb_4bit_use_double_quant=True
-                )
-                loader_kwargs = {"quantization_config": config}
+                loader_kwargs = {}
             else:
                 loader_kwargs = {"torch_dtype": dtype}
 
