@@ -2,14 +2,14 @@ import asyncio
 import threading
 
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, TextIteratorStreamer
+from transformers import AutoModelForCausalLM, AutoTokenizer, TextIteratorStreamer, BitsAndBytesConfig
 from peft import PeftModel
 from thread_safe.onceler import Onceler
 
 
 one_time = Onceler()
 
-def query_torch_model(query, adapter, dev_str, model, verbose=False, max_tokens=2048, temp=0.0, dtype = None):
+def query_torch_model(query, adapter, dev_str, model, verbose=False, max_tokens=2048, temp=0.0, dtype = None, quantized: bool=False):
 
     if adapter == model or adapter is None:
         actual_adapter = None
@@ -22,7 +22,20 @@ def query_torch_model(query, adapter, dev_str, model, verbose=False, max_tokens=
     def load_torch_model(m, a):
         def loader():
             tokenizer = AutoTokenizer.from_pretrained(m)
-            base_model = AutoModelForCausalLM.from_pretrained(m, device_map="auto", torch_dtype=dtype)
+
+            if quantized:
+                config = BitsAndBytesConfig(
+                    load_in_4bit=True,
+                    bnb_4bit_quant_type="nf4",
+                    bnb_4bit_compute_dtype=dtype,
+                    bnb_4bit_use_double_quant=True
+                )
+                loader_kwargs = {"quantization_config": config}
+            else:
+                loader_kwargs = {"torch_dtype": dtype}
+
+            base_model = AutoModelForCausalLM.from_pretrained(m, device_map="auto", **loader_kwargs)
+
             if a:
                 model = PeftModel.from_pretrained(base_model, a)
             else:
