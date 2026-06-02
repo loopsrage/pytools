@@ -26,7 +26,7 @@ def query_torch_model(query, adapter, dev_str, model, verbose=False, max_tokens=
             if quantized:
                 loader_kwargs = {}
             else:
-                loader_kwargs = {"torch_dtype": dtype}
+                loader_kwargs = {"dtype": dtype}
 
             base_model = AutoModelForCausalLM.from_pretrained(m, device_map="auto", **loader_kwargs)
 
