@@ -8,6 +8,7 @@ from thread_safe.onceler import Onceler
 
 
 one_time = Onceler()
+model_lock = threading.Lock()
 
 def query_torch_model(query, adapter, dev_str, model, verbose=False, max_tokens=2048, temp=0.0, dtype = None, quantized: bool=False):
 
@@ -43,45 +44,46 @@ def query_torch_model(query, adapter, dev_str, model, verbose=False, max_tokens=
     if not query:
         return None
 
-    prompt = (
-        f"<|im_start|>developer\n"
-        f"{dev_str()}<|im_end|>\n"
-        f"<|im_start|>user\n"
-        f"{query}<|im_end|>\n"
-        f"<|im_start|>assistant\n"
-        f"<think>\n"
-    )
+    with model_lock:
+        prompt = (
+            f"<|im_start|>developer\n"
+            f"{dev_str()}<|im_end|>\n"
+            f"<|im_start|>user\n"
+            f"{query}<|im_end|>\n"
+            f"<|im_start|>assistant\n"
+            f"<think>\n"
+        )
 
-    inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
-    streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=False)
+        inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
+        streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=False)
 
-    generation_kwargs = {
-        **inputs,
-        "streamer": streamer,
-        "max_new_tokens": max_tokens,
-        "do_sample": temp > 0.0,
-        "temperature": temp if temp > 0.0 else None,
-        "eos_token_id": [tokenizer.eos_token_id, tokenizer.convert_tokens_to_ids("<|im_end|>")]
-    }
+        generation_kwargs = {
+            **inputs,
+            "streamer": streamer,
+            "max_new_tokens": max_tokens,
+            "do_sample": temp > 0.0,
+            "temperature": temp if temp > 0.0 else None,
+            "eos_token_id": [tokenizer.eos_token_id, tokenizer.convert_tokens_to_ids("<|im_end|>")]
+        }
 
-    generation_thread = threading.Thread(target=model.generate, kwargs=generation_kwargs)
-    generation_thread.start()
+        generation_thread = threading.Thread(target=model.generate, kwargs=generation_kwargs)
+        generation_thread.start()
 
-    full_response = ""
-    stop_tokens = ["<|endoftext|>", "<|im_end|>"]
+        full_response = ""
+        stop_tokens = ["<|endoftext|>", "<|im_end|>"]
 
-    for new_text in streamer:
-        full_response += new_text
-        if verbose:
-            print(new_text, end="", flush=True)
+        for new_text in streamer:
+            full_response += new_text
+            if verbose:
+                print(new_text, end="", flush=True)
 
-        if any(stop in full_response for stop in stop_tokens):
-            for stop in stop_tokens:
-                full_response = full_response.split(stop)[0]
-            break
+            if any(stop in full_response for stop in stop_tokens):
+                for stop in stop_tokens:
+                    full_response = full_response.split(stop)[0]
+                break
 
-    generation_thread.join()
-    return "<think>\n" + full_response
+        generation_thread.join()
+        return "<think>\n" + full_response
 
 async def async_query_torch_model(*args, **kwargs):
     return await asyncio.to_thread(query_torch_model, *args, **kwargs)
