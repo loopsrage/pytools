@@ -129,9 +129,8 @@ async def run_app(app, settings_path: str, logger=None):
 
             tg.create_task(wrap_init())
     except* (Exception, SystemExit) as eg:
-        for e in eg.exceptions:
-            traceback.print_exception(e)
         stop_event.set()
+        raise eg
     finally:
         await app.close()
 
