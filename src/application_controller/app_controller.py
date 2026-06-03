@@ -34,6 +34,9 @@ from queue_controller.queueController import QueueController
 from service_controller.service_controller import ServiceController
 from settings.helper import unmarshal_app_settings, setting, restore
 from thread_safe.controller.controller import Controller
+from thread_safe.index import Index
+from thread_safe.onceler import Onceler
+
 
 class ThreadSafeTG(TaskGroup):
     def __init__(self, tg, loop):
@@ -109,12 +112,21 @@ def logger_from_settings(remote_path: str):
     logger = logging.getLogger("default_logger")
     return logger
 
-async def run_app(app, settings_path: str, logger=None):
+
+_APP_REGISTRY = ApplicationIndex()
+
+def app_registry() -> ApplicationIndex:
+    return _APP_REGISTRY
+
+async def run_app(app_name: str, app, settings_path: str, logger=None, register=True):
     stop_event = asyncio.Event()
     loop = asyncio.get_running_loop()
 
     if logger is None:
         logger = logger_from_settings(settings_path)
+
+    if register:
+        app_registry().register_applications({app_name: app})
 
     try:
         async with TaskGroup() as tg:

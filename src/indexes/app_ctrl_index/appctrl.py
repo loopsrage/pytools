@@ -17,6 +17,6 @@ class ApplicationIndex:
             value=application
         )
 
-    def register_applications(self, connections):
-        for name, connection in connections.items():
-            self.application(name, connection)
+    def register_applications(self, applications):
+        for name, application in applications.items():
+            self.application(name, application)
