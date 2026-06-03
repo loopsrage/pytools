@@ -3,7 +3,8 @@ import queue
 import threading
 
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, TextIteratorStreamer, BitsAndBytesConfig, BaseStreamer
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+from transformers.generation.streamers import BaseStreamer
 from peft import PeftModel
 from thread_safe.onceler import Onceler
 
