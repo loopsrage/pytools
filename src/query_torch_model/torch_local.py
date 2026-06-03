@@ -121,7 +121,7 @@ def query_torch_model(query, adapter, dev_str, model, verbose=False, max_tokens=
 
             tokens_acc.append(token_id)
 
-            if len(tokens_acc) >= 3 or verbose:
+            if len(tokens_acc) >= 3:
                 new_text = tokenizer.decode(tokens_acc, skip_special_tokens=False)
                 full_response += new_text
                 if verbose:
