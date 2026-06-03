@@ -40,10 +40,12 @@ class PDFM:
         return bitmap.to_pil()
 
     def extract_text(self, page_number):
+        text_page = self.page(page_number)
+        data = text_page.get_text_bounded().encode("utf8")
         self._index.store_in_index(
             self.path,
             page_path(page_number, ".txt"),
-            self.page(page_number))
+            data)
 
     def render_page(self, page_number):
         self._index.store_in_index(
