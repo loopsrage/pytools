@@ -18,6 +18,7 @@ class FastQueueStreamer(BaseStreamer):
         self.skip_prompt = skip_prompt
         self.token_queue = queue.Queue()
         self.prompt_skipped = False
+        self.prompt_tokens_to_skip = 0
 
     def put(self, value):
         if len(value.shape) > 1:
@@ -25,7 +26,8 @@ class FastQueueStreamer(BaseStreamer):
         else:
             token_id = value[-1].item()
 
-        if self.skip_prompt and not self.prompt_skipped:
+        if self.skip_prompt and not self.prompt_tokens_to_skip > 0:
+            self.prompt_tokens_to_skip -= 1
             return
 
         self.token_queue.put(token_id)
@@ -33,8 +35,8 @@ class FastQueueStreamer(BaseStreamer):
     def end(self):
         self.token_queue.put(None)
 
-    def reset_prompt_skip(self):
-        self.prompt_skipped = True
+    def set_prompt_length(self, length):
+        self.prompt_tokens_to_skip = length
 
 
 def query_torch_model(query, adapter, dev_str, model, verbose=False, max_tokens=2048, temp=0.0, dtype = None, quantized: bool=False):
@@ -69,9 +71,6 @@ def query_torch_model(query, adapter, dev_str, model, verbose=False, max_tokens=
             else:
                 model = base_model
 
-            if not a:
-                model = torch.compile(model)
-
             return model, tokenizer
         return loader
 
@@ -92,6 +91,7 @@ def query_torch_model(query, adapter, dev_str, model, verbose=False, max_tokens=
 
         inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
         streamer = FastQueueStreamer(tokenizer, skip_prompt=True)
+        streamer.set_prompt_length(inputs["input_ids"].shape[1])
 
         generation_kwargs = {
             **inputs,
