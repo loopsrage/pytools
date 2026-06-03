@@ -107,8 +107,6 @@ def query_torch_model(query, adapter, dev_str, model, verbose=False, max_tokens=
         generation_thread.start()
         streamer.reset_prompt_skip()
 
-        streamer.reset_prompt_skip()
-
         tokens_acc = []
         full_response = ""
         stop_tokens = ["<|endoftext|>", "<|im_end|>"]
