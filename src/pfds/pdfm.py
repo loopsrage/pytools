@@ -67,7 +67,7 @@ def page_path(page_number: int, page_derivative: str):
     return f"{str(page_number)}_{page_derivative}"
 
 def extract_text(pdfm: PDFM, executor):
-    executor.map(pdfm.extract_text, range(0, pdfm.page_count))
+    list(executor.map(pdfm.extract_text, range(0, pdfm.page_count)))
 
 def extract_images(pdfm: PDFM, executor):
-    executor.map(pdfm.render_page, range(0, pdfm.page_count))
+    list(executor.map(pdfm.render_page, range(0, pdfm.page_count)))
