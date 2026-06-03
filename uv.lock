@@ -554,6 +554,15 @@ wheels = [
 ]
 
 [[package]]
+name = "diskcache"
+version = "5.6.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/3f/21/1c1ffc1a039ddcc459db43cc108658f32c57d271d7289a2794e401d0fdb6/diskcache-5.6.3.tar.gz", hash = "sha256:2c3a3fa2743d8535d832ec61c2054a1641f41775aa7c556758a109941e33e4fc", size = 67916, upload-time = "2023-08-31T06:12:00.316Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3f/27/4570e78fc0bf5ea0ca45eb1de3818a23787af9b390c0b0a0033a1b8236f9/diskcache-5.6.3-py3-none-any.whl", hash = "sha256:5e31b2d5fbad117cc363ebaf6b689474db18a1f6438bc82358b024abd4c2ca19", size = 45550, upload-time = "2023-08-31T06:11:58.822Z" },
+]
+
+[[package]]
 name = "distro"
 version = "1.9.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1097,6 +1106,18 @@ sdist = { url = "https://files.pythonhosted.org/packages/1a/3d/04a79fb7f0e72af88
 wheels = [
     { url = "https://files.pythonhosted.org/packages/81/81/62c5cc980a3f5a7476792769616792e0df8ba9c8c4730195ec700a56a962/langsmith-0.6.6-py3-none-any.whl", hash = "sha256:fe655e73b198cd00d0ecd00a26046eaf1f78cd0b2f0d94d1e5591f3143c5f592", size = 308542, upload-time = "2026-01-27T17:37:19.201Z" },
 ]
+
+[[package]]
+name = "llama-cpp-python"
+version = "0.3.25"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "diskcache" },
+    { name = "jinja2" },
+    { name = "numpy" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f9/fc/b488e00ebbca5c6a0b2303fb8ce3ded39a5f2293f7da3d7dfb25bcbb1bd9/llama_cpp_python-0.3.25.tar.gz", hash = "sha256:b901792eb474b3c83b07d2f6ed1668257b80133943c1fa57386d636103a66163", size = 67938860, upload-time = "2026-06-02T04:50:40.086Z" }
 
 [[package]]
 name = "llama-index-core"
@@ -2753,6 +2774,7 @@ dependencies = [
     { name = "fsspec" },
     { name = "langchain" },
     { name = "langchain-ollama" },
+    { name = "llama-cpp-python" },
     { name = "llama-index-core" },
     { name = "llama-index-embeddings-azure-openai" },
     { name = "matplotlib" },
@@ -2795,6 +2817,7 @@ requires-dist = [
     { name = "fsspec", specifier = ">=2026.1.0" },
     { name = "langchain", specifier = ">=1.2.7" },
     { name = "langchain-ollama", specifier = ">=1.0.1" },
+    { name = "llama-cpp-python", specifier = ">=0.3.25" },
     { name = "llama-index-core", specifier = ">=0.14.21" },
     { name = "llama-index-embeddings-azure-openai", specifier = ">=0.5.2" },
     { name = "matplotlib", specifier = ">=3.10.8" },
