@@ -1,14 +1,40 @@
 import asyncio
+import queue
 import threading
 
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, TextIteratorStreamer, BitsAndBytesConfig
+from transformers import AutoModelForCausalLM, AutoTokenizer, TextIteratorStreamer, BitsAndBytesConfig, BaseStreamer
 from peft import PeftModel
 from thread_safe.onceler import Onceler
 
 
 one_time = Onceler()
 model_lock = threading.Lock()
+
+class FastQueueStreamer(BaseStreamer):
+    def __init__(self, tokenizer, skip_prompt=True):
+        self.tokenizer = tokenizer
+        self.skip_prompt = skip_prompt
+        self.token_queue = queue.Queue()
+        self.prompt_skipped = False
+
+    def put(self, value):
+        if len(value.shape) > 1:
+            token_id = value[0][-1].item()
+        else:
+            token_id = value[-1].item()
+
+        if self.skip_prompt and not self.prompt_skipped:
+            return
+
+        self.token_queue.put(token_id)
+
+    def end(self):
+        self.token_queue.put(None)
+
+    def reset_prompt_skip(self):
+        self.prompt_skipped = True
+
 
 def query_torch_model(query, adapter, dev_str, model, verbose=False, max_tokens=2048, temp=0.0, dtype = None, quantized: bool=False):
 
@@ -64,7 +90,7 @@ def query_torch_model(query, adapter, dev_str, model, verbose=False, max_tokens=
         )
 
         inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
-        streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=False)
+        streamer = FastQueueStreamer(tokenizer, skip_prompt=True)
 
         generation_kwargs = {
             **inputs,
@@ -78,19 +104,37 @@ def query_torch_model(query, adapter, dev_str, model, verbose=False, max_tokens=
 
         generation_thread = threading.Thread(target=model.generate, kwargs=generation_kwargs)
         generation_thread.start()
+        streamer.reset_prompt_skip()
 
+        streamer.reset_prompt_skip()
+
+        tokens_acc = []
         full_response = ""
         stop_tokens = ["<|endoftext|>", "<|im_end|>"]
+        stop_ids = {tokenizer.eos_token_id, tokenizer.convert_tokens_to_ids("<|im_end|>")}
 
-        for new_text in streamer:
-            full_response += new_text
-            if verbose:
-                print(new_text, end="", flush=True)
-
-            if any(stop in full_response for stop in stop_tokens):
-                for stop in stop_tokens:
-                    full_response = full_response.split(stop)[0]
+        while True:
+            token_id = streamer.token_queue.get()
+            if token_id is None or token_id in stop_ids:
                 break
+
+            tokens_acc.append(token_id)
+
+            if len(tokens_acc) >= 3 or verbose:
+                new_text = tokenizer.decode(tokens_acc, skip_special_tokens=False)
+                full_response += new_text
+                if verbose:
+                    print(new_text, end="", flush=True)
+                tokens_acc = []
+
+                if any(stop in full_response for stop in stop_tokens):
+                    break
+
+        if tokens_acc:
+            full_response += tokenizer.decode(tokens_acc, skip_special_tokens=False)
+
+        for stop in stop_tokens:
+            full_response = full_response.split(stop)[0]
 
         generation_thread.join()
         return "<think>\n" + full_response
