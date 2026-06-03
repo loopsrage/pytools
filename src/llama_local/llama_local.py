@@ -16,7 +16,6 @@ class FastQueueStreamer:
     def end(self):
         self.token_queue.put(None)
 
-
 def query_llama_model(prompt, model, verbose: bool = False, from_pretrained_kwargs: dict = None, **model_kwargs):
     if not prompt:
         return None
