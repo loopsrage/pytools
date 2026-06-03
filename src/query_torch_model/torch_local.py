@@ -96,7 +96,6 @@ def query_torch_model(query, adapter, dev_str, model, verbose=False, max_tokens=
         generation_kwargs = {
             **inputs,
             "streamer": streamer,
-            "max_new_tokens": max_tokens,
             "do_sample": temp > 0.0,
             "use_cache": True,
             "temperature": temp if temp > 0.0 else None,
@@ -105,7 +104,6 @@ def query_torch_model(query, adapter, dev_str, model, verbose=False, max_tokens=
 
         generation_thread = threading.Thread(target=model.generate, kwargs=generation_kwargs)
         generation_thread.start()
-        streamer.reset_prompt_skip()
 
         tokens_acc = []
         full_response = ""
