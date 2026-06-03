@@ -25,16 +25,25 @@ def query_torch_model(query, adapter, dev_str, model, verbose=False, max_tokens=
             tokenizer = AutoTokenizer.from_pretrained(m)
 
             if quantized:
-                loader_kwargs = {}
+                cfg = BitsAndBytesConfig(
+                    load_in_4bit=True,
+                    bnb_4bit_quant_type="nf4",
+                    bnb_4bit_compute_dtype=dtype,
+                    bnb_4bit_use_double_quant=True,
+                )
+                loader_kwargs = {"quantization_config": cfg, "low_cpu_mem_usage": True}
             else:
                 loader_kwargs = {"dtype": dtype}
 
-            base_model = AutoModelForCausalLM.from_pretrained(m, device_map="auto", **loader_kwargs)
+            base_model = AutoModelForCausalLM.from_pretrained(m, device_map="auto", attn_implementation="sdpa", **loader_kwargs)
 
             if a:
                 model = PeftModel.from_pretrained(base_model, a)
             else:
                 model = base_model
+
+            if not a:
+                model = torch.compile(model)
 
             return model, tokenizer
         return loader
@@ -62,6 +71,7 @@ def query_torch_model(query, adapter, dev_str, model, verbose=False, max_tokens=
             "streamer": streamer,
             "max_new_tokens": max_tokens,
             "do_sample": temp > 0.0,
+            "use_cache": True,
             "temperature": temp if temp > 0.0 else None,
             "eos_token_id": [tokenizer.eos_token_id, tokenizer.convert_tokens_to_ids("<|im_end|>")]
         }
