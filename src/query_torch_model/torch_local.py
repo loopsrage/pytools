@@ -63,8 +63,8 @@ def query_torch_model(query, adapter, dev_str, model, verbose=False, max_tokens=
                 loader_kwargs = {"quantization_config": cfg, "low_cpu_mem_usage": True}
             else:
                 loader_kwargs = {"dtype": dtype}
-
-            base_model = AutoModelForCausalLM.from_pretrained(m, device_map="auto", attn_implementation="sdpa", **loader_kwargs)
+            device = "mps" if torch.backends.mps.is_available() else "auto"
+            base_model = AutoModelForCausalLM.from_pretrained(m, device_map=device, attn_implementation="sdpa", **loader_kwargs)
 
             if a:
                 model = PeftModel.from_pretrained(base_model, a)
