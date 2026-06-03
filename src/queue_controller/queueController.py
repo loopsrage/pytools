@@ -67,11 +67,13 @@ class QueueController:
     def next_queue_controller(self) -> Union['QueueController', None]:
        return self._next_queue_controller
 
-    def set_next(self, next_queue_controller: 'QueueController') -> None:
+    def set_next(self, next_queue_controller: 'QueueController') -> QueueController:
         self._next_queue_controller = next_queue_controller
+        return self
 
-    def set_broadcast(self, broadcast_to: dict[str, 'QueueController']) -> None:
+    def set_broadcast(self, broadcast_to: dict[str, 'QueueController']) -> QueueController:
         self._broadcast = broadcast_to
+        return self
 
     async def enqueue(self, queue_data: QueueData) -> None:
         await self.queue.put(queue_data)
