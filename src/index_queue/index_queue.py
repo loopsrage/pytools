@@ -38,7 +38,7 @@ class IndexQueue:
                 items = list(self.index.range_index(action_key))
                 for k, x in items:
                     self.index.delete_from_index(action_key, k)
-                    queued.append(self.load_stage_action(action_key).queue.enqueue(QueueData(key=action_key, obj=x, index_queue=self)))
+                    queued.append(self.load_stage_action(action_key).queue.enqueue(QueueData(action_key=action_key, key=k, obj=x, index_queue=self)))
             except Exception as e:
                 traceback.print_exception(e)
                 pass
