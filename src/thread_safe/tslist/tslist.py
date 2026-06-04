@@ -47,8 +47,9 @@ class TsList:
 
         with self.lock:
             # Atomic fetch_add returns the value BEFORE the addition
-            prev_count = self._count.add(num_items)
+            prev_count = self._count.load()
             self.data.extend(items)
+            self._count.add(num_items)
             return prev_count
 
     def append(self, item):
@@ -68,10 +69,9 @@ class TsList:
         return None
 
     def set(self, position: int, value):
-        if 0 <= position < self._count.load():
-            with self.lock:
-                if position < len(self.data):
-                    self.data[position] = value
+        with self.lock:
+            if 0 <= position < len(self.data):
+                self.data[position] = value
 
     def all(self) -> list:
         with self.lock:
@@ -79,6 +79,15 @@ class TsList:
 
     def to_list(self) -> list:
         return self.all()
+
+    def reset(self, *initial) -> None:
+        """
+        Thread-safely clears the current data and counter,
+        optionally re-initializing it with new items.
+        """
+        with self.lock:
+            self.data = list(initial)
+            self._count.store(len(self.data))
 
     def __getitem__(self, item):
         val = self.at(item)
