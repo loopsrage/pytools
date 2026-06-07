@@ -1,6 +1,7 @@
 import asyncio
 import threading
 import traceback
+import uuid
 
 from meta_models.working_service import WorkerActionService, WorkerServiceConfig
 from queue_controller.helpers import new_controller
@@ -65,11 +66,14 @@ class IndexQueue:
     def load_stage_action(self, name: str) -> ActionConfig:
         return self.index.load_from_index("STAGE_ACTIONS", name)
 
-    def enqueue(self, action_key: str, key, value):
+    def enqueue(self, action_key: str, key=None, value=None):
         with self._counter_lock:
             self._in_flight_tasks += 1
             if self._in_flight_tasks == 1:
                 self._all_tasks_done.clear()
+
+        if key is None:
+            key = uuid.uuid4().hex
 
         self.index.store_in_index(action_key, key, value)
 
