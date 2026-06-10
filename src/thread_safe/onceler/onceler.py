@@ -16,7 +16,7 @@ class Onceler:
         full_key = f"{index_name}:{key}"
         existing_result = self.index_manager.load_from_index("results", full_key)
         if existing_result is not None:
-            return self._handle_result(existing_result)
+            return self._handle_result(existing_result), True
 
         actual_lock, _ = self.index_manager.load_or_store_in_index(
             index_name="locks",
@@ -26,13 +26,13 @@ class Onceler:
         async with actual_lock:
             existing_result = self.index_manager.load_from_index("results", full_key)
             if existing_result is not None:
-                return self._handle_result(existing_result)
+                return self._handle_result(existing_result), True
 
             try:
                 result = await do()
                 stored_value = result if result is not None else "COMPLETED"
                 self.index_manager.store_in_index("results", full_key, stored_value)
-                return result
+                return result, False
             except Exception as e:
                 self.index_manager.store_in_index("results", full_key, e)
                 raise e
@@ -48,7 +48,7 @@ class Onceler:
 
         existing_result = self.index_manager.load_from_index("results", full_key)
         if existing_result is not None:
-            return self._handle_result(existing_result)
+            return self._handle_result(existing_result), True
 
         # load_or_store_in_index uses put_if_absent internally
         actual_lock, _ = self.index_manager.load_or_store_in_index(
@@ -60,14 +60,14 @@ class Onceler:
         with actual_lock:
             existing_result = self.index_manager.load_from_index("results", full_key)
             if existing_result is not None:
-                return self._handle_result(existing_result)
+                return self._handle_result(existing_result), True
 
             try:
                 result = do()
                 # Store the successful result
                 stored_value = result if result is not None else "COMPLETED"
                 self.index_manager.store_in_index("results", full_key, stored_value)
-                return result
+                return result, False
             except Exception as e:
                 self.index_manager.store_in_index("results", full_key, e)
                 raise e
