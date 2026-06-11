@@ -9,9 +9,9 @@ from pycv.effects import ErodeEffect, AdaptiveThresholdEffect, GaussianBlurEffec
     Effect
 from pycv.helpers import get_horizontal_and_vertical_lines, extract_cell_bounds, sort_and_filter_rects
 from queue_controller.helpers import new_controller, start_pipeline, stop_pipeline
-from src.queue_controller.queueController import QueueController
-from src.queue_controller.queueData import QueueData
-from src.thread_safe.index import Index
+from queue_controller.queueController import QueueController
+from queue_controller.queueData import QueueData
+from thread_safe.index import Index
 
 
 def chain(img: np.ndarray, order: List[Effect], debug=None) -> np.ndarray:
