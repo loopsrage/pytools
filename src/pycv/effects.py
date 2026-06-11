@@ -238,7 +238,7 @@ class ResizeEffect(Effect, Standard):
         return resized_img
 
 class ThinningEffect(Effect, Standard):
-    def __init__(self, thinning_type: int = cv2.THINNING_ZHANGSUEN):
+    def __init__(self, thinning_type: int = cv2.ximgproc.THINNING_ZHANGSUEN):
         super().__init__()
         self.thinning_type = thinning_type
 
