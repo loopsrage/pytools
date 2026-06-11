@@ -28,14 +28,10 @@ from indexes.api_index.api_index import ApiIndex
 from indexes.app_ctrl_index.appctrl import ApplicationIndex
 from indexes.connection_index.connection_index import ConnectionIndex
 from indexes.fsindex.fsindex import FilesystemIndex
-from indexes.specialist_index.specialist_index import SpecialistIndex
 from indexes.worker_service_index.worker_index import WorkerServiceIndex
-from queue_controller.queueController import QueueController
 from service_controller.service_controller import ServiceController
 from settings.helper import unmarshal_app_settings, setting, restore
 from thread_safe.controller.controller import Controller
-from thread_safe.index import Index
-from thread_safe.onceler import Onceler
 
 
 class ThreadSafeTG(TaskGroup):
@@ -73,7 +69,7 @@ class UvicornSettings(BaseSettings):
     proxy_headers: str| None = None
     loop: str | None= "uvloop"
 
-class AppIndex(ApplicationIndex, WorkerServiceIndex, FilesystemIndex, ConnectionIndex, ApiIndex, SpecialistIndex):
+class AppIndex(ApplicationIndex, WorkerServiceIndex, FilesystemIndex, ConnectionIndex, ApiIndex):
     pass
 
 class AppBase(ServiceController):

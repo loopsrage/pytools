@@ -1,5 +1,3 @@
-import asyncio
-from asyncio import QueueEmpty, CancelledError
 
 import cv2
 import numpy as np
@@ -108,13 +106,8 @@ async def image_word_isolation_pipeline(tbd: Index):
 
 def word_denoise_chain() -> list[Effect]:
     return [
-        # 1. Blur to smooth out paper texture
         GaussianBlurEffect(kernel_x=3, kernel_y=3, sig_x=0, sig_y=0, border_type=cv2.BORDER_DEFAULT),
-
-        # 2. Convert to Grayscale
         GrayScaleEffect(),
-
-        # 3. Adaptive Thresholding (Note: gocv .8 C mapping)
         AdaptiveThresholdEffect(
             max_val=255,
             c=0.8,
@@ -122,20 +115,13 @@ def word_denoise_chain() -> list[Effect]:
             threshold_type=cv2.THRESH_BINARY,
             adaptive_method=cv2.ADAPTIVE_THRESH_GAUSSIAN_C
         ),
-
-        # 4. Dilate (3x1) - Stretch horizontally to connect characters into a word
         DilateEffect(x=3, y=1),
-
-        # 5. Erode (4x3) - Clean up edges and slightly thin the resulting blocks
         ErodeEffect(x=4, y=3)
     ]
 
 def word_isolation_chain() -> list[Effect]:
     return [
-        # 1. Start with Grayscale
         GrayScaleEffect(),
-
-        # 2. Heavier Blur (5x5) to remove finer details
         GaussianBlurEffect(
             kernel_x=5,
             kernel_y=5,
@@ -143,8 +129,6 @@ def word_isolation_chain() -> list[Effect]:
             sig_y=0,
             border_type=cv2.BORDER_DEFAULT
         ),
-
-        # 3. Adaptive Threshold with C=3 (slightly more conservative than the 0.8 in Denoise)
         AdaptiveThresholdEffect(
             max_val=255,
             c=3.0,
@@ -152,8 +136,5 @@ def word_isolation_chain() -> list[Effect]:
             threshold_type=cv2.THRESH_BINARY,
             adaptive_method=cv2.ADAPTIVE_THRESH_GAUSSIAN_C
         ),
-
-        # 4. Massive Erosion (15x3)
-        # This will eliminate any white objects thinner than 15 pixels horizontally
         ErodeEffect(x=15, y=3)
     ]
