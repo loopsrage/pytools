@@ -114,11 +114,11 @@ _APP_REGISTRY = ApplicationIndex()
 def app_registry() -> ApplicationIndex:
     return _APP_REGISTRY
 
-async def run_app(app_name: str, app, settings_path: str, logger=None, register=True):
+async def run_app(app_name: str, app, settings_path: str=None, logger=None, register=True):
     stop_event = asyncio.Event()
     loop = asyncio.get_running_loop()
 
-    if logger is None:
+    if logger is None and settings_path is not None:
         logger = logger_from_settings(settings_path)
 
     if register:
