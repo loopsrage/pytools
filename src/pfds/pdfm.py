@@ -89,6 +89,12 @@ class PDFM:
             self.load_page_png(page_number)
         )
 
+    def load_page_data(self, page_number):
+        return (
+            self.load_page_text(page_number),
+            self.load_page_png(page_number)
+        )
+
     def render_page(self, page_number):
         self._index.store_in_index(
             self.path,
