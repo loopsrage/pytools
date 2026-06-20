@@ -64,11 +64,11 @@ class PDFM:
         return self._index.load_from_index(self.path, page)
 
     def load_page_png(self, page_number):
-        page = page_path(page_number, ".txt")
+        page = page_path(page_number, ".png")
         return self._index.load_from_index(self.path, page)
 
-    def read_page_text(self, page_number):
-        self.extract_text(page_number)
+    def read_page_text(self, page_number, rect: dict=None):
+        self.extract_text(page_number, rect)
         return self.load_page_text(page_number)
 
     def read_page_png(self, page_number):
@@ -85,8 +85,8 @@ class PDFM:
 
     def load_page(self, page_number):
         return (
-            self.load_page_text(page_number),
-            self.load_page_png(page_number)
+            self.read_page_text(page_number),
+            self.read_page_png(page_number)
         )
 
     def load_page_data(self, page_number):
