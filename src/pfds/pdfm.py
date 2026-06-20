@@ -39,13 +39,55 @@ class PDFM:
             bitmap = page.render(scale=scale)
         return bitmap.to_pil()
 
-    def extract_text(self, page_number):
+    def delete_page(self, page_number):
+        self.delete_page_png(page_number)
+        self.delete_page_png(page_number)
+
+    def extract_text(self, page_number, rect: dict=None):
         text_page = self.page(page_number)
-        data = text_page.get_text_bounded().encode("utf8")
+        payload = None
+        if rect:
+            payload = {
+                "left":   rect.get("left") or None,
+                "bottom": rect.get("bottom") or None,
+                "right": rect.get("right") or None,
+                "top": rect.get("top")
+            }
+        data = text_page.get_text_bounded(**(payload or {})).encode("utf8")
         self._index.store_in_index(
             self.path,
             page_path(page_number, ".txt"),
             data)
+
+    def load_page_text(self, page_number):
+        page = page_path(page_number, ".txt")
+        return self._index.load_from_index(self.path, page)
+
+    def load_page_png(self, page_number):
+        page = page_path(page_number, ".txt")
+        return self._index.load_from_index(self.path, page)
+
+    def read_page_text(self, page_number):
+        self.extract_text(page_number)
+        return self.load_page_text(page_number)
+
+    def read_page_png(self, page_number):
+        self.render_page(page_number)
+        return self.load_page_png(page_number)
+
+    def delete_page_text(self, page_number):
+        page = page_path(page_number, ".txt")
+        self._index.delete_from_index(self.path, page)
+
+    def delete_page_png(self, page_number):
+        page = page_path(page_number, ".png")
+        self._index.delete_from_index(self.path, page)
+
+    def load_page(self, page_number):
+        return (
+            self.load_page_text(page_number),
+            self.load_page_png(page_number)
+        )
 
     def render_page(self, page_number):
         self._index.store_in_index(
