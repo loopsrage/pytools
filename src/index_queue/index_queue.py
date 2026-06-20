@@ -2,6 +2,7 @@ import asyncio
 import threading
 import traceback
 import uuid
+from tqdm import tqdm
 
 from meta_models.working_service import WorkerActionService, WorkerServiceConfig
 from queue_controller.helpers import new_controller
@@ -28,6 +29,8 @@ class IndexQueue:
         self._loop = asyncio.get_running_loop()
         self._counter_lock = threading.Lock()
         self._all_tasks_done = asyncio.Event()
+        self._pbar = tqdm(desc="Processing Tasks", unit="task", total=0)
+
         for name, config in action.items():
             self.index.new(name)
             config.config = WorkerServiceConfig(
@@ -69,6 +72,10 @@ class IndexQueue:
     def enqueue(self, action_key: str, key=None, value=None):
         with self._counter_lock:
             self._in_flight_tasks += 1
+
+            self._pbar.total = max(self._pbar.total, self._in_flight_tasks + self._pbar.n)
+            self._pbar.refresh()
+
             if self._in_flight_tasks == 1:
                 self._all_tasks_done.clear()
 
@@ -81,6 +88,9 @@ class IndexQueue:
         with self._counter_lock:
             if self._in_flight_tasks > 0:
                 self._in_flight_tasks -= 1
+
+                self._pbar.update(1)
+
                 if self._in_flight_tasks == 0:
                     self._loop.call_soon_threadsafe(self._all_tasks_done.set)
 
@@ -89,6 +99,9 @@ class IndexQueue:
             if self._in_flight_tasks == 0:
                 return
         await self._all_tasks_done.wait()
+
+        with self._counter_lock:
+            self._pbar.close()
 
 def new_index_queue(worker_count: int, *actions):
     _closed_workers_tracker = 0
