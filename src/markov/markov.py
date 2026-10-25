@@ -21,6 +21,8 @@ class MarkovEncoder(json.JSONEncoder):
             return obj.all()
         if isinstance(obj, Markov):
             return {"history": obj.history}
+        if hasattr(obj, 'model_dump'):
+            return obj.model_dump()
         if hasattr(obj, 'dict'):
             return obj.dict()
         return super().default(obj)
@@ -32,7 +34,7 @@ class Markov:
         self.history = TsList()
 
     def record_many(self, markov_data: List[MarkovData]):
-        self.history.add(markov_data)
+        self.history.add(*markov_data)
 
     def record(self, from_ri: Any, to_ri: Any, reward: float = 0.0, duration_ms: float = 0.0):
         self.history.append(MarkovData(

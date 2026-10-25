@@ -71,7 +71,7 @@ async def image_word_isolation_pipeline(tbd: Index):
 
         async def queue_action(queue_data: QueueData) -> None:
             pil_image = queue_data.attribute("Image")
-            pil_image.convert('RGB')
+            pil_image = pil_image.convert('RGB')
             # 5. Convert PIL to OpenCV Mat (BGR)
             img_mat = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
 

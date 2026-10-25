@@ -1,6 +1,11 @@
-from typing import List
+from typing import Any, List
 
-from langgraph.store.postgres.base import PostgresIndexConfig
+try:
+    from langgraph.store.postgres import AsyncPostgresStore
+    from langgraph.store.postgres.base import PostgresIndexConfig
+except ImportError:
+    AsyncPostgresStore = Any
+    PostgresIndexConfig = None
 
 from thread_safe.index import Index
 

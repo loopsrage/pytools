@@ -27,9 +27,9 @@ class IndexQueue:
         self.index = Index()
         self.max_index_size = 256
         self._counter_lock = threading.Condition(lock=threading.Lock())
-        self._in_flight_tasks = 0
         self._loop = asyncio.get_running_loop()
         self._all_tasks_done = asyncio.Event()
+        self._all_tasks_done.set()
 
         self._in_flight_tasks: dict[str, int] = {}
         self._max_sizes: dict[str, int] = {}
@@ -91,7 +91,7 @@ class IndexQueue:
             self._pbar.total = max(self._pbar.total, total_current_tasks + self._pbar.n)
             self._pbar.refresh()
 
-            if self._in_flight_tasks == 1:
+            if total_current_tasks == 1:
                 self._all_tasks_done.clear()
 
         if key is None:
@@ -111,7 +111,7 @@ class IndexQueue:
 
     async def wait_for_completions(self):
         with self._counter_lock:
-            if self._in_flight_tasks == 0:
+            if sum(self._in_flight_tasks.values()) == 0:
                 return
         await self._all_tasks_done.wait()
 

@@ -12,12 +12,15 @@ class SuperlativeTimes:
 
     def set_first_time(self, x: datetime.datetime) -> None:
         with self._lock:
-            if self.first is None or  self.first < int(x.timestamp()):
-                self.first = int(x.timestamp())
+            ts = int(x.timestamp())
+            if self.first is None or ts < self.first:
+                self.first = ts
 
     def set_last_time(self, x: datetime.datetime) -> None:
-            if self.last is None or self.last > int(x.timestamp()) :
-                self.last = int(x.timestamp())
+        with self._lock:
+            ts = int(x.timestamp())
+            if self.last is None or ts > self.last:
+                self.last = ts
 
     @property
     def last_time(self) -> datetime.datetime:

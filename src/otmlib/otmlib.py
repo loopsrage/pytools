@@ -1,5 +1,6 @@
 from functools import partial
 
+from aiohttp import BasicAuth
 from pydantic import BaseModel
 
 from httpclient.api import Api
@@ -54,7 +55,7 @@ def headers(**kwargs):
 # "{resource}/describe"
 
 
-def resources_v2(prefix: str, resource: str = None, version: str = None, describe: bool = None):
+def resources_v2(resource: str = None, prefix: str = None, version: str = None, describe: bool = None):
     if prefix is None:
         prefix = "logisticsRestApi"
 
@@ -66,15 +67,103 @@ def resources_v2(prefix: str, resource: str = None, version: str = None, describ
 
     return f"/{prefix}/resources/{version}/{resource}{'/describe' if describe else ''}"
 
+
+class ShipmentsRequest(BaseModel):
+    limit: int
+    filter: str
+    offset: int
+    total_results: bool | str
+
+
+class OtmAuth(BaseModel):
+    user: str
+    password: str
+    server: str | None = None
+
+
+class OtmSettings(OtmAuth):
+    pass
+
+
 class OtmApi(Api):
     _token: str = None
     _base_url: str = None
 
-    def __init__(self, settings: OtmSettings, default_client_args: dict = None, default_request_args: dict = None):
-        self._auth = OtmAuth(user=settings.user, password=settings.password)
-        base_url = f"https://{settings.server}.oraclecloud.com"
+    def __init__(self, settings: OtmAuth | OtmSettings, default_client_args: dict = None, default_request_args: dict = None):
+        self._auth = BasicAuth(settings.user, settings.password)
+        if settings.server and settings.server.startswith(("http://", "https://")):
+            base_url = settings.server.rstrip("/")
+        else:
+            base_url = f"https://{settings.server}.oraclecloud.com"
         super().__init__(base_url, default_client_args, default_request_args)
         self._base_url = base_url
+
+    async def shipments(self, request: ShipmentsRequest):
+        await self.api_request(
+            to=resources_v2("shipments"),
+            method="POST",
+            data=request.model_dump(exclude_none=True), auth=self._auth)
+
+    async def order_movements(self, request: BaseModel):
+        await self.api_request(
+            to=resources_v2("orderMovements"),
+            method="POST",
+            data=request.model_dump(exclude_none=True), auth=self._auth)
+
+    async def order_releases(self, request: BaseModel):
+        await self.api_request(
+            to=resources_v2("orderReleases"),
+            method="POST",
+            data=request.model_dump(exclude_none=True), auth=self._auth)
+
+    async def itineraries(self, request: BaseModel):
+        await self.api_request(
+            to=resources_v2("itineraries"),
+            method="POST",
+            data=request.model_dump(exclude_none=True), auth=self._auth)
+
+    async def rate_offerings(self, request: BaseModel):
+        await self.api_request(
+            to=resources_v2("rateOfferings"),
+            method="POST",
+            data=request.model_dump(exclude_none=True), auth=self._auth)
+
+    async def rate_records(self, request: BaseModel):
+        await self.api_request(
+            to=resources_v2("rateRecords"),
+            method="POST",
+            data=request.model_dump(exclude_none=True), auth=self._auth)
+
+    async def servprovs(self, request: BaseModel):
+        await self.api_request(
+            to=resources_v2("servprovs"),
+            method="POST",
+            data=request.model_dump(exclude_none=True), auth=self._auth)
+
+    async def trade_transactions(self, request: BaseModel):
+        await self.api_request(
+            to=resources_v2("tradeTransactions"),
+            method="POST",
+            data=request.model_dump(exclude_none=True), auth=self._auth)
+
+    async def export_requests(self, request: BaseModel):
+        await self.api_request(
+            to=resources_v2("exportRequests"),
+            method="POST",
+            data=request.model_dump(exclude_none=True), auth=self._auth)
+
+    async def export_statuses(self, request: BaseModel):
+        await self.api_request(
+            to=resources_v2("exportStatuses"),
+            method="POST",
+            data=request.model_dump(exclude_none=True), auth=self._auth)
+
+    async def regions(self, request: BaseModel):
+        await self.api_request(
+            to=resources_v2("regions"),
+            method="POST",
+            data=request.model_dump(exclude_none=True), auth=self._auth)
+
 
 class OtmLog(OtmApi):
 
@@ -94,99 +183,3 @@ class OtmLog(OtmApi):
             resource=to,
             describe=describe
         )
-
-#     # f"/logisticsRestApi/resources/v2/shipments"
-# # f"/logisticsRestApi/resources/v2/orderReleases"
-# # f"/logisticsRestApi/resources/v2/locations"
-# # f"/logisticsRestApi/resources/v2/vouchers"
-# # f"/logisticsRestApi/resources/v2/trackingEvents"
-# # f"/logisticsRestApi/resources/v2/tradeTransactions"
-# # f"/logisticsRestApi/resources/v2/declarations"
-# # f"/logisticsRestApi/resources/v2/licenses"
-# # f"/logisticsRestApi/resources/v2/partyScreens"
-
-
-class ShipmentsRequest(BaseModel):
-    limit: int
-    filter: str
-    offset: int
-    total_results: bool | str
-
-class OtmAuth(BaseModel):
-    user: str
-    password: str
-
-class OtmApi(Api):
-    _token: str = None
-
-    def __init__(self, settings: OtmAuth, default_client_args: dict = None, default_request_args: dict = None):
-        self._auth = OtmAuth(user=settings.user, password=settings.password)
-        base_url = f"https://{settings.server}.oraclecloud.com"
-        super().__init__(base_url, default_client_args, default_request_args)
-        self._base_url = base_url
-
-    async def shipments(self, request: ShipmentsRequest):
-        await self.api_request(
-            to=resources_v2("shipments"),
-            method="POST",
-            data=request.model_dump_json(), auth=self._auth)
-
-    async def order_movements(self, request: BaseModel):
-        await self.api_request(
-            to=resources_v2("orderMovements"),
-            method="POST",
-            data=request.model_dump_json(), auth=self._auth)
-
-    async def order_releases(self, request: BaseModel):
-        await self.api_request(
-            to=resources_v2("orderReleases"),
-            method="POST",
-            data=request.model_dump_json(), auth=self._auth)
-
-    async def itineraries(self, request: BaseModel):
-        await self.api_request(
-            to=resources_v2("itineraries"),
-            method="POST",
-            data=request.model_dump_json(), auth=self._auth)
-
-    async def rate_offerings(self, request: BaseModel):
-        await self.api_request(
-            to=resources_v2("rateOfferings"),
-            method="POST",
-            data=request.model_dump_json(), auth=self._auth)
-
-    async def rate_records(self, request: BaseModel):
-        await self.api_request(
-            to=resources_v2("rateRecords"),
-            method="POST",
-            data=request.model_dump_json(), auth=self._auth)
-
-    async def servprovs(self, request: BaseModel):
-        await self.api_request(
-            to=resources_v2("servprovs"),
-            method="POST",
-            data=request.model_dump_json(), auth=self._auth)
-
-    async def trade_transactions(self, request: BaseModel):
-        await self.api_request(
-            to=resources_v2("tradeTransactions"),
-            method="POST",
-            data=request.model_dump_json(), auth=self._auth)
-
-    async def export_requests(self, request: BaseModel):
-        await self.api_request(
-            to=resources_v2("tradeTransactions"),
-            method="POST",
-            data=request.model_dump_json(), auth=self._auth)
-
-    async def export_statuses(self, request: BaseModel):
-        await self.api_request(
-            to=resources_v2("tradeTransactions"),
-            method="POST",
-            data=request.model_dump_json(), auth=self._auth)
-
-    async def regions(self, request: BaseModel):
-        await self.api_request(
-            to=resources_v2("regions"),
-            method="POST",
-            data=request.model_dump_json(), auth=self._auth)

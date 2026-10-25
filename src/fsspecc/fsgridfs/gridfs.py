@@ -33,7 +33,7 @@ class MongoFS(AtomicWriteFs):
     _client = None
     _name = None
     def __init__(self, dsn: str, database_name: str):
-        super().__init__(filesystem="mongodb")
+        self._filesystem = "mongodb"
         self._client = MongoClient(dsn)
         self._fs = gridfs.GridFS(self._client[database_name])
         self._name = database_name
@@ -50,19 +50,27 @@ class MongoFS(AtomicWriteFs):
     def files_db(self):
         return self.client[self.name]
 
-    def files_fs(self, collection: str = None):
-        return partial(gridfs.GridFS, self.files_db, collection=collection)
+    def files_fs(self, collection: str = "fs"):
+        return partial(gridfs.GridFS, self.files_db, collection=collection or "fs")
 
     def write(self, file_path: str, file_buffer: io.BytesIO, **kwargs):
         file_buffer.seek(0)
-        return self.files_fs()().put(file_buffer, **kwargs)
+        return self.files_fs()().put(file_buffer, filename=file_path, **kwargs)
 
-    def list(self, collection, pattern=None, fs=None):
-        for i in _aggregate_last_version(self.files_db, fs, pattern, collection):
+    def list(self, collection=None, pattern=None, fs=None):
+        target_fs = fs or self.files_fs(collection or "fs")()
+        for i in _aggregate_last_version(self.files_db, target_fs, pattern, collection):
             yield i
 
     def read(self, file_path: str, x = None, y = None):
-        return io.BytesIO(self._fs.get_last_version(filename=file_path)).getvalue()
+        grid_out = self._fs.get_last_version(filename=file_path)
+        data = grid_out.read()
+        if isinstance(x, io.BytesIO):
+            x.seek(0)
+            x.truncate(0)
+            x.write(data)
+            x.seek(0)
+        return data
 
     def save_image(self, file_name, model_name, figure):
         img_buffer = io.BytesIO()

@@ -46,7 +46,7 @@ async def read_contents_in_threadpool(storage, file, request_id):
 
     def encase(ct):
         df = pd.read_csv(io.BytesIO(ct))
-        storage.save_raw_file(df, request_id, use_pipe=True)
+        storage.save_raw_file(request_id, df, use_pipe=True)
         return df
 
     return await run_in_threadpool(encase, contents)

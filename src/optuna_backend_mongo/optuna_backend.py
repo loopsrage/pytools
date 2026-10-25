@@ -1,6 +1,9 @@
 from typing import Any, Dict, List
 from optuna.storages.journal import BaseJournalBackend
-from pymongo import MongoClient
+try:
+    from pymongo import MongoClient
+except ImportError:
+    MongoClient = None
 
 class MongoJournalBackend(BaseJournalBackend):
     def __init__(self, mongo_url: str, db_name: str, collection_name: str):

@@ -73,6 +73,11 @@ class Container:
 
     def read_primitive_value(self, path: str):
         """Reads a primitive value from the global index by path."""
+        if "@" in path:
+            base_path, attr_name = path.split("@", 1)
+            target_el = self.read_from_value(base_path)
+            return target_el.attrib.get(attr_name) if target_el is not None else None
+
         # 1. Load the XML element from the index using the provided path
         element = self.read_from_value(path)
         if element is None:
@@ -81,10 +86,6 @@ class Container:
         if len(element) == 0:
             return element.text.strip() if element.text else None
 
-        if "@" in path:
-            base_path, attr_name = path.split("@")
-            target_el = self.read_from_value(base_path)
-            return target_el.attrib.get(attr_name) if target_el is not None else None
         return None
 
 
@@ -139,7 +140,7 @@ def build_xml_container_tree(current_container=None, path=None, path_delim=".", 
 
     for child in element:
         tag_name = clean_tag(child.tag)
-        tag_counts[child.tag] += 1
+        tag_counts[tag_name] += 1
 
         # Create a unique path segment (e.g., root.users.user_1)
         # Using index suffix for duplicate tags to ensure path uniqueness in the index

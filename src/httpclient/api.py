@@ -40,15 +40,27 @@ class Api:
             return (self._request_args or {}).copy()
 
     def endpoint(self, endpoint: str):
-        return "/".join([self.base_url, endpoint])
+        return f"{self.base_url.rstrip('/')}/{endpoint.lstrip('/')}"
 
     async def _client_session(self, request_handler: Callable[[ClientSession], Awaitable[None]], client_args: dict = None):
-        session, _ = self._response_index.load_or_store_in_index("session", "session", ClientSession(**client_args))
+        try:
+            session = self._response_index.load_from_index("session", "session")
+        except KeyError:
+            session = None
+        if session is None:
+            new_sess = ClientSession(**(client_args or {}))
+            session, loaded = self._response_index.load_or_store_in_index("session", "session", new_sess)
+            if loaded and new_sess is not session:
+                await new_sess.close()
         await request_handler(session)
 
     async def close(self):
-        session: ClientSession = self._response_index.load_from_index("session", "session")
-        await session.close()
+        try:
+            session: ClientSession = self._response_index.load_from_index("session", "session")
+            if session is not None:
+                await session.close()
+        except KeyError:
+            pass
 
     async def client_request(self, response_handler, client_args: dict = None, request_args: dict = None):
         request_args = {**(self._request_args or {}), **(request_args or {})}
@@ -81,7 +93,7 @@ class Api:
         yield from self._response_index.range_index("response")
 
     def list_requests(self):
-        yield from self._response_index.range_index("requests")
+        yield from self._response_index.range_index("request")
 
     def read_response(self, request_id):
         return self._response_index.load_from_index("response", request_id)
@@ -90,7 +102,7 @@ class Api:
         return self._response_index.load_from_index("request", request_id)
 
     def _store_request(self, request_id, request_args):
-        self._response_index.store_in_index(request_id, "request", request_args)
+        self._response_index.store_in_index("request", request_id, request_args)
 
     def _store_response(self, request_id, response):
         self._response_index.store_in_index("response", request_id, response)
@@ -118,6 +130,9 @@ class Api:
             "method": method,
             **(request_args or {})
         }
+        if auth is not None and "auth" not in args:
+            args["auth"] = auth
+        self._store_request(request_id, args)
 
         await self.client_request(_handle_response, request_args=args)
         return request_id

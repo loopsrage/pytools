@@ -18,8 +18,7 @@ class PeriodicProducer:
     _action: Callable[[], Union[list[Any]|None]]
     _handle_error = None
     def __init__(self,action: Callable[[], Any],  queue: QueueController = None, interval: int = 1, start_now: bool = False, handle_error=None):
-        if handle_error is None:
-            self._handle_error = handle_error_f
+        self._handle_error = handle_error if handle_error is not None else handle_error_f
         self._controller = AsyncController(interval, start_now)
         self._queue = queue
         self._action = action

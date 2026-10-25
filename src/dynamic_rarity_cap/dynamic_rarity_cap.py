@@ -17,14 +17,15 @@ class DynamicRarityCap(RarityCap):
 
     def check(self, truth) -> bool:
         try:
-            total_in_data = self._rarity_map.get(str(truth), 1)
+            total_in_data = max(1, self._rarity_map.get(str(truth), 1))
             dynamic_cap = max(2, math.floor(20 - (math.log10(total_in_data) * 5)))
             current = self._truths.get(truth, 0)
             over_cap = current >= dynamic_cap
             if over_cap:
-                return over_cap
+                return True
 
             self._truths[truth] = current + 1
+            return False
         except Exception as e:
             if truth in self._truths:
                 self._truths[truth] -= 1

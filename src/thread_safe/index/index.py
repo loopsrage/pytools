@@ -10,7 +10,20 @@ class Index:
         # Main map stores sub-index ConcurrentDictionary objects
         self.map = ConcurrentDictionary()
 
-    def new(self, index_name: str) -> 'ConcurrentIndex':
+    def __getstate__(self):
+        return {
+            name: dict(self.range_index(name))
+            for name in self.list_indexes()
+        }
+
+    def __setstate__(self, state):
+        self.map = ConcurrentDictionary()
+        for name, sub_dict in state.items():
+            self.new(name)
+            for k, v in sub_dict.items():
+                self.store_in_index(name, k, v)
+
+    def new(self, index_name: str) -> 'Index':
         """Creates a new nested concurrent dictionary atomically."""
         # put_if_absent returns the existing value or adds the new one
         self.map.put_if_absent(index_name, ConcurrentDictionary())

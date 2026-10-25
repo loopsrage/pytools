@@ -47,25 +47,42 @@ class MyTestCase(unittest.TestCase):
         key = "shared_key"
 
         results = []
+        results_lock = threading.Lock()
 
         def worker(worker_id):
             # Every thread tries to store its own ID
             val, loaded = idx.load_or_store_in_index(index_name, key, worker_id)
-            results.append((val, loaded))
+            with results_lock:
+                results.append((val, loaded))
 
-            threads = [threading.Thread(target=worker, args=(i,)) for i in range(100)]
-            for t in threads: t.start()
-            for t in threads: t.join()
+        threads = [threading.Thread(target=worker, args=(i,)) for i in range(100)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
 
-            # Analysis:
-            # Exactly one thread should have 'loaded=False'
-            stored_count = len([r for r in results if r[1] is False])
-            assert stored_count == 1
+        # Analysis:
+        # Exactly one thread should have 'loaded=False'
+        stored_count = len([r for r in results if r[1] is False])
+        assert stored_count == 1
+        assert len(results) == 100
 
-            # All threads should see the same value (the one from the winner)
-            winning_val = next(r[0] for r in results if r[1] is False)
-            for val, loaded in results:
-                assert val == winning_val
+        # All threads should see the same value (the one from the winner)
+        winning_val = next(r[0] for r in results if r[1] is False)
+        for val, loaded in results:
+            assert val == winning_val
+
+    def test_delete_index_and_list_indexes(self):
+        idx = Index()
+        idx.store_in_index("ns1", "k1", "v1")
+        idx.store_in_index("ns2", "k2", "v2")
+        assert set(idx.list_indexes()) == {"ns1", "ns2"}
+        idx.delete_index("ns1")
+        with self.assertRaises(KeyError):
+            idx.load_from_index("ns1", "k1")
+        assert idx.load_from_index("ns2", "k2") == "v2"
+        idx.delete_index("ns2")
+        assert list(idx.list_indexes()) == []
     def test_safe_iteration_during_writes(self):
         idx = Index()
         idx.new("stream")

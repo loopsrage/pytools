@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import io
 import logging
 import os
@@ -10,11 +11,8 @@ from contextlib import asynccontextmanager
 from typing import Literal, List
 
 import uvicorn
-from aiohttp.web_request import Request
-from alembic import command
-from alembic.config import Config
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.routing import APIRoute
 from pydantic_settings import BaseSettings
 from starlette.datastructures import MutableHeaders
@@ -73,7 +71,7 @@ class AppIndex(ApplicationIndex, WorkerServiceIndex, FilesystemIndex, Connection
     pass
 
 class AppBase(ServiceController):
-    _app_index = AppIndex = None
+    _app_index: AppIndex = None
     _logger = None
 
     @property
@@ -143,8 +141,10 @@ async def run_app(app_name: str, app, settings_path: str=None, logger=None, regi
         await app.close()
 
 class AlembicApp(AppBase):
-    config: Config
+    config: object
     def __init__(self, path, script_location: str, sqlalchemy_url: str):
+        from alembic import command
+        from alembic.config import Config
         self.config = Config(path)
         self.config.set_main_option("script_location", script_location)
         self.config.set_main_option("sqlalchemy.url", sqlalchemy_url)
@@ -160,6 +160,7 @@ class SimpleApp(AppBase):
     actions: dict[str, ActionConfig]
 
     def __init__(self, actions: dict[str, ActionConfig]):
+        super().__init__()
         self.queues.extend([controller.queue for _, controller in actions.items()])
         self.action_queues = IndexQueue({name: controller for name, controller in actions.items()})
 
@@ -168,8 +169,9 @@ class WebApp(AppBase):
     _fast_api = None
 
     def __init__(self, uvcorn_settings: UvicornSettings, controllers: List[Controller] = None):
+        super().__init__()
         self._settings = uvcorn_settings
-        self._controllers = controllers
+        self.controllers = controllers or []
         self._app_index = AppIndex()
 
     def async_lifespan(self):
@@ -203,7 +205,22 @@ class WebApp(AppBase):
             response.headers["X-Process-Time"] = f"{process_time:.4f}s"
             response.headers["X-Request-Id"] = str(request_id)
 
-            self.logger.info(f"Method: {request.method}, RequestId: {request_id}, Path: {request.url.path} Time: {process_time:.4f}s")
+            if self.logger:
+                self.logger.info(f"Method: {request.method}, RequestId: {request_id}, Path: {request.url.path} Time: {process_time:.4f}s")
+            return response
+
+        @self._fast_api.middleware("http")
+        async def azure_auth_middleware(request: Request, call_next):
+            headers = MutableHeaders(scope=request.scope)
+            principal_name = headers.get("X-MS-CLIENT-PRINCIPAL-NAME", "")
+            claims = headers.get("X-MS-CLIENT-PRINCIPAL", "")
+            if claims:
+                try:
+                    request.state.azure_claims = base64.b64decode(claims).decode("utf-8")
+                    request.state.azure_principal_name = principal_name
+                except Exception:
+                    request.state.azure_claims = None
+            response = await call_next(request)
             return response
 
     def api_routes(self):
@@ -240,7 +257,7 @@ class WebApp(AppBase):
 class WebAppWithWorkers(WebApp, WorkerApp):
     def init(self, stop_event, tg, logger=None):
         WebApp.init(self, stop_event, tg, logger)
-        WorkerApp.init(self, stop_event, tg, logger)
+        self.app_index.start_workers(stop_event, tg)
 
 class AlembicWebAppWithWorkers(WebAppWithWorkers, AlembicApp):
     def __init__(self, uvicorn_settings, path, script_location, sql_alchemy_url):

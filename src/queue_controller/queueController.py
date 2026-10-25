@@ -48,8 +48,6 @@ class QueueController:
         self._broadcast = {}
 
         self._executor = executor
-        if self._executor is None:
-            self._executor = futures.ThreadPoolExecutor()
 
     @property
     def identity(self):

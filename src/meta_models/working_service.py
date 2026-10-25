@@ -31,6 +31,7 @@ class WorkerActionService(ServiceController):
     action: Any
 
     def __init__(self, config: WorkerServiceConfig, action: Any):
+        super().__init__()
         self.config = config
         self.action = action
         self.start()
@@ -60,6 +61,7 @@ class WorkerService(ServiceController):
     _lock = threading.RLock
 
     def __init__(self, session_name: str, model, config: WorkerServiceConfig, action: Any, next_queue: QueueController = None):
+        super().__init__()
         self.session_name = session_name
         self._lock = threading.RLock()
         self.config = config

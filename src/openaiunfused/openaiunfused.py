@@ -26,7 +26,7 @@ def unfuzed_parse_response( query, adapter, model, developer_string, verbose=Fal
         return y
 
     with MODEL_LOCK:
-        model, tokenizer = one_time.store_once("models", model, x(model, actual_adapter))
+        (model, tokenizer), _ = one_time.store_once("models", model, x(model, actual_adapter))
         if not query:
             return None
 

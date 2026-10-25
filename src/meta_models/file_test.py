@@ -1,29 +1,45 @@
-import os
+import datetime
 import unittest
 
-from dotenv import load_dotenv
-
-from meta_models.file import UploadedFiles
-from meta_models.working import select_work
-from postgreslib.engine import named_session
-from settings.helper import setting, restore
+from meta_models.file import UploadedFiles, file_data_index
+from meta_models.working import Working, work_stage_index
+from meta_models.working_service import WorkerActionService, WorkerServiceConfig
 
 
-load_dotenv()
-restore(os.getenv("ENV_FILE"))
+class TestMetaModels(unittest.IsolatedAsyncioTestCase):
 
-class MyTestCase(unittest.TestCase):
-    def test_something(self):
-        with named_session("TWE_PG") as session:
-            results = select_work(
-                session=session,
-                model=UploadedFiles,
-                stage="initial",
-                limit=setting("TWE.Initial", "limit"),
-                retries=setting("TWE.Initial", "retries"),
-            )
-        print(f"found {len(results)} results")
+    def test_working_and_uploaded_files_schema(self):
+        now = datetime.datetime.now(datetime.timezone.utc)
+        w = Working(stage="initial", scheduled_for=now, retries=1)
+        dumped = w.model_dump(mode="json")
+        assert dumped["stage"] == "initial"
+        assert dumped["retries"] == 1
+
+        assert UploadedFiles.__tablename__ == "files"
+        idx_names = {idx.name for idx in UploadedFiles.__table__.indexes}
+        assert "idx_unique_hash" in idx_names
+        assert "idx_initial_stage" in idx_names
+        assert "idx_pending_stage" in idx_names
+
+        class DummyNoHash:
+            pass
+
+        assert file_data_index(DummyNoHash) is None
+        assert work_stage_index(DummyNoHash, "initial") is None
+
+    async def test_worker_action_service(self):
+        calls = []
+
+        async def my_action():
+            calls.append(1)
+
+        cfg = WorkerServiceConfig(identity="test_worker", worker_interval=1, start_now=True)
+        svc = WorkerActionService(config=cfg, action=my_action)
+        try:
+            assert len(svc.controllers) == 1
+        finally:
+            svc.close_controllers()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

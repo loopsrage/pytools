@@ -5,12 +5,14 @@ from thread_safe.index import Index
 
 class WorkerServiceIndex:
     _index = None
-    _namespace = None
+    _worker_namespace = "workers"
 
     def __init__(self):
-        self._index = Index()
-        self._namespace = "workers"
-        self._index.new("workers")
+        super().__init__()
+        if self._index is None:
+            self._index = Index()
+        self._namespace = self._worker_namespace
+        self._index.new(self._worker_namespace)
 
     def worker(self, name, workers=None):
         return self._index.load_or_store_in_index(

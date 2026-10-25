@@ -105,7 +105,7 @@ class Playwright:
                         scrape_args.url,
                         wait_until="networkidle")
                     return page, page_data
-                page, page_data = await self.onceler.astore_once(scrape_args.url, "init_page_once", init_page)
+                (page, page_data), _ = await self.onceler.astore_once(scrape_args.url, "init_page_once", init_page)
 
                 async def enqueue_once():
                     await self.p_node.enqueue(QueueData(
@@ -127,13 +127,14 @@ class Playwright:
 
             worker_task = asyncio.create_task(self.worker(context))
 
-            await self._queue.put(*self._urls)
+            for url_item in self._urls:
+                await self._queue.put(url_item)
 
             await self._queue.join()
             await self.p_node.queue.join()
 
             await self._queue.put(None)
-            await self.p_node.queue.put(None)
+            await self.p_node.close()
             await worker_task
             await browser.close()
 

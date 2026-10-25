@@ -5,7 +5,10 @@ from pydantic import BaseModel
 from langchain.agents import create_agent
 from langchain.agents.middleware import SummarizationMiddleware
 from langchain_core.messages import SystemMessage
-from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+try:
+    from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+except ImportError:
+    AsyncPostgresSaver = None
 from fsspecc.base_fsspecfs.base_fsspecfs import FSBase
 
 
@@ -25,14 +28,14 @@ def _RAG_message(inject: str):
 
 def search_past_memories(store, user_id, namespace, query, threshold: float):
     if store is None:
-        return []
+        return _system_message("")
 
     past_memories = store.search(user_id, namespace, query)
     return _system_message(format_past_memories([item for item in past_memories if item.score > threshold]))
 
 async def asearch_past_memories(store, user_id, namespace, query, threshold: float):
     if store is None:
-        return []
+        return _system_message("")
 
     past_memories = await store.asearch(user_id, namespace, query)
     return _system_message(format_past_memories([item for item in past_memories if item.score > threshold]))
@@ -42,10 +45,6 @@ def format_past_memories(past_memories):
         f"[{item.value['text']}:{item.score:.2f}]"
         for item in past_memories
     ])
-
-
-class AsyncPostgresSaver:
-    pass
 
 
 class DefaultAgent:
@@ -86,9 +85,7 @@ class DefaultAgent:
 
     async def ainvoke(self, user_id: Any, request_id: str, namespace: str, query, config, threshold: float):
         if self.store is not None:
-            past_memories = await search_past_memories(self.store, user_id, namespace, query, threshold)
-            formatted_memories = format_past_memories(past_memories)
-            msg = _system_message(formatted_memories)
+            msg = await asearch_past_memories(self.store, user_id, namespace, query, threshold)
             history = self._state.get("messages", [])
             response = await self._agent.ainvoke( {
                 "messages": [msg] + history + [query],
@@ -112,9 +109,7 @@ class DefaultAgent:
 
     def invoke(self, user_id: Any, request_id: str, namespace: str, query, config, threshold: float):
         if self.store is not None:
-            past_memories = search_past_memories(self.store, user_id, namespace, query, threshold)
-            formatted_memories = format_past_memories(past_memories)
-            msg = _system_message(formatted_memories)
+            msg = search_past_memories(self.store, user_id, namespace, query, threshold)
             history = self._state.get("messages", [])
             response = self._agent.invoke( {
                 "messages": [msg] + history + [query],
@@ -145,10 +140,6 @@ class Config(BaseModel):
     create_agent_kwargs: dict
     pii_types: List[str]
     pii_strategy: str
-
-
-class SummarizationMiddleware:
-    pass
 
 
 async def create_agent_pg_ltm_stm(model, state_schema, config: Config, store = None, pool = None, tools = None, fs = None):

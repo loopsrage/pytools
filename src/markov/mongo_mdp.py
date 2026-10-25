@@ -2,7 +2,11 @@ import random
 import time
 from typing import Any
 
-from indexes.specialist_index.test_specialist_index import AsyncMongoClient
+try:
+    from pymongo import AsyncMongoClient, IndexModel
+except ImportError:
+    AsyncMongoClient = Any
+    IndexModel = None
 from markov.mongo_markov import MongoMarkov
 
 
@@ -19,7 +23,7 @@ class MongoMDP:
         self._client = client
         self._gamma = gamma
         self._collection_name = "MDP"
-        self.setup_markov_indices()
+        self._indices_initialized = False
 
     @property
     def db(self):
@@ -30,6 +34,9 @@ class MongoMDP:
         return self.db[f"{self._collection_name}_mdp_history"]
 
     async def record(self, from_ri: Any, to_ri: Any, action: Any, reward: float = 0.0, duration_ms: float = 0.0):
+        if not self._indices_initialized:
+            await self.setup_markov_indices()
+            self._indices_initialized = True
         await self.collection.update_one(
             {"from_ri": list(from_ri), "action": action, "to_ri": list(to_ri)},
             [
@@ -86,7 +93,8 @@ class MongoMDP:
         mdp_model = {}
         cursor = await self.collection.aggregate(pipeline)
         async for doc in cursor:
-            s, a = doc['from_s'], doc['action']
+            raw_s, a = doc['from_s'], doc['action']
+            s = tuple(raw_s) if isinstance(raw_s, list) else raw_s
             if s not in mdp_model: mdp_model[s] = {}
             mdp_model[s][a] = doc['possible_next']
 
@@ -227,7 +235,7 @@ class MongoMDP:
         return val
 
     async def read_markov_chain(self, mc: MongoMarkov):
-        cursor = self.collection.find({})
+        cursor = mc.collection.find({})
         async for doc in cursor:
             # 2. Transform into MDP triplet: (State, Action, Next State)
             # We use 'observed_behavior' as the baseline action label

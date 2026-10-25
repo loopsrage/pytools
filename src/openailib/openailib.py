@@ -163,10 +163,10 @@ class AzureAIClient:
         return "\n".join(cleaned_data), results
 
     async def parse_response(self, config: InjectConfig, response_model: BaseModel, **kwargs):
+        raw_results = []
+        cleaned = ""
         if config:
             cleaned, raw_results = await self.inject_vector_context(config)
-        else:
-            cleaned = config.query
 
         result = await self.client.responses.parse(
             model=self.config.azure_deployment,
@@ -179,9 +179,10 @@ class AzureAIClient:
 
 
     async def ollama_parse_response(self, client, model, query: str, vector_query, response_model: BaseModel, **kwargs):
+        cleaned_ctx, _ = await self.inject_vector_context(InjectConfig(query=query, vector_query=vector_query))
         result = await client.beta.chat.completions.parse(
             model=model,
-            messages=[{"role": "user", "content": await self.inject_vector_context(query, vector_query)}],
+            messages=[{"role": "user", "content": cleaned_ctx}],
             response_format=response_model,
             **kwargs
         )

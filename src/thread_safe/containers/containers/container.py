@@ -113,7 +113,7 @@ class Container:
     def new_object(self, parent_container, path: str, value):
         """Creates a new child container and appends it to the current container."""
         # This function acts as a factory method integrated with the parent's structure
-        new_container = new_container_func(parent_container, path, value)
+        new_container = new_container_func(parent_container, self.path_delim, path, value)
         self.append_children(new_container)
         return new_container
 
@@ -130,7 +130,7 @@ class Container:
         if self._container_index is None:
             raise ValueError("Container index not initialized.")
 
-        return  self._container_index.load_from_index(self._container_key, path)
+        return self._container_index.load_from_index(self._value_key, path)
 
     def read_from_containers(self, path: str):
         """Reads a Container object from the global index by path."""
@@ -170,9 +170,11 @@ class Container:
         new_path = path[:path.rfind(self.path_delim)]
         key = path[path.rfind(self.path_delim):][1:]
 
-        value = self.read_from_value(new_path).value
+        value = self.read_from_value(new_path)
+        if isinstance(value, Container):
+            value = value.value
         if isinstance(value, collections.abc.MutableMapping):
-            return value.get(key) or None
+            return value.get(key)
 
         return None
 
@@ -216,8 +218,8 @@ def build_container_tree(current_container=None, path=None, path_delim=None, sta
     Recursively builds a tree of Container objects from a nested data structure.
     """
 
-    if path_delim is None or path_delim is "":
-        path_delim = ""
+    if path_delim is None or path_delim == "":
+        path_delim = "."
 
     if path is None:
         path = []
@@ -239,12 +241,8 @@ def build_container_tree(current_container=None, path=None, path_delim=None, sta
                 path.append(str(name))
                 join_path = path_delim.join(path)
 
-                # In Python, we can directly manage object creation and relationships:
-                # The Go code calls `current.NewObject(...)` which is a factory/relationship manager.
-                # We recursively call the function with the newly created child container.
                 child_container = new_container_func(current_container, path_delim, join_path, sub_value)
-                # If you need to store children within the parent:
-                # current_container.children.append(child_container)
+                current_container.append_children(child_container)
 
                 build_container_tree(child_container, path, path_delim)
                 path.pop()  # Equivalent to path[:len(path)-1]
@@ -256,7 +254,7 @@ def build_container_tree(current_container=None, path=None, path_delim=None, sta
                 join_path = path_delim.join(path)
 
                 child_container = new_container_func(current_container, path_delim, join_path, sub_value)
-                # current_container.children.append(child_container)
+                current_container.append_children(child_container)
 
                 build_container_tree(child_container, path, path_delim)
                 path.pop()  # Equivalent to path[:len(path)-1]

@@ -84,8 +84,10 @@ def app_settings(feature_name: str):
     return functools.partial(setting, feature_name)
 
 def all_settings():
-    idx_apps =  APP_INDEX.load_index(APPS_CONTAINER)
-    return idx_apps["root"].value
+    cont: Container = APP_INDEX.load_from_index(APPS_CONTAINER, "root")
+    if cont is None:
+        return {}
+    return cont.value
 
 def parse_env_to_nested_dict(env_data, split_key=None):
     root = {}
@@ -155,6 +157,7 @@ def restore(path: Union[str, pathlib.Path, bytes], path_delim = None) -> None:
 
     cont = read_settings(decoded_str, path_delim)
     APP_INDEX.store_in_index(APPS_CONTAINER, "root", cont)
+    enabled.cache_clear()
     for app_name, settings in cont.range_values:
         if app_name == "root":
             for key, value in settings.items():
@@ -312,17 +315,11 @@ def enabled_flag(feature_name: str):
     :return:
     """
     def decorator(func):
-
-        if not enabled(feature_name=feature_name):
-
-            @functools.wraps(func)
-            def disabled_wrapper(*args, **kwargs):
-                print(f"Skipping {func.__name__}: {feature_name} is disabled.")
-                return None
-            return disabled_wrapper
-
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
+            if not enabled(feature_name=feature_name):
+                print(f"Skipping {func.__name__}: {feature_name} is disabled.")
+                return None
             return func(*args, **kwargs)
         return wrapper
     return decorator

@@ -4,7 +4,10 @@ import shutil
 import ssl
 from pathlib import Path
 from typing import Optional, Callable, Tuple, Any
-from llama_index.embeddings.azure_openai import AzureOpenAIEmbedding
+try:
+    from llama_index.embeddings.azure_openai import AzureOpenAIEmbedding
+except ImportError:
+    AzureOpenAIEmbedding = Any
 
 import fsspec
 import truststore
@@ -20,6 +23,12 @@ class AzureSearchVectorStoreConfig(BaseSettings):
     index_key: str | None
     embedding_dimensionality: int | None
 
+class AzureBlobConfig(BaseSettings):
+    model_config = ConfigDict(extra="allow")
+    account_name: str | None = None
+    account_key: str | None = None
+    ssl: Any | None = None
+
 class AzureIndexAgentSearchConfig(BaseSettings):
     model_config = ConfigDict(extra='allow')
     Sql: Optional[AzureSqlConfig] = None
@@ -28,12 +37,6 @@ class AzureIndexAgentSearchConfig(BaseSettings):
     Storage: Optional[AzureBlobConfig] = None
     Embed: Optional[AzureOpenAIEmbedding] = None
     Vector: Optional[AzureSearchVectorStoreConfig] = None
-
-class AzureBlobConfig(BaseSettings):
-    model_config = ConfigDict(extra="allow")
-    account_name: str | None = None
-    account_key: str | None = None
-    ssl: Any | None = None
 
 def calculate_local_md5(data: bytes) -> str:
     """Calculates MD5 hash of local bytes."""
@@ -122,7 +125,7 @@ class AzureBlob(FSBase):
 
     def sync(self, to: FSBase, local_path, remote_path):
         self.transfer(to, f"{local_path}/*", f"{remote_path}/")
-        to.transfer(self.client, f"{remote_path}/*", local_path)
+        to.transfer(self, f"{remote_path}/*", local_path)
 
     def put(self, local_path: str, remote_path: str, overwrite: bool = False, **kwargs):
         self.client.put(local_path, remote_path, overwrite=overwrite, **kwargs)

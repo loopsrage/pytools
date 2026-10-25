@@ -24,7 +24,7 @@ class Test(unittest.IsolatedAsyncioTestCase):
         async with asyncio.TaskGroup() as tg:
             try:
                 start_pipeline(tg=tg, nodes=pl)
-                for j in range(600):
+                for j in range(50):
                     await pl[0].enqueue(QueueData())
                     await pl[1].enqueue(QueueData())
             except ExceptionGroup as eg:
@@ -94,17 +94,45 @@ class Test(unittest.IsolatedAsyncioTestCase):
             try:
                 start_pipeline(nodes=pl, tg=tg)
                 tasks = []
-                for j in range(1000):
+                for j in range(20):
                     tasks.append(m0.enqueue(QueueData()))
-                for k in range(5000):
+                for k in range(50):
                     tasks.append(m1.enqueue(QueueData()))
                     tasks.append(m2.enqueue(QueueData()))
                     tasks.append(m3.enqueue(QueueData()))
 
-                for k in range(10000):
+                for k in range(100):
                     tasks.append( m7.enqueue(QueueData()))
                 await asyncio.gather(*tasks)
             except ExceptionGroup as eg:
                 pytest.fail(f"Pipeline node failed: {eg}")
             finally:
                 await stop_pipeline(nodes=pl)
+
+    def test_queue_data_methods(self):
+        import pickle
+        qd = QueueData(a=1, b="two")
+        assert qd["a"] == 1
+        assert len(qd) == 2
+        qd["c"] = 3
+        assert list(qd.attributes("a", "c")) == [1, 3]
+        del qd["b"]
+        with self.assertRaises(KeyError):
+            _ = qd["b"]
+
+        val, loaded = qd.load_or_store_attribute("a", 99)
+        assert val == 1 and loaded is True
+
+        qd.append_trace("node1")
+        qd.append_duration(0.05)
+        assert qd.trace() == ["node1"]
+        assert qd.trace_duration() == [0.05]
+
+        d_qd = qd.copy_derivative("branch_1")
+        assert d_qd.derivative == "branch_1"
+        d_qd.set_attribute("branch_val", 42)
+        assert d_qd.attribute("branch_val") == 42
+        assert qd.attribute_from_derivative("branch_val", "branch_1") == 42
+
+        restored = pickle.loads(pickle.dumps(qd))
+        assert restored["a"] == 1

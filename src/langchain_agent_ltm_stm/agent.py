@@ -48,7 +48,7 @@ async def arun_command(agent, user_id, namespace, query, threshold: float = None
     if config is None:
         config = {"configurable": {"thread_id": request_id}}
 
-    output = await agent.invoke(
+    output = await agent.ainvoke(
         user_id,
         request_id,
         namespace=namespace,
@@ -114,7 +114,7 @@ async def base_agent(model, emb, pool = None, schema = None, store = None, tools
                 "token_counter": count_tokens_approximately,
             },
             create_agent_kwargs={
-                "system_prompt": f"{'\n'.join(system_prompt)}",
+                "system_prompt": "\n".join(system_prompt or []),
             },
             pii_types=pii_types(),
             pii_strategy="hash"

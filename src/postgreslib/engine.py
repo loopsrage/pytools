@@ -1,5 +1,5 @@
 import logging
-from typing import Dict
+from typing import Any, Dict
 
 from pydantic_settings import BaseSettings
 from sqlalchemy import create_engine
@@ -10,9 +10,6 @@ logging.getLogger('sqlalchemy.engine').setLevel(logging.WARNING)
 
 Base = declarative_base()
 
-_engine = None
-_SessionFactory = None
-
 class PostgresEngineSettings(BaseSettings):
     url: str = "postgresql://localhost:5432/"
     echo: bool = False
@@ -20,18 +17,7 @@ class PostgresEngineSettings(BaseSettings):
     max_overflow: int = 20
     pool_timeout: int = 10
 
-def named_session(name: str):
-    global _engine, _SessionFactory
-
-    config = unmarshal_app_settings(name, PostgresEngineSettings)
-    if _engine is None:
-        _engine = create_engine(**config.model_dump())
-        _SessionFactory = sessionmaker(bind=_engine)
-
-    return _SessionFactory()
-
-
-_engines: Dict[str, any] = {}
+_engines: Dict[str, Any] = {}
 _factories: Dict[str, sessionmaker] = {}
 
 def named_session(name: str):
@@ -39,8 +25,11 @@ def named_session(name: str):
 
     if name not in _engines:
         config = unmarshal_app_settings(name, PostgresEngineSettings)
-        engine = create_engine(**config.model_dump())
+        kwargs = config.model_dump()
+        if config.url.startswith("sqlite"):
+            kwargs = {"url": config.url, "echo": config.echo}
+        engine = create_engine(**kwargs)
         _engines[name] = engine
-        _factories[name] = sessionmaker(bind=engine)
+        _factories[name] = sessionmaker(bind=engine, expire_on_commit=False)
 
     return _factories[name]()

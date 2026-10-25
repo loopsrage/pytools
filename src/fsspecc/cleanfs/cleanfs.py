@@ -8,8 +8,8 @@ from fsspecc.base_fsspecfs.base_fsspecfs import get_file_path
 
 class CleanFs(AtomicWriteFs):
 
-    def __init__(self, filesystem: str = None):
-        super().__init__(filesystem=filesystem)
+    def __init__(self, filesystem: str = "memory"):
+        super().__init__(filesystem=filesystem or "memory")
 
     @property
     def clean_filename(self):

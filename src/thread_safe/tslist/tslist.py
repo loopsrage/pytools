@@ -15,7 +15,7 @@ class TsList:
         # Initialize the atomic counter with the starting length
         self._count = AtomicInt(len(self.data))
 
-    def __get_state__(self):
+    def __getstate__(self):
         state = self.__dict__.copy()
         # Atomic objects and Locks cannot be pickled; store as raw int
         state["_count_val"] = self._count.load()
@@ -23,7 +23,7 @@ class TsList:
         del state["_count"]
         return state
 
-    def __set_state__(self, state):
+    def __setstate__(self, state):
         count_val = state.pop("_count_val", 0)
         self.__dict__.update(state)
         self.lock = threading.Lock()
@@ -90,10 +90,10 @@ class TsList:
             self._count.store(len(self.data))
 
     def __getitem__(self, item):
-        val = self.at(item)
-        if val is None:
-            raise IndexError("list index out of range")
-        return val
+        with self.lock:
+            if 0 <= item < len(self.data):
+                return self.data[item]
+        raise IndexError("list index out of range")
 
     def __iter__(self):
         return iter(self.all())

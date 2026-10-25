@@ -40,7 +40,7 @@ class PDFM:
         return bitmap.to_pil()
 
     def delete_page(self, page_number):
-        self.delete_page_png(page_number)
+        self.delete_page_text(page_number)
         self.delete_page_png(page_number)
 
     def extract_text(self, page_number, rect: dict=None):

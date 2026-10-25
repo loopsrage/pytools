@@ -5,7 +5,10 @@ import threading
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from transformers.generation.streamers import BaseStreamer
-from peft import PeftModel
+try:
+    from peft import PeftModel
+except ImportError:
+    PeftModel = None
 from thread_safe.onceler import Onceler
 
 
@@ -26,7 +29,7 @@ class FastQueueStreamer(BaseStreamer):
         else:
             token_id = value[-1].item()
 
-        if self.skip_prompt and not self.prompt_tokens_to_skip > 0:
+        if self.skip_prompt and self.prompt_tokens_to_skip > 0:
             self.prompt_tokens_to_skip -= 1
             return
 
@@ -74,7 +77,7 @@ def query_torch_model(query, adapter, dev_str, model, verbose=False, max_tokens=
             return model, tokenizer
         return loader
 
-    model, tokenizer = one_time.store_once("models", model, load_torch_model(model, actual_adapter))
+    (model, tokenizer), _ = one_time.store_once("models", model, load_torch_model(model, actual_adapter))
 
     if not query:
         return None

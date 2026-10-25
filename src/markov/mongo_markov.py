@@ -2,7 +2,10 @@ import random
 import time
 from typing import Any
 
-from pymongo import AsyncMongoClient
+try:
+    from pymongo import AsyncMongoClient
+except ImportError:
+    AsyncMongoClient = Any
 
 class MongoMarkov:
 
@@ -10,10 +13,11 @@ class MongoMarkov:
     _collection_name: str = None
     _client: AsyncMongoClient = None
 
-    def __init__(self, name: str, client: AsyncMongoClient):
+    def __init__(self, name: str, client: AsyncMongoClient, collection_name: str = None):
         self._name = name
+        self._collection_name = collection_name or name
         self._client = client
-        self.setup_markov_indices()
+        self._indices_initialized = False
 
     @property
     def db(self):
@@ -24,6 +28,9 @@ class MongoMarkov:
         return self.db[f"{self._collection_name}_markov_history"]
 
     async def record(self, from_ri: Any, to_ri: Any, reward: float = 0.0, duration_ms: float = 0.0):
+        if not self._indices_initialized:
+            await self.setup_markov_indices()
+            self._indices_initialized = True
         await self.collection.update_one(
             {"from_ri": from_ri, "to_ri": to_ri},
             [

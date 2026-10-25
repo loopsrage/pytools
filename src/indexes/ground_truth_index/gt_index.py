@@ -32,10 +32,10 @@ class GroundTruthIndex:
         self.load_hts_data()
 
     def item_to_hts(self, item_id):
-        return self._index.load_from_index("item_to_gt", item_id)
+        return self._index.load_from_index("item_to_gt", str(item_id))
 
     def item_to_formatted(self, item_id):
-        return self._index.load_from_index("item_to_formatted", item_id)
+        return self._index.load_from_index("item_to_formatted", str(item_id))
 
     def register_gt(self, item_id, hts_code):
         formatted_code = f"{hts_code[:4]}.{hts_code[4:6]}.{hts_code[-4:]}"

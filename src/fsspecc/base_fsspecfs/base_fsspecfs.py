@@ -3,7 +3,6 @@ from pathlib import Path
 from typing import List, Optional
 
 import fsspec
-from pydantic import errors
 
 from thread_safe.index import Index
 
@@ -48,15 +47,19 @@ class FSBase:
         if use_pipe is None:
             use_pipe = False
 
+        errors = []
         try:
             if use_pipe:
                 try:
                     self.client.pipe_file(file_path, file_buffer.getvalue())
+                    return
                 except Exception as pipe_err:
                     errors.append(pipe_err)
-            else:
+            try:
                 with self.client.open(file_path, "wb") as fs:
                     fs.write(file_buffer.getbuffer())
+            except Exception as write_err:
+                raise ExceptionGroup("errors", [*errors, write_err])
         finally:
             file_buffer.truncate(0)
             file_buffer.seek(0)
@@ -67,10 +70,10 @@ class FSBase:
         Note: Not all object stores (e.g., standard S3) support native append.
         """
         file_buffer.seek(0)
+        mode = "ab" if self.client.exists(file_path) else "wb"
 
         try:
-            # "ab" = Append Binary mode
-            with self.client.open(file_path, "ab") as fs:
+            with self.client.open(file_path, mode) as fs:
                 fs.write(file_buffer.getbuffer())
         finally:
             # Maintain consistency with your write() method's cleanup logic
@@ -145,10 +148,10 @@ class FSBase:
         dir_path = Path(target_directory)
         dir_path.mkdir(parents=True, exist_ok=True)
 
-        for i in self.list(pattern):
-            file_path = dir_path / i.filename
-            with file_path.open(mode='wb') as f:
-                f.write(i.read())
+        for remote_path in self.list(pattern):
+            file_path = dir_path / Path(str(remote_path)).name
+            with self.client.open(str(remote_path), "rb") as src_file, file_path.open(mode="wb") as dst_file:
+                dst_file.write(src_file.read())
 
     def close(self):
         # Only needed if using protocols like SFTP/FTP/SSH/Mongodb
@@ -201,7 +204,7 @@ class FSBase:
 
     def sync(self, to: "FSBase", local_path, remote_path):
         self.transfer(to, f"{local_path}/*", f"{remote_path}/")
-        to.transfer(self.client, f"{remote_path}/*", local_path)
+        to.transfer(self, f"{remote_path}/*", local_path)
 
     def open(self, path: str, mode: str = "rb", **kwargs):
         return self.client.open(path, mode, **kwargs)

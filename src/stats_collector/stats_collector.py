@@ -35,7 +35,7 @@ def new_stats() -> Stats:
     return Stats()
 
 def aggregate_action(queue_data: QueueData) -> None:
-    st: Stats = once.store_once("STATS", "CREATE", new_stats)
+    st, _ = once.store_once("STATS", "CREATE", new_stats)
     st.seen_time(datetime.datetime.now())
     if st.counter() % 50 == 0:
         print(st.counter(), st.super_times().first_time, st.super_times().last_time)

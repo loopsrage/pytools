@@ -229,7 +229,7 @@ def find_median_angle(lines: np.ndarray) -> float:
 
     for line in lines:
         # Unpack x1, y1, x2, y2 from the Hough result
-        x1, y1, x2, y2 = line
+        x1, y1, x2, y2 = line[0] if len(np.shape(line)) > 1 else line
 
         # Calculate angle in degrees
         angle_rad = math.atan2(float(y2 - y1), float(x2 - x1))

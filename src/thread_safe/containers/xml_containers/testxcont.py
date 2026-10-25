@@ -25,7 +25,13 @@ class Test(unittest.TestCase):
         root_el = ET.fromstring(xml_data)
         tree = build_xml_container_tree(root_element=root_el)
 
-        for n, c in tree.range_values:
-            print(f"{n}:{tree.read_primitive_value(c.path)}")
+        paths = {n: tree.read_primitive_value(c.path) for n, c in tree.range_containers}
+        self.assertEqual(paths["root.ProductionReport_1.Installation_1"], "Well_04_Production_Unit")
+        self.assertEqual(paths["root.ProductionReport_1.ProductVolume_1.Type_1"], "Oil")
+        self.assertEqual(paths["root.ProductionReport_1.ProductVolume_2.Type_1"], "Gas")
+        self.assertEqual(tree.read_primitive_value("root.ProductionReport_1@version"), "2.3")
+        self.assertEqual(tree.read_primitive_value("root.ProductionReport_1.ProductVolume_1.Volume_1@uom"), "bbl")
+        self.assertEqual(tree.read_primitive_value("root.ProductionReport_1.ProductVolume_2.Volume_1@uom"), "mscf")
+        self.assertIsNotNone(tree.read_from_value("root.ProductionReport_1.Installation_1"))
 
 

@@ -1,82 +1,46 @@
-import os
 import unittest
-from typing import List, Any, Union, Optional
+from sqlalchemy import create_engine, text
 
-from dotenv import load_dotenv
-from pydantic import BaseModel, Field
-
-from azurelib.sql import AzureSqlConfig, AzureSql
-from settings.helper import unmarshal_app_settings, restore
-from thread_safe.index import Index
-
-load_dotenv()
-restore(os.getenv("ENV_FILE"))
-
-class MyTestCase(unittest.TestCase):
-    def test_something(self):
-        config = unmarshal_app_settings("HTSDev", AzureSqlConfig)
-        db = AzureSql(config)
-        idx = Index()
-        last_item = 0
-        tables = ["windchill_items_staging", "windchill_item_attributes_staging"]
-        batch_ids = []
-
-        result = db.search(tables[0], "Item", {}, 100, last_item=last_item)
-        for key, value in enumerate(result["Item"].values):
-            att = {
-                "description": result["Description"].values[key],
-                "last_modified": result["lst_mod_dttm"].values[key]
-            }
-            batch_ids.append(value)
-            idx.store_in_index(str(value), "attributes", att)
-
-        att_result = db.search(tables[1], "Item", {
-            "Item": batch_ids
-        })
-        for key, value in enumerate(att_result["Item"].values):
-            att = {
-                "AttributeName": att_result["AttributeName"].values[key],
-                "AttributeValue": att_result["AttributeValue"].values[key],
-                "AttributeLastModified": att_result["lst_mod_dttm"].values[key],
-            }
-            prev_att = idx.load_from_index(str(value), "attributes")
-            att = {**prev_att, **att}
-            idx.store_in_index(str(value), "attributes", att)
-
-        for x in idx.list_indexes():
-            for v in idx.range_index(x):
-                print(x, v)
+from azurelib.sql import AzureSql, AzureSqlConfig
 
 
+class TestAzureSql(unittest.TestCase):
 
-class MockSchema(BaseModel):
-    parent: Optional["MockSchema"] = None
-    children: List["MockSchema"] = Field(default_factory=list)
-    value: dict[str, Any] | None = None
-    model_config = {"arbitrary_types_allowed": True}
+    def test_azure_sql_config_and_search(self):
+        cfg = AzureSqlConfig(
+            driver="{ODBC Driver 18 for SQL Server}",
+            server="sql.example.com",
+            database="prod_db",
+            username="sa",
+            password="secret",
+        )
+        cs = cfg.con_str()
+        assert "Server=tcp:sql.example.com,1433;" in cs
+        assert "Database=prod_db;" in cs
 
-def generate_test_schema(depth=10):
-    root: MockSchema | None = None
-    last: MockSchema | None = None
-    for i in range(0, depth):
-        current = MockSchema(parent=last,
-                          value={"Some_key": "Some_value"})
+        db = AzureSql.__new__(AzureSql)
+        db.engine = create_engine("sqlite:///:memory:")
+        with db.engine.begin() as conn:
+            conn.execute(text("CREATE TABLE [items] ([Item] INTEGER PRIMARY KEY, [Description] TEXT)"))
+            conn.execute(text("INSERT INTO [items] ([Item], [Description]) VALUES (1, 'A'), (2, 'B'), (3, 'C')"))
 
-        if last is not None:
-            current.children.append(MockSchema(
-                parent=last,
-                value={"some_child_value": "some_child"}))
+        assert "items" in db.inspect_tables(schema=None)
+        cols = [c["name"] for c in db.inspect_columns("items", schema=None)]
+        assert cols == ["Item", "Description"]
+        tbl = db.table_metadata("items", schema=None)
+        assert tbl.name == "items"
 
-        last = current
-        if root is None:
-            root = current
+        rows = db.search(
+            table="items",
+            primary_key="Item",
+            columns="*",
+            order_col="Item",
+            filters={"Item": [2, 3]},
+            limit=None,
+            last_item=1,
+        )
+        assert rows == [{"Item": 2, "Description": "B"}, {"Item": 3, "Description": "C"}]
 
-    output = DocumentIndexConverter(root)
-    return output.to_search_documents()
 
-
-class TestDocConverter(unittest.TestCase):
-
-    def test_doc_index_converter(self):
-        schema = generate_test_schema(10)
-        print(schema.values())
+if __name__ == "__main__":
+    unittest.main()

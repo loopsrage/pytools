@@ -4,16 +4,18 @@ from thread_safe.index import Index
 
 class FilesystemIndex:
     _index = None
-    _namespace = None
+    _fs_namespace = "filesystems"
 
     def __init__(self):
-        self._index = Index()
-        self._namespace = "filesystems"
-        self._index.new(self._namespace)
+        super().__init__()
+        if self._index is None:
+            self._index = Index()
+        self._namespace = self._fs_namespace
+        self._index.new(self._fs_namespace)
 
     def filesystem(self, name, filesystem = None):
         return self._index.load_or_store_in_index(
-            index_name=self._namespace,
+            index_name=self._fs_namespace,
             key=name,
             value=filesystem
         )

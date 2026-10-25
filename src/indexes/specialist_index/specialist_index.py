@@ -25,8 +25,10 @@ class SpecialistIndex:
         self._index = Index()
         self._namespace = namespace
         self._reverse_index_key = f"{namespace}_reverse_index"
+        self._agent_index_key = f"{namespace}_agent_index"
         self._index.new(namespace)
         self._index.new(self._reverse_index_key)
+        self._index.new(self._agent_index_key)
 
     def register_agent(self, name, agent):
         reverse_index_key = get_global_index(name)

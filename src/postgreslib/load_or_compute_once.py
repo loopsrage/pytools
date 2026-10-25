@@ -32,7 +32,7 @@ async def load_or_compute_once(model: type[Base], column, callback, filter_value
     if iscoroutinefunction(callback):
         new_value = await callback(**kwargs)
     else:
-        new_value = await asyncio.to_thread(callback(**kwargs))
+        new_value = await asyncio.to_thread(callback, **kwargs)
 
     if new_value is None:
         raise ValueError(f"Callback for {column} returned None")
@@ -57,7 +57,7 @@ async def load_or_compute_once(model: type[Base], column, callback, filter_value
 
     stmt = insert(model).values(**insert_vals)
     update_stmt = stmt.on_conflict_do_update(
-        index_elements=["item_id"],
+        index_elements=[filter_column],
         set_=update_dict
     ).returning(check_field)
 

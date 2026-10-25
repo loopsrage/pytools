@@ -118,7 +118,14 @@ class Test(unittest.TestCase):
 
     def test_read_primitive_value(self):
         container = build_container_tree(start=self.json_data)
-        self.assertEqual(self.golden_warranty, container.read_primitive_value("userProfile.orders.1.items.0.details.warranty"))
+        self.assertEqual(self.golden_warranty, container.read_from_value("userProfile.orders.1.items.0.details.warranty"))
+        self.assertEqual("active", container.read_primitive_value("userProfile.orders.1.items.0.details.warranty.status"))
+        self.assertEqual("John", container.read_primitive_value("userProfile.personalDetails.firstName"))
+        self.assertIsInstance(container.read_from_containers("userProfile.personalDetails"), Container)
+        self.assertTrue(len(container.children()) > 0)
+        self.assertTrue(len(list(container.range_containers)) > 0)
+        self.assertTrue(len(list(container.range_values)) > 0)
+        self.assertEqual(container.flatten["userProfile.personalDetails.firstName"], "John")
 
 
 

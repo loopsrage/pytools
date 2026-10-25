@@ -5,8 +5,8 @@ from fsspecc.base_fsspecfs.base_fsspecfs import get_file_path, FSBase
 
 class ImagesFs(FSBase):
 
-    def __init__(self, filesystem: str = None):
-        super().__init__(filesystem)
+    def __init__(self, filesystem: str = "memory"):
+        super().__init__(filesystem or "memory")
 
     def _write_png(self, file_path, figure, use_pipe=None):
         img_buffer = io.BytesIO()

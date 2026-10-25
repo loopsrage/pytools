@@ -12,15 +12,12 @@ class LockList:
         self.lock = threading.Lock()
         self.data = [*initial]
 
-    def __get_state__(self):
+    def __getstate__(self):
         state = self.__dict__.copy()
         del state["lock"]
         return state
 
-    def __get_item__(self, item):
-        self.at(item)
-
-    def __set_state__(self, state):
+    def __setstate__(self, state):
         self.__dict__.update(state)
         self.lock = threading.Lock()
 

@@ -10,7 +10,8 @@ class Controller:
         # Use an Event object to signal when a 'tick' has occurred
         self._tick_event = threading.Event()
         self._running = True
-        self._setup_timer(1 if start_now else interval)
+        self._start_now = start_now
+        self._setup_timer(interval)
 
 
     def _setup_timer(self, current_interval):
@@ -39,6 +40,11 @@ class Controller:
         self._tick_event.set()
 
     def wait(self):
+        if not self._running:
+            return False
+        if self._start_now:
+            self._start_now = False
+            return True
         return self._tick_event.wait()
 
     def ticker(self) -> threading.Event:
