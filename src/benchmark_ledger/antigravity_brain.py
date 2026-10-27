@@ -20,6 +20,11 @@ from simple_functions.simple_functions import uuid5_from_args
 from thread_safe.index import Index
 from thread_safe.tslist import TsList
 
+from benchmark_ledger.vocab_mask import (
+    mask_restricted_string,
+    mask_restricted_vocabulary,
+)
+
 ANTIGRAVITY_BRAIN_NAMESPACE_UUID = "6ba7b810-9dad-11d1-80b4-00c04fd430c8"
 
 KNOWN_TOOLSET_MODULES: tuple[str, ...] = (
@@ -84,23 +89,23 @@ MODULE_TO_DEFAULT_KI: dict[str, str] = {
 }
 
 KNOWN_NEURAL_MODELS: tuple[tuple[str, str], ...] = (
-    ("phasesheafunifiedmonadiccavitymodel", "PhaseSheafUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)"),
-    ("unifiedmonadiccavity", "PhaseSheafUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)"),
-    ("post/sandwich", "Post/Sandwich Compiler-Integrated Phase-Sheaf GRU"),
-    ("sandwich", "Post/Sandwich Compiler-Integrated Phase-Sheaf GRU"),
-    ("compiler-integrated", "Compiler-Integrated Phase-Sheaf GRU (Explicit Sheaf Walk)"),
+    ("cohesiveunifiedmonadiccavitymodel", "CohesiveUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)"),
+    ("unifiedmonadiccavity", "CohesiveUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)"),
+    ("post/sandwich", "Post/Sandwich Compiler-Integrated Cohesive-Manifold GRU"),
+    ("sandwich", "Post/Sandwich Compiler-Integrated Cohesive-Manifold GRU"),
+    ("compiler-integrated", "Compiler-Integrated Cohesive-Manifold GRU (Explicit Cohesive Walk)"),
     ("5-variant spectralgru", "5-Variant SpectralGRU Compiler (Unified Monadic Cavity)"),
-    ("omnipresent implicit opcode", "PhaseLang vCPU (Omnipresent Implicit Opcode Modulation)"),
-    ("omnipresentimplicitopcodevcpu", "PhaseLang vCPU (Omnipresent Implicit Opcode Modulation)"),
-    ("phaselang vcpu", "PhaseLang vCPU (Omnipresent Implicit Opcode Modulation)"),
+    ("omnipresent implicit opcode", "StageCompiler vCPU (Omnipresent Implicit Opcode Modulation)"),
+    ("omnipresentimplicitopcodevcpu", "StageCompiler vCPU (Omnipresent Implicit Opcode Modulation)"),
+    ("stage_compiler vcpu", "StageCompiler vCPU (Omnipresent Implicit Opcode Modulation)"),
     ("anygram 2-gru", "AnyGram 2-GRU Language Model (Learned N-Gram Phase Routing)"),
     ("anygram", "AnyGram 2-GRU Language Model (Learned N-Gram Phase Routing)"),
     ("continuousjoinedpolyphasehyperbolicgru", "ContinuousJoinedPolyphaseHyperbolicGRU"),
     ("hyperbolic", "ContinuousJoinedPolyphaseHyperbolicGRU"),
     ("monadic_cavity", "MonadicCavityModel (5-DoF Baseline)"),
     ("monadic cavity", "MonadicCavityModel (5-DoF Baseline)"),
-    ("phase_sheaf", "PhaseSheafMonadicCavityModel (Full Upgraded)"),
-    ("phase-sheaf", "PhaseSheafMonadicCavityModel (Full Upgraded)"),
+    ("cohesive_manifold", "CohesiveMonadicCavityModel (Full Upgraded)"),
+    ("cohesive-manifold", "CohesiveMonadicCavityModel (Full Upgraded)"),
     ("polyphonic", "BaselinePolyphonicControls"),
 )
 
@@ -128,7 +133,7 @@ _FORBIDDEN_LEGACY_PATTERNS = re.compile(
 def _sanitize_text(text: str) -> str:
     if not text:
         return ""
-    return _FORBIDDEN_LEGACY_PATTERNS.sub("[redacted]", text)
+    return mask_restricted_string(_FORBIDDEN_LEGACY_PATTERNS.sub("[redacted]", text))
 
 
 def _slugify(value: str) -> str:
@@ -364,7 +369,7 @@ class AntigravityBrainLedger:
         def _ingest_lines(raw_lines: list[bytes]) -> None:
             nonlocal max_step_idx
             for raw_ln in raw_lines:
-                ln_str = raw_ln.decode("utf-8", errors="ignore").strip()
+                ln_str = mask_restricted_string(raw_ln.decode("utf-8", errors="ignore").strip())
                 if not ln_str or not ln_str.startswith("{"):
                     continue
                 try:
@@ -485,7 +490,7 @@ class AntigravityBrainLedger:
         }
         if "/ideaprojects/portfolio" in lower_text or "portfoliolib" in lower_text:
             scores["portfolio"] += 5
-        if "/ideaprojects/neural_networks" in lower_text or "monadic_cavity" in lower_text or "polyphonic_model" in lower_text or "phaselang" in lower_text:
+        if "/ideaprojects/neural_networks" in lower_text or "monadic_cavity" in lower_text or "polyphonic_model" in lower_text or "stage_compiler" in lower_text:
             scores["neural_networks"] += 5
         if "/ideaprojects/toolset" in lower_text or "pytools-toolset" in lower_text or "fsspecc" in lower_text:
             scores["toolset"] += 4
@@ -1447,6 +1452,7 @@ class AntigravityBrainLedger:
                 "entries": [e.model_dump() for e in all_entries],
             }
 
+            overview = mask_restricted_vocabulary(overview)
             self._index.store_in_index("META", "OVERVIEW", overview)
             self._index.store_in_index("META", "ENTRIES_LIST", all_entries)
             self._persist_ledger_via_fsbase(overview)

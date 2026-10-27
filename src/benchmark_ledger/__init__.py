@@ -21,6 +21,10 @@ from benchmark_ledger.ledger import (
     scrape_neural_networks_benchmarks,
     sync_neural_networks_benchmarks_to_qdrant,
 )
+from benchmark_ledger.vocab_mask import (
+    mask_restricted_string,
+    mask_restricted_vocabulary,
+)
 
 from indexes.code_index.code_index import (
     CodeCorpusIndex,
@@ -55,6 +59,8 @@ __all__ = [
     "CodeSymbolMetadata",
     "ModelArchitectureProfile",
     "ModelBenchmarkEntry",
+    "mask_restricted_string",
+    "mask_restricted_vocabulary",
     "poincare_geodesic_distance",
     "poincare_midpoint",
     "project_to_poincare_ball",

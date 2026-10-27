@@ -107,5 +107,29 @@ class MyTestCase(unittest.TestCase):
 
         # The iterator should have captured at least the initial 100 items
         assert len(items) >= 100
+
+    def test_reflect_tools_to_json(self):
+        import json
+
+        def sample_tool(x: int, scale: float = 2.0) -> float:
+            """Scales integer input by float factor."""
+            return float(x) * scale
+
+        idx = Index()
+        idx.store_in_index("tools", "sample_tool", sample_tool)
+        idx.store_in_index("scalars", "PI", 3.14159)
+
+        reflected = json.loads(idx.reflect_to_json())
+        assert reflected["partition_count"] == 2
+        tool_meta = reflected["partitions"]["tools"]["entries"]["sample_tool"]
+        assert tool_meta["kind"] == "callable"
+        assert tool_meta["return_annotation"] == "float"
+        assert len(tool_meta["parameters"]) == 2
+        assert tool_meta["parameters"][0]["name"] == "x"
+        assert tool_meta["parameters"][0]["required"] is True
+        assert tool_meta["parameters"][1]["name"] == "scale"
+        assert tool_meta["parameters"][1]["required"] is False
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -29,6 +29,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, PointStruct, VectorParams
 
+from benchmark_ledger.vocab_mask import mask_restricted_string, mask_restricted_vocabulary
 from fsspecc.base_fsspecfs.base_fsspecfs import FSBase
 from indexes.datasource_index.datasource_index import Datasource
 from simple_functions.simple_functions import uuid5_from_args
@@ -127,7 +128,7 @@ class JuxtaposedGraphEdge:
     rationale: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
+        return mask_restricted_vocabulary(asdict(self))
 
 
 @dataclass
@@ -156,11 +157,11 @@ class JuxtaposedNode:
     updated_at: float = field(default_factory=lambda: round(time.time(), 3))
 
     def to_payload(self) -> Dict[str, Any]:
-        payload = asdict(self)
+        payload = mask_restricted_vocabulary(asdict(self))
         payload["point_id"] = str(
-            uuid5_from_args(INFORMATIONAL_NAMESPACE_UUID, "info_node", self.node_id)
+            uuid5_from_args(INFORMATIONAL_NAMESPACE_UUID, "info_node", payload["node_id"])
         )
-        payload["search_text"] = self.build_search_text()
+        payload["search_text"] = mask_restricted_string(self.build_search_text())
         return payload
 
     def build_search_text(self) -> str:
@@ -185,7 +186,7 @@ class UnifiedQdrantStagingManager:
     """
     Manages the permanent unified Qdrant directory at `/Users/jarek/IdeaProjects/qdrant_staging`
     adjacent to sibling repositories (`components`, `portfolio`, `toolset`, `neural_networks`,
-    `large_tools`, `Phaselang-development`) and performs lock-free collection unification
+    `large_tools`, `StageCompiler-development`) and performs lock-free collection unification
     and cross-environment synchronization.
     """
 
@@ -400,6 +401,8 @@ class UnifiedQdrantStagingManager:
                 try:
                     pt = pickle.loads(blob)
                     if isinstance(pt, PointStruct):
+                        if pt.payload:
+                            pt.payload = mask_restricted_vocabulary(pt.payload)
                         points.append(pt)
                 except Exception:
                     continue
@@ -808,6 +811,7 @@ class AgentInformationalGraphIndex(Datasource):
                 "doc_path": str(first_md or meta_file),
             }
             text_lower = f"{ki_dir.name} {title} {summary}".lower()
+            ki_by_keyword["all"].append(info)
             for kw in (
                 "qdrant",
                 "portfolio",
@@ -820,7 +824,11 @@ class AgentInformationalGraphIndex(Datasource):
                 "fsspecc",
                 "thread_safe",
                 "application_controller",
-                "phaselang",
+                "stage_compiler",
+                "large",
+                "sync",
+                "mcp",
+                "geodesic",
             ):
                 if kw in text_lower:
                     ki_by_keyword[kw].append(info)
@@ -834,8 +842,9 @@ class AgentInformationalGraphIndex(Datasource):
         """
         if not py_path.is_file():
             return [], "", "", ""
-        raw = py_path.read_text(encoding="utf-8", errors="replace")
-        sha = hashlib.sha256(raw.encode("utf-8")).hexdigest()
+        raw_disk = py_path.read_text(encoding="utf-8", errors="replace")
+        sha = hashlib.sha256(raw_disk.encode("utf-8")).hexdigest()
+        raw = mask_restricted_string(raw_disk)
         symbols: List[str] = []
         docstrings: List[str] = []
         try:
@@ -845,14 +854,19 @@ class AgentInformationalGraphIndex(Datasource):
                 docstrings.append(mod_doc.strip())
             for node in tree.body:
                 if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
-                    symbols.append(node.name)
+                    symbols.append(mask_restricted_string(node.name))
                     ndoc = ast.get_docstring(node)
                     if ndoc and len(docstrings) < 3:
                         docstrings.append(f"{node.name}: {ndoc.strip()}")
         except SyntaxError:
             pass
         excerpt_lines = [ln for ln in raw.splitlines() if ln.strip()][:28]
-        return symbols[:25], "\n".join(docstrings)[:700], "\n".join(excerpt_lines)[:900], sha
+        return (
+            symbols[:25],
+            mask_restricted_string("\n".join(docstrings)[:700]),
+            mask_restricted_string("\n".join(excerpt_lines)[:900]),
+            sha,
+        )
 
     @staticmethod
     def _extract_tsx_symbols_and_excerpt(tsx_path: Path) -> Tuple[List[str], str, str, str]:
@@ -862,8 +876,9 @@ class AgentInformationalGraphIndex(Datasource):
         """
         if not tsx_path.is_file():
             return [], "", "", ""
-        raw = tsx_path.read_text(encoding="utf-8", errors="replace")
-        sha = hashlib.sha256(raw.encode("utf-8")).hexdigest()
+        raw_disk = tsx_path.read_text(encoding="utf-8", errors="replace")
+        sha = hashlib.sha256(raw_disk.encode("utf-8")).hexdigest()
+        raw = mask_restricted_string(raw_disk)
         symbols = re.findall(
             r"export\s+(?:default\s+)?(?:function|const|class|interface|type)\s+([A-Za-z0-9_]+)",
             raw,
@@ -877,7 +892,53 @@ class AgentInformationalGraphIndex(Datasource):
             ]
             doc_comment = " ".join(x for x in cleaned if x)[:600]
         excerpt_lines = [ln for ln in raw.splitlines() if ln.strip()][:28]
-        return sorted(set(symbols))[:25], doc_comment, "\n".join(excerpt_lines)[:900], sha
+        return (
+            sorted(set(symbols))[:25],
+            mask_restricted_string(doc_comment),
+            mask_restricted_string("\n".join(excerpt_lines)[:900]),
+            sha,
+        )
+
+    @staticmethod
+    def _extract_sig_or_md_symbols_and_doc(file_path: Path) -> Tuple[List[str], str, str, str]:
+        """
+        Extracts exported functions/structs/constants or Markdown headings, header doc comments,
+        excerpt, and SHA-256 from `.sig` (StageCompiler) or `.md` (Design Spec) files.
+        """
+        if not file_path.is_file():
+            return [], "", "", ""
+        raw_disk = file_path.read_text(encoding="utf-8", errors="replace")
+        sha = hashlib.sha256(raw_disk.encode("utf-8")).hexdigest()
+        raw = mask_restricted_string(raw_disk)
+        suffix = file_path.suffix.lower()
+        symbols: List[str] = []
+        doc_lines: List[str] = []
+        if suffix == ".sig":
+            for m in re.finditer(r"^\s*(?:func|struct|const)\s+([A-Za-z0-9_]+)", raw, re.MULTILINE):
+                sym = m.group(1)
+                if sym not in symbols:
+                    symbols.append(sym)
+            for ln in raw.splitlines()[:30]:
+                stripped = ln.strip()
+                if stripped.startswith("#"):
+                    cleaned = stripped.lstrip("#").strip()
+                    if cleaned and not cleaned.startswith("==="):
+                        doc_lines.append(cleaned)
+        else:
+            for m in re.finditer(r"^#{1,3}\s+([^\n]+)", raw, re.MULTILINE):
+                heading = re.sub(r"[`*_]", "", m.group(1)).strip()
+                if heading and heading not in symbols:
+                    symbols.append(heading[:60])
+            for ln in raw.splitlines()[:25]:
+                if ln.strip():
+                    doc_lines.append(ln.strip())
+        excerpt_lines = [ln for ln in raw.splitlines() if ln.strip()][:28]
+        return (
+            symbols[:25],
+            mask_restricted_string("\n".join(doc_lines)[:750]),
+            mask_restricted_string("\n".join(excerpt_lines)[:900]),
+            sha,
+        )
 
     def _construct_juxtaposed_graph(
         self,
@@ -886,7 +947,7 @@ class AgentInformationalGraphIndex(Datasource):
         """
         Constructs the complete set of `JuxtaposedNode`s and `JuxtaposedGraphEdge`s across:
         0. Unified Qdrant Staging Root (`qdrant_staging`)
-        1. Sibling Repositories (`components`, `portfolio`, `toolset`, `neural_networks`, `large_tools`, `Phaselang-development`)
+        1. Sibling Repositories (`components`, `portfolio`, `toolset`, `neural_networks`, `large_tools`, `StageCompiler-development`)
         2. Unified Qdrant Namespaces (`portfolio_wiki_chunks`, `portfolio_neural_benchmarks`,
            `portfolio_antigravity_brain`, `neural_networks_code_corpus`, `code_corpus_temporal_index`,
            `agent_informational_graph_index`)
@@ -991,7 +1052,7 @@ class AgentInformationalGraphIndex(Datasource):
                 "Sovereign Systems Architect Portfolio, Dynamic Wiki & Telemetry Workbench",
                 "INVARIANT: Keep /Users/jarek/IdeaProjects/portfolio/portfolio in place; hosts FastAPI + React UI.",
                 "portfolio/portfolio/python/main.py",
-                "portfolio/portfolio/README.md",
+                "portfolio/portfolio/settings.yaml",
                 "portfolio_wiki_chunks",
             ),
             (
@@ -1004,7 +1065,7 @@ class AgentInformationalGraphIndex(Datasource):
             ),
             (
                 "neural_networks",
-                "Phase-Sheaf & Quantum-Inspired Neural Architectures + Promoted Gauntlet Model",
+                "Cohesive-Manifold & Quantum-Inspired Neural Architectures + Promoted Gauntlet Model",
                 "INVARIANT: Keep /Users/jarek/IdeaProjects/neural_networks in place; promoted model in promoted/.",
                 "neural_networks/promoted/promoted_model.py",
                 "neural_networks/README.md",
@@ -1019,11 +1080,11 @@ class AgentInformationalGraphIndex(Datasource):
                 INFORMATIONAL_COLLECTION_NAME,
             ),
             (
-                "Phaselang-development",
-                "Phaselang Compiler & Symbolic Phase Language Development Repository",
-                "INVARIANT: Sibling repository at /Users/jarek/IdeaProjects/Phaselang-development.",
-                "Phaselang-development/README.md",
-                "Phaselang-development/README.md",
+                "StageCompiler-development",
+                "StageCompiler Compiler & Symbolic Phase Language Development Repository",
+                "INVARIANT: Sibling repository at /Users/jarek/IdeaProjects/StageCompiler-development.",
+                "StageCompiler-development/README.md",
+                "StageCompiler-development/README.md",
                 INFORMATIONAL_COLLECTION_NAME,
             ),
         ]
@@ -1101,7 +1162,7 @@ class AgentInformationalGraphIndex(Datasource):
                 "portfolio",
                 "Neural Benchmarks Gauntlet Leaderboard & Promoted Model Namespace",
                 "toolset/src/benchmark_ledger/ledger.py",
-                "Stores all 25 gauntlet neural architecture models (with PhaseLangSheafCompilerCascadeModel promoted at Rank #1 alongside PhaseSheafUnifiedMonadicCavityModel) and 12 benchmark tasks.",
+                "Stores all 25 gauntlet neural architecture models (with PolyphonicStageCompilerCascadeModel promoted at Rank #1 alongside CohesiveUnifiedMonadicCavityModel) and 12 benchmark tasks.",
             ),
             "portfolio_antigravity_brain": (
                 "portfolio",
@@ -1279,7 +1340,7 @@ class AgentInformationalGraphIndex(Datasource):
             ui_doc_notes = {
                 "BenchmarksSection": (
                     "Renders the Neural Benchmarks Leaderboard with the promoted gauntlet model "
-                    "(`PhaseLangSheafCompilerCascadeModel` / `Phase-Sheaf Unified Monadic Cavity`) "
+                    "(`PolyphonicStageCompilerCascadeModel` / `Cohesive-Manifold Unified Monadic Cavity`) "
                     "pinned at Rank #1 in a compact quarter-inch (0.26in) pseudo-column row layout "
                     "with metrics (Accuracy, Best Val Loss, Latency, Speedup, Params) and zero badges."
                 ),
@@ -1311,9 +1372,9 @@ class AgentInformationalGraphIndex(Datasource):
                     },
                     juxtaposed_docs={
                         "doc_path": str(
-                            self.idea_projects_root / "portfolio" / "portfolio" / "README.md"
+                            self.idea_projects_root / "portfolio" / "portfolio" / "settings.yaml"
                         ),
-                        "doc_type": "readme_md",
+                        "doc_type": "settings_yaml",
                         "doc_section": f"Portfolio UI Component: {comp_name}",
                         "doc_excerpt": ui_doc_notes,
                         "related_ki_ids": [x["ki_id"] for x in ki_lookup.get("portfolio", [])[:3]],
@@ -1545,11 +1606,11 @@ class AgentInformationalGraphIndex(Datasource):
                 except Exception:
                     prom_manifest = {}
             prom_cls = str(
-                prom_manifest.get("class_name") or "PhaseLangSheafCompilerCascadeModel"
+                prom_manifest.get("class_name") or "PolyphonicStageCompilerCascadeModel"
             )
             prom_title = str(
                 prom_manifest.get("model_name")
-                or "PhaseLangSheafCompilerCascadeModel (Stage-1 Compiler + ISA Spectral-AST Gate + Phase-Sheaf Wave Cascade)"
+                or "PolyphonicStageCompilerCascadeModel (Stage-1 Compiler + ISA Spectral-AST Gate + Cohesive-Manifold Wave Cascade)"
             )
             syms, doc_str, excerpt, sha = self._extract_python_symbols_and_doc(promoted_model_path)
             h_syms, h_doc, _h_excerpt, _ = self._extract_python_symbols_and_doc(promoted_harness_path)
@@ -1593,8 +1654,8 @@ class AgentInformationalGraphIndex(Datasource):
                     tags=[
                         "promoted_model",
                         "gauntlet",
-                        "phaselang_compiler",
-                        "phase_sheaf",
+                        "stage_compiler",
+                        "cohesive_manifold",
                         "PinnedRank1",
                         "neural_networks",
                     ],
@@ -1629,30 +1690,30 @@ class AgentInformationalGraphIndex(Datasource):
                 rationale="Indexed alongside all 25 gauntlet models in portfolio_neural_benchmarks",
             )
 
-        # Dedicated nodes for separated `phaselang_compiler` and `monadic_cavity` packages
+        # Dedicated nodes for separated `stage_compiler` and `monadic_cavity` packages
         neural_arch_specs = [
             (
-                "model_pkg:neural_networks:phaselang_compiler",
+                "model_pkg:neural_networks:stage_compiler",
                 "neural_architecture_package",
-                "PhaseLang Sheaf Compiler Cascade Package (src/models/phaselang_compiler)",
-                "phaselang_compiler",
+                "StageCompiler Cohesive Compiler Cascade Package (src/models/stage_compiler)",
+                "stage_compiler",
                 self.idea_projects_root
                 / "neural_networks"
                 / "src"
                 / "models"
-                / "phaselang_compiler"
-                / "phaselang_compiler_model.py",
+                / "stage_compiler"
+                / "stage_compiler_model.py",
                 self.idea_projects_root
                 / "neural_networks"
                 / "src"
                 / "models"
-                / "phaselang_compiler"
-                / "benchmark_phaselang_compiler.py",
+                / "stage_compiler"
+                / "benchmark_stage_compiler.py",
                 [
-                    "phaselang_compiler",
-                    "PhaseLangSheafCompilerCascadeModel",
+                    "stage_compiler",
+                    "PolyphonicStageCompilerCascadeModel",
                     "isa_ast_gate",
-                    "phase_sheaf",
+                    "cohesive_manifold",
                     "neural_networks",
                 ],
             ),
@@ -1675,17 +1736,17 @@ class AgentInformationalGraphIndex(Datasource):
                 / "benchmark_monadic_cavity.py",
                 [
                     "monadic_cavity",
-                    "PhaseSheafUnifiedMonadicCavityModel",
-                    "phase_sheaf",
+                    "CohesiveUnifiedMonadicCavityModel",
+                    "cohesive_manifold",
                     "vcpu",
                     "neural_networks",
                 ],
             ),
             (
-                "model:neural_networks:PhaseSheafUnifiedMonadicCavityModel",
+                "model:neural_networks:CohesiveUnifiedMonadicCavityModel",
                 "neural_architecture_package",
-                "Phase-Sheaf Unified Monadic Cavity (src/models/monadic_cavity)",
-                "PhaseSheafUnifiedMonadicCavityModel",
+                "Cohesive-Manifold Unified Monadic Cavity (src/models/monadic_cavity)",
+                "CohesiveUnifiedMonadicCavityModel",
                 self.idea_projects_root
                 / "neural_networks"
                 / "src"
@@ -1698,7 +1759,7 @@ class AgentInformationalGraphIndex(Datasource):
                 / "models"
                 / "monadic_cavity"
                 / "benchmark_monadic_cavity.py",
-                ["monadic_cavity", "phase_sheaf", "vcpu", "neural_networks"],
+                ["monadic_cavity", "cohesive_manifold", "vcpu", "neural_networks"],
             ),
         ]
         for (
@@ -1799,6 +1860,622 @@ class AgentInformationalGraphIndex(Datasource):
                 weight=1.0,
                 rationale="AgentInformationalGraphIndex is part of the toolset `indexes` package",
             )
+
+        # --- 8. Design, Compiler, and Runtime Code Tri-Layer Pipeline Nodes (Start-to-Finish Geodesic Path) ---
+        pipeline_node_specs = [
+            # Design Specifications (Stage 1: Design)
+            (
+                "design:large_tools:project_master_spec",
+                "design_spec",
+                "StageCompiler & Hypoborea Master Architecture Design Spec (PROJECT.md)",
+                "project_master_spec",
+                "large_tools",
+                self.idea_projects_root / "large_tools" / "PROJECT.md",
+                self.idea_projects_root / "large_tools" / "ORIGINAL_REQUEST.md",
+                INFORMATIONAL_COLLECTION_NAME,
+                1,
+                ["design", "architecture", "stage_compiler", "hypoborea", "monadic_cavity", "spec"],
+            ),
+            (
+                "design:hypoborea_vm:vcpu_microloop_spec",
+                "design_spec",
+                "Hypoborea vCPU Microloop & Monadic Cavity Execution Engine Spec",
+                "vcpu_microloop_spec",
+                "large_tools",
+                self.idea_projects_root
+                / "large_tools"
+                / "hypoborea-vm"
+                / "design"
+                / "01_vmm_core_and_vcpu_pipeline"
+                / "02_vcpu_microloop_and_execution_engine.md",
+                self.idea_projects_root
+                / "large_tools"
+                / "hypoborea-vm"
+                / "design"
+                / "00_architecture_and_master_spec"
+                / "01_hypervisor_master_specification.md",
+                INFORMATIONAL_COLLECTION_NAME,
+                1,
+                ["design", "vcpu", "microloop", "monadic_cavity", "hypoborea_vm", "spec"],
+            ),
+            (
+                "design:hypoborea_vm:polyphonic_cohesive_rns_register_spec",
+                "design_spec",
+                "Polyphonic Cohesive Multi-Tenant Hypervisor & Nested RNS RNSRegister Design Spec",
+                "polyphonic_cohesive_rns_register_spec",
+                "large_tools",
+                self.idea_projects_root
+                / "large_tools"
+                / "hypoborea-vm"
+                / "design"
+                / "02_memory_management_and_isolation"
+                / "03_polyphonic_cohesive_multi_tenant_hypervisor_and_nested_rns.md",
+                self.idea_projects_root / "large_tools" / "hypoborea-vm" / "design" / "README.md",
+                INFORMATIONAL_COLLECTION_NAME,
+                1,
+                ["design", "cohesive", "rns_register", "hypervisor", "memory", "spec"],
+            ),
+            # Compiler Pipeline (Stages 2..4: Stage-0 Bootstrap -> Stage-1 Ingress/Parser/Symbols/MCC/vCPU/Emitter/Linker -> Mach-O)
+            (
+                "compiler:stage_compiler:stage0_bootstrap",
+                "compiler_stage",
+                "StageCompiler Stage-0 Bootstrap Compiler (stage0/compiler_v2.py)",
+                "stage0_compiler_v2",
+                "large_tools",
+                self.idea_projects_root / "large_tools" / "stage-compiler" / "stage0" / "compiler_v2.py",
+                self.idea_projects_root / "large_tools" / "PROJECT.md",
+                INFORMATIONAL_COLLECTION_NAME,
+                2,
+                ["compiler", "stage0", "bootstrap", "stage_compiler", "tier01_tier12"],
+            ),
+            (
+                "compiler:stage_compiler:stage1_main",
+                "compiler_stage",
+                "StageCompiler Stage-1 Self-Hosting Compiler Driver (stage1/main.sig)",
+                "stage1_main_sig",
+                "large_tools",
+                self.idea_projects_root / "large_tools" / "stage-compiler" / "stage1" / "main.sig",
+                self.idea_projects_root / "large_tools" / "PROJECT.md",
+                INFORMATIONAL_COLLECTION_NAME,
+                2,
+                ["compiler", "stage1", "main_sig", "stage_compiler", "repl", "vfs"],
+            ),
+            (
+                "compiler:stage_compiler:stage1_ingress",
+                "compiler_stage",
+                "StageCompiler Stage-1 Tokenless Shift-Or Wave Masker Ingress (stage1/ingress/wave_masker.sig)",
+                "wave_masker_ingress",
+                "large_tools",
+                self.idea_projects_root
+                / "large_tools"
+                / "stage-compiler"
+                / "stage1"
+                / "ingress"
+                / "wave_masker.sig",
+                self.idea_projects_root / "large_tools" / "PROJECT.md",
+                INFORMATIONAL_COLLECTION_NAME,
+                2,
+                ["compiler", "stage1", "ingress", "shift_or", "wave_masker", "stage_compiler"],
+            ),
+            (
+                "compiler:stage_compiler:stage1_parser",
+                "compiler_stage",
+                "StageCompiler Stage-1 Argmin PEMDAS Wave Parser (stage1/parser/parser.sig)",
+                "stage1_wave_parser",
+                "large_tools",
+                self.idea_projects_root
+                / "large_tools"
+                / "stage-compiler"
+                / "stage1"
+                / "parser"
+                / "parser.sig",
+                self.idea_projects_root / "large_tools" / "PROJECT.md",
+                INFORMATIONAL_COLLECTION_NAME,
+                2,
+                ["compiler", "stage1", "parser", "ast", "pemdas", "stage_compiler"],
+            ),
+            (
+                "compiler:stage_compiler:stage1_symbols",
+                "compiler_stage",
+                "StageCompiler Stage-1 Julia Fractal Symbol Arena (stage1/symbols/symbol_arena.sig)",
+                "symbol_arena_sig",
+                "large_tools",
+                self.idea_projects_root
+                / "large_tools"
+                / "stage-compiler"
+                / "stage1"
+                / "symbols"
+                / "symbol_arena.sig",
+                self.idea_projects_root / "large_tools" / "PROJECT.md",
+                INFORMATIONAL_COLLECTION_NAME,
+                2,
+                ["compiler", "stage1", "symbols", "symbol_arena", "julia_scope", "stage_compiler"],
+            ),
+            (
+                "compiler:stage_compiler:stage1_mcc_ir",
+                "compiler_stage",
+                "StageCompiler Stage-1 Monadic Continuum Compiler IR & Scope Lowering (stage1/mcc/mcc.sig)",
+                "stage1_mcc_ir",
+                "large_tools",
+                self.idea_projects_root
+                / "large_tools"
+                / "stage-compiler"
+                / "stage1"
+                / "mcc"
+                / "mcc.sig",
+                self.idea_projects_root / "large_tools" / "PROJECT.md",
+                INFORMATIONAL_COLLECTION_NAME,
+                2,
+                ["compiler", "stage1", "mcc", "ir", "cohesive_scope", "stage_compiler"],
+            ),
+            (
+                "compiler:stage_compiler:stage1_emitter",
+                "compiler_stage",
+                "StageCompiler Stage-1 Wave Tape Emitter (stage1/emitter/tape_emitter.sig)",
+                "tape_emitter_sig",
+                "large_tools",
+                self.idea_projects_root
+                / "large_tools"
+                / "stage-compiler"
+                / "stage1"
+                / "emitter"
+                / "tape_emitter.sig",
+                self.idea_projects_root / "large_tools" / "PROJECT.md",
+                INFORMATIONAL_COLLECTION_NAME,
+                2,
+                ["compiler", "stage1", "emitter", "tape_emitter", "codegen", "stage_compiler"],
+            ),
+            (
+                "compiler:stage_compiler:stage1_linker",
+                "compiler_stage",
+                "StageCompiler Stage-1 Cohesive Linker (stage1/linker/cohesive_linker.sig)",
+                "cohesive_linker_sig",
+                "large_tools",
+                self.idea_projects_root
+                / "large_tools"
+                / "stage-compiler"
+                / "stage1"
+                / "linker"
+                / "cohesive_linker.sig",
+                self.idea_projects_root / "large_tools" / "PROJECT.md",
+                INFORMATIONAL_COLLECTION_NAME,
+                2,
+                ["compiler", "stage1", "linker", "cohesive_linker", "stage_compiler"],
+            ),
+            (
+                "compiler:stage_compiler:macho_synthesizer",
+                "compiler_stage",
+                "StageCompiler Native ARM64 Mach-O Binary Synthesizer (macho_synthesizer.py)",
+                "macho_synthesizer",
+                "large_tools",
+                self.idea_projects_root
+                / "large_tools"
+                / "stage-compiler"
+                / "macho_synthesizer.py",
+                self.idea_projects_root / "large_tools" / "PROJECT.md",
+                INFORMATIONAL_COLLECTION_NAME,
+                2,
+                ["compiler", "macho", "arm64", "binary_emission", "stage_compiler"],
+            ),
+            # Runtime Code & Service Execution (Stages 5..7)
+            (
+                "code:stage_compiler:core_vcpu_monadic_cavity",
+                "runtime_code",
+                "StageCompiler Core Runtime vCPU Monadic Single-Cavity C_0 Engine (core/vcpu/monadic_cavity.sig)",
+                "core_vcpu_monadic_cavity",
+                "large_tools",
+                self.idea_projects_root
+                / "large_tools"
+                / "stage_compiler"
+                / "core"
+                / "vcpu"
+                / "monadic_cavity.sig",
+                self.idea_projects_root
+                / "large_tools"
+                / "hypoborea-vm"
+                / "design"
+                / "01_vmm_core_and_vcpu_pipeline"
+                / "02_vcpu_microloop_and_execution_engine.md",
+                INFORMATIONAL_COLLECTION_NAME,
+                2,
+                ["code", "runtime", "vcpu", "monadic_cavity", "5dof", "stage_compiler"],
+            ),
+            (
+                "code:stage_compiler:core_vcpu_cohesive_continuum",
+                "runtime_code",
+                "StageCompiler Core Runtime Cohesive Register Continuum (core/vcpu/cohesive_register_continuum.sig)",
+                "cohesive_register_continuum",
+                "large_tools",
+                self.idea_projects_root
+                / "large_tools"
+                / "stage_compiler"
+                / "core"
+                / "vcpu"
+                / "cohesive_register_continuum.sig",
+                self.idea_projects_root
+                / "large_tools"
+                / "hypoborea-vm"
+                / "design"
+                / "02_memory_management_and_isolation"
+                / "03_polyphonic_cohesive_multi_tenant_hypervisor_and_nested_rns.md",
+                INFORMATIONAL_COLLECTION_NAME,
+                2,
+                ["code", "runtime", "vcpu", "cohesive", "register_continuum", "stage_compiler"],
+            ),
+            (
+                "code:neural_networks:implicit_vcpu_layer",
+                "runtime_code",
+                "Neural StageCompiler Implicit vCPU Layer (src/polyphonic_model/layers/stage_implicit_vcpu.py)",
+                "StageCompilerImplicitVCPU",
+                "neural_networks",
+                self.idea_projects_root
+                / "neural_networks"
+                / "src"
+                / "polyphonic_model"
+                / "layers"
+                / "stage_implicit_vcpu.py",
+                self.idea_projects_root / "large_tools" / "PROJECT.md",
+                "neural_networks_code_corpus",
+                2,
+                ["code", "runtime", "vcpu", "neural_networks", "stage_implicit_vcpu"],
+            ),
+            (
+                "code:neural_networks:promoted_harness",
+                "runtime_code",
+                "Promoted Gauntlet Model 6-Scale Any-Gram Qdrant Harness (promoted/harness.py)",
+                "PromotedModelHarness",
+                "neural_networks",
+                self.idea_projects_root / "neural_networks" / "promoted" / "harness.py",
+                self.idea_projects_root / "neural_networks" / "promoted" / "promoted_manifest.json",
+                "portfolio_neural_benchmarks",
+                2,
+                ["code", "runtime", "harness", "promoted_model", "anygram", "qdrant", "neural_networks"],
+            ),
+            (
+                "service:portfolio:benchmark_service",
+                "portfolio_service",
+                "Portfolio Neural Benchmark & Promoted Model Qdrant Service (benchmark_service.py)",
+                "NeuralBenchmarkService",
+                "portfolio",
+                self.idea_projects_root
+                / "portfolio"
+                / "portfolio"
+                / "python"
+                / "portfoliolib"
+                / "service"
+                / "benchmark_service.py",
+                self.idea_projects_root / "portfolio" / "portfolio" / "settings.yaml",
+                "portfolio_neural_benchmarks",
+                2,
+                ["code", "service", "portfolio", "benchmark_service", "promoted_model", "qdrant"],
+            ),
+            (
+                "service:portfolio:portfolio_api",
+                "portfolio_service",
+                "Portfolio FastAPI Router, WebSocket Chat & MCP Endpoint (portfolio_api.py)",
+                "portfolio_router",
+                "portfolio",
+                self.idea_projects_root
+                / "portfolio"
+                / "portfolio"
+                / "python"
+                / "portfoliolib"
+                / "service"
+                / "portfolio_api.py",
+                self.idea_projects_root / "portfolio" / "portfolio" / "settings.yaml",
+                "portfolio_wiki_chunks",
+                2,
+                ["code", "service", "api", "websocket", "mcp", "portfolio"],
+            ),
+            (
+                "service:portfolio:qdrant_graph_service",
+                "portfolio_service",
+                "Portfolio Qdrant Lifecycle, CPU Embeddings & Relational Graph Service (qdrant_graph_service.py)",
+                "QdrantGraphService",
+                "portfolio",
+                self.idea_projects_root
+                / "portfolio"
+                / "portfolio"
+                / "python"
+                / "portfoliolib"
+                / "service"
+                / "qdrant_graph_service.py",
+                self.idea_projects_root / "portfolio" / "portfolio" / "settings.yaml",
+                "portfolio_wiki_chunks",
+                2,
+                ["code", "service", "qdrant", "graph", "portfolio"],
+            ),
+        ]
+
+        for (
+            p_node_id,
+            p_node_type,
+            p_title,
+            p_idiomatic,
+            p_repo,
+            p_code_path,
+            p_doc_path,
+            p_ns,
+            p_level,
+            p_tags,
+        ) in pipeline_node_specs:
+            if p_node_id in nodes_by_id or not p_code_path.is_file():
+                continue
+            if p_code_path.suffix.lower() == ".py":
+                p_syms, p_doc, p_excerpt, p_sha = self._extract_python_symbols_and_doc(p_code_path)
+                lang = "python"
+            else:
+                p_syms, p_doc, p_excerpt, p_sha = self._extract_sig_or_md_symbols_and_doc(p_code_path)
+                lang = "stage_compiler_sig" if p_code_path.suffix.lower() == ".sig" else "markdown"
+
+            if p_doc_path.is_file():
+                if p_doc_path.suffix.lower() == ".py":
+                    _, d_doc, d_excerpt, _ = self._extract_python_symbols_and_doc(p_doc_path)
+                else:
+                    _, d_doc, d_excerpt, _ = self._extract_sig_or_md_symbols_and_doc(p_doc_path)
+            else:
+                d_doc, d_excerpt = p_doc, p_excerpt
+
+            rel_p = str(p_code_path.relative_to(self.idea_projects_root))
+            add_node(
+                JuxtaposedNode(
+                    node_id=p_node_id,
+                    node_type=p_node_type,
+                    title=p_title,
+                    idiomatic_name=p_idiomatic,
+                    repo_name=p_repo,
+                    keep_in_place=True,
+                    placement_directive=(
+                        f"INVARIANT: Keep {p_node_type} artifact in place at {p_code_path} "
+                        f"as part of the Design -> Compiler -> Code geodesic pipeline."
+                    ),
+                    juxtaposed_code={
+                        "code_path": str(p_code_path),
+                        "relative_path": rel_p,
+                        "language": lang,
+                        "exported_symbols": p_syms or [p_idiomatic],
+                        "code_excerpt": p_excerpt,
+                        "sha256": p_sha,
+                    },
+                    juxtaposed_docs={
+                        "doc_path": str(p_doc_path if p_doc_path.is_file() else p_code_path),
+                        "doc_type": "design_spec" if p_node_type == "design_spec" else "architecture_doc",
+                        "doc_section": p_title,
+                        "doc_excerpt": (f"{p_doc}\n\n{d_doc or d_excerpt}").strip()[:850],
+                        "related_ki_ids": [x["ki_id"] for x in ki_lookup.get("stage_compiler", [])[:3]],
+                    },
+                    qdrant_namespace=p_ns,
+                    staging_path=str(
+                        self.staging_manager.storage_dir / "collection" / p_ns / "storage.sqlite"
+                    ),
+                    hierarchy_level=p_level,
+                    tags=p_tags,
+                )
+            )
+            if f"repo:{p_repo}" in nodes_by_id:
+                add_edge(
+                    p_node_id,
+                    f"repo:{p_repo}",
+                    "RESIDES_IN_REPO",
+                    weight=1.0,
+                    rationale=f"{p_idiomatic} resides in {rel_p}",
+                )
+
+        # Ordered End-to-End Geodesic Pipeline Edges (Design -> Stage-0/1 Compiler -> Core Runtime -> Neural Model -> Harness -> Ledger -> Service -> API -> UI)
+        geodesic_pipeline_chain = [
+            (
+                "design:large_tools:project_master_spec",
+                "design:hypoborea_vm:vcpu_microloop_spec",
+                "DESIGN_REFINES_TO_SUBSPEC",
+                "Master StageCompiler/Hypoborea spec defines the 5-DoF Monadic Cavity C_0 vCPU microloop architecture",
+            ),
+            (
+                "design:hypoborea_vm:vcpu_microloop_spec",
+                "design:hypoborea_vm:polyphonic_cohesive_rns_register_spec",
+                "DESIGN_REFINES_TO_SUBSPEC",
+                "vCPU microloop couples with the Polyphonic Cohesive & Nested RNS RNSRegister isolation architecture",
+            ),
+            (
+                "design:hypoborea_vm:polyphonic_cohesive_rns_register_spec",
+                "compiler:stage_compiler:stage0_bootstrap",
+                "DESIGN_SPECIFIES_COMPILER",
+                "Design specs are materialized by the Stage-0 Python bootstrap compiler (stage0/compiler_v2.py, Tiers 01..12)",
+            ),
+            (
+                "compiler:stage_compiler:stage0_bootstrap",
+                "compiler:stage_compiler:stage1_main",
+                "COMPILER_STAGE_NEXT",
+                "Stage-0 bootstrap compiler compiles and boots the Stage-1 self-hosting compiler driver (stage1/main.sig)",
+            ),
+            (
+                "compiler:stage_compiler:stage1_main",
+                "compiler:stage_compiler:stage1_ingress",
+                "COMPILER_STAGE_NEXT",
+                "Stage-1 driver dispatches source waves into Tokenless Shift-Or Wave Masker Ingress (stage1/ingress/wave_masker.sig)",
+            ),
+            (
+                "compiler:stage_compiler:stage1_ingress",
+                "compiler:stage_compiler:stage1_parser",
+                "COMPILER_STAGE_NEXT",
+                "Shift-Or bitmasks feed Argmin PEMDAS Wave Parser (stage1/parser/parser.sig) to split expression trees",
+            ),
+            (
+                "compiler:stage_compiler:stage1_parser",
+                "compiler:stage_compiler:stage1_symbols",
+                "COMPILER_STAGE_NEXT",
+                "Parsed AST waves bind lexical scopes in the Julia Fractal Symbol Arena (stage1/symbols/symbol_arena.sig)",
+            ),
+            (
+                "compiler:stage_compiler:stage1_symbols",
+                "compiler:stage_compiler:stage1_mcc_ir",
+                "COMPILER_STAGE_NEXT",
+                "Symbol arena lowers into Monadic Continuum Compiler IR & Cohesive Scopes (stage1/mcc/mcc.sig)",
+            ),
+            (
+                "compiler:stage_compiler:stage1_mcc_ir",
+                "compiler:stage_compiler:stage1_emitter",
+                "COMPILER_STAGE_NEXT",
+                "MCC IR lowers into 64-float wave packets via Stage-1 Wave Tape Emitter (stage1/emitter/tape_emitter.sig)",
+            ),
+            (
+                "compiler:stage_compiler:stage1_emitter",
+                "compiler:stage_compiler:stage1_linker",
+                "COMPILER_STAGE_NEXT",
+                "Emitted wave tapes are linked across cohesive stalks by Stage-1 Cohesive Linker (stage1/linker/cohesive_linker.sig)",
+            ),
+            (
+                "compiler:stage_compiler:stage1_linker",
+                "compiler:stage_compiler:macho_synthesizer",
+                "COMPILER_STAGE_NEXT",
+                "Linked wave packets synthesize native Apple Silicon ARM64 Mach-O binaries via macho_synthesizer.py",
+            ),
+            (
+                "compiler:stage_compiler:macho_synthesizer",
+                "code:stage_compiler:core_vcpu_monadic_cavity",
+                "COMPILER_EMITS_RUNTIME",
+                "Synthesized instructions execute on the StageCompiler Core Runtime Monadic Single-Cavity C_0 vCPU (core/vcpu/monadic_cavity.sig)",
+            ),
+            (
+                "code:stage_compiler:core_vcpu_monadic_cavity",
+                "code:stage_compiler:core_vcpu_cohesive_continuum",
+                "EXECUTES_CODE_PATH_NEXT_HOP",
+                "Monadic Cavity C_0 modulates 24-stalk 120-DoF states in the Cohesive Register Continuum (core/vcpu/cohesive_register_continuum.sig)",
+            ),
+            (
+                "code:stage_compiler:core_vcpu_cohesive_continuum",
+                "code:neural_networks:implicit_vcpu_layer",
+                "EXECUTES_CODE_PATH_NEXT_HOP",
+                "Cohesive Register Continuum is embedded into differentiable PyTorch tensors via StageCompilerImplicitVCPU",
+            ),
+            (
+                "code:neural_networks:implicit_vcpu_layer",
+                "model_pkg:neural_networks:stage_compiler",
+                "EXECUTES_CODE_PATH_NEXT_HOP",
+                "StageCompilerImplicitVCPU + ISA Spectral-AST Gate power PolyphonicStageCompilerCascadeModel",
+            ),
+            (
+                "model_pkg:neural_networks:stage_compiler",
+                "model_pkg:neural_networks:monadic_cavity",
+                "EXECUTES_CODE_PATH_NEXT_HOP",
+                "Couples with CohesiveUnifiedMonadicCavityModel in the 12-benchmark neural gauntlet",
+            ),
+            (
+                "model_pkg:neural_networks:monadic_cavity",
+                "code:neural_networks:promoted_harness",
+                "EXECUTES_CODE_PATH_NEXT_HOP",
+                "Gauntlet winner is promoted to promoted/ and wrapped in PromotedModelHarness with 6-Scale Any-Gram Qdrant memory",
+            ),
+            (
+                "code:neural_networks:promoted_harness",
+                "module:toolset:benchmark_ledger",
+                "EXECUTES_CODE_PATH_NEXT_HOP",
+                "BenchmarkLedger indexes the promoted model & harness into Qdrant portfolio_neural_benchmarks",
+            ),
+            (
+                "module:toolset:benchmark_ledger",
+                "service:portfolio:benchmark_service",
+                "EXECUTES_CODE_PATH_NEXT_HOP",
+                "NeuralBenchmarkService queries Qdrant for the promoted model and drives PromotedModelHarness chat/streaming",
+            ),
+            (
+                "service:portfolio:benchmark_service",
+                "service:portfolio:portfolio_api",
+                "EXECUTES_CODE_PATH_NEXT_HOP",
+                "portfolio_api.py exposes /api/benchmarks/promoted, /api/benchmarks/promoted/ws/chat, and /api/mcp",
+            ),
+            (
+                "service:portfolio:portfolio_api",
+                "ui:portfolio:PromotedModelSection",
+                "EXECUTES_CODE_PATH_NEXT_HOP",
+                "PromotedModelSection.tsx renders Qdrant provenance, PromotedModelHarness source, and live chat UI",
+            ),
+            (
+                "ui:portfolio:PromotedModelSection",
+                "ui:components:AsyncChatWindow",
+                "EXECUTES_CODE_PATH_NEXT_HOP",
+                "PromotedModelSection streams bidirectional WebSocket chat through shared AsyncChatWindow component",
+            ),
+        ]
+
+        for src_id, dst_id, rel_name, rationale_str in geodesic_pipeline_chain:
+            if src_id in nodes_by_id and dst_id in nodes_by_id:
+                add_edge(src_id, dst_id, rel_name, weight=0.95, rationale=rationale_str)
+
+        # --- 9. Antigravity Knowledge Item Nodes (Agent Sync & Geodesic Protocol KIs) ---
+        all_ki_infos = ki_lookup.get("all", [])
+        global_ki_ids = [x["ki_id"] for x in all_ki_infos]
+        for ki_info in all_ki_infos:
+            ki_id = ki_info["ki_id"]
+            ki_node_id = f"ki:antigravity:{ki_id}"
+            ki_doc_path = Path(ki_info["doc_path"])
+            ki_excerpt = ""
+            ki_sha = hashlib.sha256(ki_id.encode("utf-8")).hexdigest()
+            if ki_doc_path.is_file():
+                raw_ki = ki_doc_path.read_text(encoding="utf-8", errors="replace")
+                ki_excerpt = raw_ki[:850]
+                ki_sha = hashlib.sha256(raw_ki.encode("utf-8")).hexdigest()
+            add_node(
+                JuxtaposedNode(
+                    node_id=ki_node_id,
+                    node_type="knowledge_item",
+                    title=f"Knowledge Item: {ki_info['title']}",
+                    idiomatic_name=ki_id,
+                    repo_name="qdrant_staging",
+                    keep_in_place=True,
+                    placement_directive=(
+                        f"INVARIANT: Canonical Antigravity Knowledge Item at {ki_doc_path} "
+                        "teaching all agents how to sync Qdrant staging and trace geodesic code paths."
+                    ),
+                    juxtaposed_code={
+                        "code_path": str(
+                            self.idea_projects_root
+                            / "toolset"
+                            / "src"
+                            / "indexes"
+                            / "informational_index"
+                            / "mcp_server.py"
+                        ),
+                        "relative_path": "toolset/src/indexes/informational_index/mcp_server.py",
+                        "language": "python",
+                        "exported_symbols": [
+                            "QdrantGeodesicLifecycleMCPServer",
+                            "AgentInformationalGraphIndex",
+                            "UnifiedQdrantStagingManager",
+                        ],
+                        "code_excerpt": (
+                            "idx.sync_staging(direction='bidirectional', rebuild_graph=True)\n"
+                            "mcp.handle_jsonrpc_message({'method': 'tools/call', 'params': {'name': 'manage_system_lifecycle', ...}})"
+                        ),
+                        "sha256": ki_sha,
+                    },
+                    juxtaposed_docs={
+                        "doc_path": str(ki_doc_path),
+                        "doc_type": "knowledge_item_md",
+                        "doc_section": ki_info["title"],
+                        "doc_excerpt": f"{ki_info['summary']}\n\n{ki_excerpt}".strip()[:900],
+                        "related_ki_ids": global_ki_ids,
+                    },
+                    qdrant_namespace=INFORMATIONAL_COLLECTION_NAME,
+                    staging_path=str(self.staging_manager.storage_dir),
+                    hierarchy_level=1,
+                    tags=["knowledge_item", "ki", "sync", "mcp", "geodesic", "qdrant_staging", ki_id],
+                )
+            )
+            add_edge(
+                ki_node_id,
+                staging_node_id,
+                "UNIFIED_INTO_STAGING",
+                weight=1.0,
+                rationale=f"Knowledge Item {ki_id} documents cross-repo Qdrant staging sync and MCP lifecycle tools",
+            )
+
+        # Ensure every node carries related_ki_ids linking to the canonical sync & geodesic KIs
+        for node in nodes_by_id.values():
+            existing_kis = list(node.juxtaposed_docs.get("related_ki_ids") or [])
+            for gid in global_ki_ids:
+                if gid not in existing_kis:
+                    existing_kis.append(gid)
+            node.juxtaposed_docs["related_ki_ids"] = existing_kis[:6]
 
         # Attach incident edges onto each node's `graph_edges` list
         edges_by_src: Dict[str, List[Dict[str, Any]]] = collections.defaultdict(list)
@@ -1975,17 +2652,18 @@ class AgentInformationalGraphIndex(Datasource):
                 v for _, v in self.index.range_index("nodes") if isinstance(v, dict)
             ]
 
+        repo_filter = mask_restricted_string(repo_name) if repo_name else None
         filtered: List[Dict[str, Any]] = []
         for n in all_nodes:
             if node_type and n.get("node_type") != node_type:
                 continue
-            if repo_name and n.get("repo_name") != repo_name:
+            if repo_filter and n.get("repo_name") != repo_filter:
                 continue
             if keep_in_place is not None and bool(n.get("keep_in_place")) != bool(keep_in_place):
                 continue
             filtered.append(n)
 
-        q_clean = (query or "").strip()
+        q_clean = mask_restricted_string((query or "").strip())
         if not q_clean:
             scored = [(1.0, n) for n in filtered]
             scored.sort(key=lambda x: (x[1].get("hierarchy_level", 9), x[1].get("node_id", "")))
@@ -2139,4 +2817,1956 @@ class AgentInformationalGraphIndex(Datasource):
         return {
             "sync_result": sync_res,
             "staging_overview": self.get_staging_overview(),
+        }
+
+    # ------------------------------------------------------------------
+    # Multi-System Catalog, Unified Qdrant Search, Tri-Layer Juxtaposition,
+    # Start-to-Finish Geodesic Code Path & Full Lifecycle Management
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _poincare_distance(u: List[float], v: List[float]) -> float:
+        if not u or not v:
+            return 0.0
+        dim = min(len(u), len(v))
+        diff_sq = sum((u[i] - v[i]) ** 2 for i in range(dim))
+        nu = sum(u[i] ** 2 for i in range(dim))
+        nv = sum(v[i] ** 2 for i in range(dim))
+        denom = max(1.0 - nu, 1e-6) * max(1.0 - nv, 1e-6)
+        arg = max(1.0, 1.0 + (2.0 * diff_sq) / denom)
+        return round(math.acosh(arg), 6)
+
+    @staticmethod
+    def _poincare_midpoint(u: List[float], v: List[float]) -> List[float]:
+        if not u or not v:
+            return []
+        dim = min(len(u), len(v))
+        nu = sum(u[i] ** 2 for i in range(dim))
+        nv = sum(v[i] ** 2 for i in range(dim))
+        gu = 2.0 / max(1.0 - nu, 1e-6)
+        gv = 2.0 / max(1.0 - nv, 1e-6)
+        denom = max(gu + gv - 1.0, 1e-6)
+        mid = [round((gu * u[i] + gv * v[i]) / denom, 5) for i in range(dim)]
+        return mid
+
+    @staticmethod
+    def _classify_node_layer(node: Dict[str, Any]) -> str:
+        ntype = str(node.get("node_type", ""))
+        nid = str(node.get("node_id", ""))
+        if ntype == "design_spec" or nid.startswith("design:"):
+            return "design"
+        if ntype == "compiler_stage" or nid.startswith("compiler:") or "stage_compiler" in nid:
+            return "compiler"
+        if ntype in ("ui_component",):
+            return "ui"
+        if ntype in ("toolset_index", "qdrant_namespace", "qdrant_staging_root"):
+            return "index"
+        if ntype in ("promoted_model", "neural_architecture_package"):
+            return "model"
+        return "code"
+
+    def _build_tri_layer_juxtaposition_for_node(self, node: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Builds a cohesive side-by-side `{design, compiler, code}` juxtaposition bundle
+        for any node in `agent_informational_graph_index`.
+        """
+        nid = str(node.get("node_id", ""))
+        repo = str(node.get("repo_name", ""))
+        code_info = dict(node.get("juxtaposed_code") or {})
+        doc_info = dict(node.get("juxtaposed_docs") or {})
+
+        # Resolve companion Design and Compiler nodes
+        design_node = (
+            self.index.load_from_index("nodes", "design:large_tools:project_master_spec")
+            or self.index.load_from_index("nodes", "design:hypoborea_vm:vcpu_microloop_spec")
+            or {}
+        )
+        if repo in ("toolset", "portfolio", "components"):
+            design_info = {
+                "design_node_id": f"design:{repo}:spec",
+                "doc_path": doc_info.get("doc_path", str(self.skill_md_path)),
+                "doc_type": doc_info.get("doc_type", "skill_md"),
+                "section": doc_info.get("doc_section", node.get("title", "")),
+                "placement_directive": node.get("placement_directive", ""),
+                "excerpt": doc_info.get("doc_excerpt", "")[:600],
+            }
+        else:
+            d_code = (design_node.get("juxtaposed_code") or {}) if isinstance(design_node, dict) else {}
+            design_info = {
+                "design_node_id": design_node.get("node_id", "design:large_tools:project_master_spec"),
+                "doc_path": doc_info.get("doc_path") or d_code.get("code_path", ""),
+                "doc_type": doc_info.get("doc_type", "design_spec"),
+                "section": doc_info.get("doc_section", node.get("title", "")),
+                "placement_directive": node.get("placement_directive", ""),
+                "excerpt": (doc_info.get("doc_excerpt") or d_code.get("code_excerpt", ""))[:600],
+            }
+
+        # Resolve Compiler companion
+        compiler_node_id = "compiler:stage_compiler:stage1_main"
+        if "stage0" in nid:
+            compiler_node_id = "compiler:stage_compiler:stage0_bootstrap"
+        elif "ingress" in nid or "shift_or" in nid:
+            compiler_node_id = "compiler:stage_compiler:stage1_ingress"
+        elif "parser" in nid or "ast" in nid:
+            compiler_node_id = "compiler:stage_compiler:stage1_parser"
+        elif "symbol" in nid:
+            compiler_node_id = "compiler:stage_compiler:stage1_symbols"
+        elif "mcc" in nid or "cohesive" in nid:
+            compiler_node_id = "compiler:stage_compiler:stage1_mcc_ir"
+        elif "emit" in nid:
+            compiler_node_id = "compiler:stage_compiler:stage1_emitter"
+        elif "link" in nid:
+            compiler_node_id = "compiler:stage_compiler:stage1_linker"
+        elif "macho" in nid:
+            compiler_node_id = "compiler:stage_compiler:macho_synthesizer"
+        elif repo == "neural_networks" or "promoted" in nid or "benchmark" in nid.lower():
+            compiler_node_id = "model_pkg:neural_networks:stage_compiler"
+
+        comp_node = self.index.load_from_index("nodes", compiler_node_id) or {}
+        comp_code = (comp_node.get("juxtaposed_code") or {}) if isinstance(comp_node, dict) else {}
+        compiler_info = {
+            "compiler_node_id": comp_node.get("node_id", compiler_node_id),
+            "title": comp_node.get("title", "StageCompiler Stage-1 & Cohesive Compiler Cascade"),
+            "compiler_path": comp_code.get("code_path", ""),
+            "relative_path": comp_code.get("relative_path", ""),
+            "exported_symbols": comp_code.get("exported_symbols", []),
+            "compiler_stages": [
+                "compiler:stage_compiler:stage0_bootstrap (stage0/compiler_v2.py)",
+                "compiler:stage_compiler:stage1_ingress (stage1/ingress/wave_masker.sig)",
+                "compiler:stage_compiler:stage1_parser (stage1/parser/parser.sig)",
+                "compiler:stage_compiler:stage1_symbols (stage1/symbols/symbol_arena.sig)",
+                "compiler:stage_compiler:stage1_mcc_ir (stage1/mcc/mcc.sig)",
+                "compiler:stage_compiler:stage1_emitter (stage1/emitter/tape_emitter.sig)",
+                "compiler:stage_compiler:stage1_linker (stage1/linker/cohesive_linker.sig)",
+                "compiler:stage_compiler:macho_synthesizer (macho_synthesizer.py)",
+                "model_pkg:neural_networks:stage_compiler (PolyphonicStageCompilerCascadeModel)",
+            ],
+            "excerpt": comp_code.get("code_excerpt", "")[:600],
+        }
+
+        runtime_info = {
+            "code_node_id": nid,
+            "code_path": code_info.get("code_path", ""),
+            "relative_path": code_info.get("relative_path", ""),
+            "language": code_info.get("language", "python"),
+            "exported_symbols": code_info.get("exported_symbols", []),
+            "sha256": code_info.get("sha256", ""),
+            "qdrant_namespace": node.get("qdrant_namespace", self.collection_name),
+            "keep_in_place": bool(node.get("keep_in_place", True)),
+            "excerpt": code_info.get("code_excerpt", "")[:600],
+        }
+
+        return {
+            "design": design_info,
+            "compiler": compiler_info,
+            "code": runtime_info,
+        }
+
+    def list_systems(
+        self,
+        include_collections: bool = True,
+        include_lifecycle: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        Lists every system across `/Users/jarek/IdeaProjects` (`portfolio`, `components`,
+        `toolset`, `neural_networks`, `large_tools`, `StageCompiler-development`, `qdrant_staging`)
+        with its Qdrant collections, point counts, design/compiler/code entrypoints,
+        placement invariants (`keep_in_place`), and lifecycle health.
+        """
+        overview = self.get_staging_overview()
+        unified_colls = overview.get("unified_collections", {})
+        node_counts_by_repo = overview.get("node_counts_by_repo", {})
+
+        system_catalog_specs = [
+            {
+                "system_id": "portfolio",
+                "name": "Portfolio Architect Workbench, Dynamic Wiki & Promoted Model Chat",
+                "root_path": str(self.idea_projects_root / "portfolio" / "portfolio"),
+                "repo_name": "portfolio",
+                "keep_in_place": True,
+                "qdrant_collections": [
+                    "portfolio_wiki_chunks",
+                    "portfolio_neural_benchmarks",
+                    "portfolio_antigravity_brain",
+                    INFORMATIONAL_COLLECTION_NAME,
+                ],
+                "layers": {
+                    "design": str(self.idea_projects_root / "portfolio" / "portfolio" / "settings.yaml"),
+                    "compiler": str(self.idea_projects_root / "portfolio" / "portfolio" / "react" / "vite.config.ts"),
+                    "code_backend": str(
+                        self.idea_projects_root
+                        / "portfolio"
+                        / "portfolio"
+                        / "python"
+                        / "portfoliolib"
+                        / "service"
+                        / "portfolio_service.py"
+                    ),
+                    "code_frontend": str(
+                        self.idea_projects_root
+                        / "portfolio"
+                        / "portfolio"
+                        / "react"
+                        / "src"
+                        / "components"
+                        / "PromotedModelSection.tsx"
+                    ),
+                },
+                "entrypoints": [
+                    "portfolio/portfolio/main.py",
+                    "portfolio/portfolio/python/portfoliolib/service/portfolio_api.py",
+                    "portfolio/portfolio/react/src/App.tsx",
+                ],
+            },
+            {
+                "system_id": "components",
+                "name": "Shared React 19 & MUI v6 Meta-Components Library",
+                "root_path": str(self.idea_projects_root / "components"),
+                "repo_name": "components",
+                "keep_in_place": True,
+                "qdrant_collections": [INFORMATIONAL_COLLECTION_NAME],
+                "layers": {
+                    "design": str(self.idea_projects_root / "components" / "package.json"),
+                    "compiler": str(self.idea_projects_root / "components" / "tsconfig.json"),
+                    "code": str(
+                        self.idea_projects_root
+                        / "components"
+                        / "src"
+                        / "meta_components"
+                        / "async_chat_window"
+                        / "async_chat_window.tsx"
+                    ),
+                },
+                "entrypoints": [
+                    "components/src/index.ts",
+                    "components/src/meta_components/async_chat_window/async_chat_window.tsx",
+                ],
+            },
+            {
+                "system_id": "toolset",
+                "name": "37-Library Python Infrastructure, Thread-Safe Indexes & Geodesic Code Graph",
+                "root_path": str(self.idea_projects_root / "toolset"),
+                "repo_name": "toolset",
+                "keep_in_place": True,
+                "qdrant_collections": [
+                    INFORMATIONAL_COLLECTION_NAME,
+                    "portfolio_wiki_chunks",
+                    "portfolio_neural_benchmarks",
+                    "neural_networks_code_corpus",
+                ],
+                "layers": {
+                    "design": str(self.skill_md_path),
+                    "compiler": str(
+                        self.idea_projects_root
+                        / "toolset"
+                        / "src"
+                        / "indexes"
+                        / "code_index"
+                        / "code_index.py"
+                    ),
+                    "code": str(
+                        self.idea_projects_root
+                        / "toolset"
+                        / "src"
+                        / "indexes"
+                        / "informational_index"
+                        / "informational_index.py"
+                    ),
+                },
+                "entrypoints": [
+                    "toolset/src/indexes/informational_index/informational_index.py",
+                    "toolset/src/indexes/informational_index/mcp_server.py",
+                    "toolset/src/indexes/code_index/code_index.py",
+                    "toolset/src/benchmark_ledger/ledger.py",
+                ],
+            },
+            {
+                "system_id": "neural_networks",
+                "name": "Cohesive-Manifold & Monadic Cavity Neural Architectures + Promoted Gauntlet Model",
+                "root_path": str(self.idea_projects_root / "neural_networks"),
+                "repo_name": "neural_networks",
+                "keep_in_place": True,
+                "qdrant_collections": [
+                    "neural_networks_code_corpus",
+                    "code_corpus_temporal_index",
+                    "portfolio_neural_benchmarks",
+                ],
+                "layers": {
+                    "design": str(
+                        self.idea_projects_root
+                        / "neural_networks"
+                        / "promoted"
+                        / "promoted_manifest.json"
+                    ),
+                    "compiler": str(
+                        self.idea_projects_root
+                        / "neural_networks"
+                        / "src"
+                        / "models"
+                        / "stage_compiler"
+                        / "stage_compiler_model.py"
+                    ),
+                    "code": str(
+                        self.idea_projects_root / "neural_networks" / "promoted" / "harness.py"
+                    ),
+                },
+                "entrypoints": [
+                    "neural_networks/promoted/harness.py",
+                    "neural_networks/promoted/promoted_model.py",
+                    "neural_networks/src/models/stage_compiler/stage_compiler_model.py",
+                    "neural_networks/src/models/monadic_cavity/monadic_cavity_models.py",
+                ],
+            },
+            {
+                "system_id": "large_tools",
+                "name": "StageCompiler Stage-0/Stage-1 Compiler, Monadic Cavity vCPU & Hypoborea VM",
+                "root_path": str(self.idea_projects_root / "large_tools"),
+                "repo_name": "large_tools",
+                "keep_in_place": True,
+                "qdrant_collections": [INFORMATIONAL_COLLECTION_NAME],
+                "layers": {
+                    "design": str(self.idea_projects_root / "large_tools" / "PROJECT.md"),
+                    "compiler": str(
+                        self.idea_projects_root
+                        / "large_tools"
+                        / "stage-compiler"
+                        / "stage1"
+                        / "main.sig"
+                    ),
+                    "code": str(
+                        self.idea_projects_root
+                        / "large_tools"
+                        / "stage_compiler"
+                        / "core"
+                        / "vcpu"
+                        / "monadic_cavity.sig"
+                    ),
+                },
+                "entrypoints": [
+                    "large_tools/PROJECT.md",
+                    "large_tools/stage-compiler/stage0/compiler_v2.py",
+                    "large_tools/stage-compiler/stage1/main.sig",
+                    "large_tools/stage-compiler/macho_synthesizer.py",
+                    "large_tools/stage-runtime/core/vcpu/monadic_cavity.sig",
+                ],
+            },
+            {
+                "system_id": "StageCompiler-development",
+                "name": "StageCompiler Development Workspace (StageCompiler, StageCompiler-compiler, Hyperborea, Hyperborea-vm)",
+                "root_path": str(self.idea_projects_root / "StageCompiler-development"),
+                "repo_name": "StageCompiler-development",
+                "keep_in_place": True,
+                "qdrant_collections": [INFORMATIONAL_COLLECTION_NAME],
+                "layers": {
+                    "design": str(self.idea_projects_root / "StageCompiler-development" / "AGENTS.md"),
+                    "compiler": str(
+                        self.idea_projects_root / "StageCompiler-development" / "StageCompiler-compiler"
+                    ),
+                    "code": str(self.idea_projects_root / "StageCompiler-development" / "StageCompiler"),
+                },
+                "entrypoints": [
+                    "StageCompiler-development/AGENTS.md",
+                    "StageCompiler-development/settings.yaml",
+                ],
+            },
+            {
+                "system_id": "qdrant_staging",
+                "name": "Unified Permanent Qdrant Staging & Cross-Environment Sync Hub",
+                "root_path": str(self.staging_root),
+                "repo_name": "qdrant_staging",
+                "keep_in_place": True,
+                "qdrant_collections": sorted(unified_colls.keys()),
+                "layers": {
+                    "design": str(self.staging_manager.manifest_path),
+                    "compiler": str(self.staging_manager.ledger_path),
+                    "code": str(self.staging_manager.storage_dir),
+                },
+                "entrypoints": [
+                    "qdrant_staging/staging_manifest.json",
+                    "qdrant_staging/informational_graph_ledger.json",
+                    "qdrant_staging/storage/meta.json",
+                ],
+            },
+        ]
+
+        systems: List[Dict[str, Any]] = []
+        for spec in system_catalog_specs:
+            root_p = Path(spec["root_path"])
+            exists = root_p.exists()
+            colls_detail: List[Dict[str, Any]] = []
+            total_sys_points = 0
+            for cname in spec["qdrant_collections"]:
+                cinfo = unified_colls.get(cname, {})
+                pts = int(cinfo.get("staged_points", 0))
+                total_sys_points += pts
+                if include_collections:
+                    colls_detail.append(
+                        {
+                            "collection_name": cname,
+                            "staged_points": pts,
+                            "vector_size": cinfo.get("vector_size", DEFAULT_VECTOR_SIZE),
+                            "staging_sqlite_path": cinfo.get("staging_sqlite_path", ""),
+                        }
+                    )
+
+            entry: Dict[str, Any] = {
+                "system_id": spec["system_id"],
+                "name": spec["name"],
+                "root_path": spec["root_path"],
+                "exists": exists,
+                "keep_in_place": spec["keep_in_place"],
+                "juxtaposed_nodes_count": int(node_counts_by_repo.get(spec["repo_name"], 0)),
+                "total_qdrant_points": total_sys_points,
+                "layers": spec["layers"],
+                "entrypoints": spec["entrypoints"],
+            }
+            if include_collections:
+                entry["collections"] = colls_detail
+            if include_lifecycle:
+                entry["lifecycle_status"] = "READY" if exists else "MISSING"
+                entry["supported_lifecycle_actions"] = [
+                    "status",
+                    "build",
+                    "rebuild",
+                    "sync",
+                    "verify",
+                    "promote_harness",
+                    "snapshot",
+                ]
+            systems.append(entry)
+
+        return {
+            "total_systems": len(systems),
+            "staging_root": str(self.staging_root),
+            "total_unified_collections": overview.get("total_collections", len(unified_colls)),
+            "total_staged_points": overview.get("total_staged_points", 0),
+            "systems": systems,
+        }
+
+    def search_qdrant_unified(
+        self,
+        query: str = "",
+        collection: Optional[str] = None,
+        system_id: Optional[str] = None,
+        layer: Optional[str] = None,
+        node_type: Optional[str] = None,
+        top_k: int = 15,
+        rejoin_chunks: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        Searches across any or all unified Qdrant collections in `/Users/jarek/IdeaProjects/qdrant_staging/storage`
+        (`agent_informational_graph_index`, `portfolio_wiki_chunks`, `portfolio_neural_benchmarks`,
+        `portfolio_antigravity_brain`, `neural_networks_code_corpus`, `code_corpus_temporal_index`),
+        optionally filtering by `collection`, `system_id`, `layer` (`design` | `compiler` | `code` | `ui` | `index` | `model`),
+        and `node_type`, rejoining multi-chunk documents and attaching Design + Compiler + Code juxtaposition context.
+        """
+        q_clean = mask_restricted_string((query or "").strip())
+        system_id = mask_restricted_string(system_id) if system_id else system_id
+        q_vec = _deterministic_384d_vector(q_clean or "architecture", dim=DEFAULT_VECTOR_SIZE)
+        q_tokens = [t for t in re.findall(r"[a-zA-Z0-9_]{2,}", q_clean.lower())]
+
+        staging_meta = self.staging_manager._load_meta_json(self.staging_manager.storage_dir)
+        all_colls = sorted(staging_meta.get("collections", {}).keys())
+        if collection and collection != "all":
+            target_colls = [c for c in all_colls if c == collection]
+        else:
+            # Prioritize informational graph, benchmarks, wiki, brain, and code corpus
+            target_colls = all_colls
+
+        hits: List[Tuple[float, Dict[str, Any]]] = []
+
+        # 1. Search `agent_informational_graph_index` via in-memory + Qdrant index
+        if not collection or collection in ("all", INFORMATIONAL_COLLECTION_NAME):
+            jux_res = self.query_juxtaposed_map(
+                query=q_clean,
+                node_type=node_type,
+                repo_name=system_id if system_id and system_id != "all" else None,
+                top_k=max(top_k * 2, 30),
+            )
+            for item in jux_res.get("results", []):
+                item_layer = self._classify_node_layer(item)
+                if layer and layer != "all" and item_layer != layer:
+                    continue
+                tri = self._build_tri_layer_juxtaposition_for_node(item)
+                sc = float(item.get("score", 0.5)) + 0.15
+                hits.append(
+                    (
+                        round(sc, 4),
+                        {
+                            "collection": INFORMATIONAL_COLLECTION_NAME,
+                            "point_id": item.get("point_id", ""),
+                            "id": item.get("node_id", ""),
+                            "title": item.get("title", ""),
+                            "idiomatic_name": item.get("idiomatic_name", ""),
+                            "system_id": item.get("repo_name", ""),
+                            "layer": item_layer,
+                            "node_type": item.get("node_type", ""),
+                            "score": round(sc, 4),
+                            "keep_in_place": item.get("keep_in_place", True),
+                            "poincare_coords": item.get("poincare_coords", []),
+                            "juxtaposition": tri,
+                            "payload": item,
+                        },
+                    )
+                )
+
+        # 2. Search other requested unified Qdrant collections in `/Users/jarek/IdeaProjects/qdrant_staging/storage`
+        other_colls = [c for c in target_colls if c != INFORMATIONAL_COLLECTION_NAME]
+        for coll_name in other_colls:
+            # Cap scan on 5,300+ point collections for sub-second response
+            scan_limit = 600 if "code_corpus" in coll_name else 1000
+            pts = self.staging_manager.read_points_lockfree(
+                self.staging_manager.storage_dir, coll_name, limit=scan_limit
+            )
+            grouped_by_doc: Dict[str, List[Dict[str, Any]]] = collections.defaultdict(list)
+            for pt in pts:
+                payload = dict(pt.payload or {})
+                doc_key = str(
+                    payload.get("doc_id")
+                    or payload.get("model_id")
+                    or payload.get("entry_id")
+                    or payload.get("rel_path")
+                    or pt.id
+                )
+                grouped_by_doc[doc_key].append(
+                    {
+                        "point_id": str(pt.id),
+                        "vector": list(pt.vector) if isinstance(pt.vector, list) else [],
+                        "payload": payload,
+                    }
+                )
+
+            for doc_key, chunk_list in grouped_by_doc.items():
+                chunk_list.sort(key=lambda c: int(c["payload"].get("chunk_index", 0)))
+                rep = chunk_list[0]["payload"]
+                if system_id and system_id not in ("all", ""):
+                    sys_match = (
+                        system_id.lower() in coll_name.lower()
+                        or system_id.lower() in str(rep.get("repo_name", "")).lower()
+                        or system_id.lower() in str(rep.get("source_file", "")).lower()
+                        or system_id.lower() in str(rep.get("rel_path", "")).lower()
+                    )
+                    if not sys_match:
+                        continue
+
+                rejoined_text = (
+                    "\n".join(
+                        str(
+                            c["payload"].get("chunk_text")
+                            or c["payload"].get("text")
+                            or c["payload"].get("content")
+                            or c["payload"].get("snippet")
+                            or ""
+                        )
+                        for c in chunk_list
+                    ).strip()
+                    if rejoin_chunks
+                    else str(
+                        rep.get("chunk_text")
+                        or rep.get("text")
+                        or rep.get("content")
+                        or rep.get("snippet")
+                        or ""
+                    )
+                )
+                searchable = (
+                    f"{doc_key} {rep.get('title', '')} {rep.get('model_name', '')} "
+                    f"{rep.get('class_name', '')} {rep.get('rel_path', '')} "
+                    f"{rep.get('source_file', '')} {rejoined_text[:1600]}"
+                ).lower()
+
+                if not q_clean:
+                    score = 0.5
+                else:
+                    lex_hits = sum(1 for tok in q_tokens if tok in searchable)
+                    if lex_hits == 0 and q_clean.lower() not in searchable:
+                        continue
+                    vec = chunk_list[0]["vector"]
+                    cos = (
+                        sum(a * b for a, b in zip(q_vec, vec))
+                        if len(vec) == len(q_vec)
+                        else 0.25
+                    )
+                    exact_boost = 0.8 if q_clean.lower() in searchable else 0.0
+                    score = round(
+                        float(cos * 0.4 + (lex_hits / max(1, len(q_tokens))) * 0.6 + exact_boost),
+                        4,
+                    )
+
+                inferred_layer = (
+                    "model"
+                    if "neural_benchmarks" in coll_name
+                    else "compiler"
+                    if "compiler" in searchable
+                    else "design"
+                    if "wiki" in coll_name
+                    else "code"
+                )
+                if layer and layer != "all" and inferred_layer != layer:
+                    continue
+
+                sys_inferred = (
+                    "neural_networks"
+                    if "neural" in coll_name or "code_corpus" in coll_name
+                    else "portfolio"
+                )
+                hits.append(
+                    (
+                        score,
+                        {
+                            "collection": coll_name,
+                            "point_id": chunk_list[0]["point_id"],
+                            "id": doc_key,
+                            "title": str(
+                                rep.get("title")
+                                or rep.get("model_name")
+                                or rep.get("rel_path")
+                                or doc_key
+                            ),
+                            "idiomatic_name": str(
+                                rep.get("class_name")
+                                or rep.get("module_name")
+                                or rep.get("rel_path")
+                                or doc_key
+                            ),
+                            "system_id": sys_inferred,
+                            "layer": inferred_layer,
+                            "node_type": str(rep.get("doc_type") or rep.get("entry_type") or coll_name),
+                            "score": score,
+                            "chunks_rejoined": len(chunk_list) if rejoin_chunks else 1,
+                            "rejoined_text_excerpt": rejoined_text[:900],
+                            "juxtaposition": self._build_tri_layer_juxtaposition_for_node(
+                                {
+                                    "node_id": doc_key,
+                                    "repo_name": sys_inferred,
+                                    "title": str(rep.get("title") or rep.get("model_name") or doc_key),
+                                }
+                            ),
+                            "payload": rep,
+                        },
+                    )
+                )
+
+        hits.sort(key=lambda x: x[0], reverse=True)
+        top_results = [h[1] for h in hits[: max(1, int(top_k))]]
+        return {
+            "query": q_clean,
+            "collection_filter": collection or "all",
+            "system_filter": system_id or "all",
+            "layer_filter": layer or "all",
+            "total_matches": len(hits),
+            "results": top_results,
+            "staging_root": str(self.staging_root),
+        }
+
+    def get_design_compiler_code_juxtaposition(
+        self,
+        query: str,
+        system_id: Optional[str] = None,
+        include_geodesic_trace: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        Returns the tri-layer juxtaposition context for **Design**, **Compiler**, and **Code**
+        matching `query` (and optional `system_id`), alongside the full start-to-finish
+        geodesic code path connecting them.
+        """
+        q_clean = mask_restricted_string((query or "").strip()) or "PolyphonicStageCompilerCascadeModel"
+        system_id = mask_restricted_string(system_id) if system_id else system_id
+        search_res = self.query_juxtaposed_map(
+            query=q_clean,
+            repo_name=system_id if system_id and system_id != "all" else None,
+            top_k=8,
+        )
+        matches = search_res.get("results", [])
+        if not matches and system_id:
+            matches = self.query_juxtaposed_map(query=q_clean, top_k=8).get("results", [])
+
+        primary_node = (
+            matches[0]
+            if matches
+            else (
+                self.index.load_from_index("nodes", "compiler:stage_compiler:stage1_main")
+                or self.index.load_from_index("nodes", "staging:qdrant_staging")
+                or {}
+            )
+        )
+        tri_juxtaposition = self._build_tri_layer_juxtaposition_for_node(primary_node)
+
+        # Also collect top Design, Compiler, and Code nodes specifically matching or linked to the query
+        design_matches = self.query_juxtaposed_map(
+            query=q_clean, node_type="design_spec", top_k=3
+        ).get("results", [])
+        if not design_matches:
+            design_matches = self.query_juxtaposed_map(
+                query="project_master_spec", node_type="design_spec", top_k=3
+            ).get("results", [])
+
+        compiler_matches = self.query_juxtaposed_map(
+            query=q_clean, node_type="compiler_stage", top_k=4
+        ).get("results", [])
+        if not compiler_matches:
+            compiler_matches = self.query_juxtaposed_map(
+                query="stage1", node_type="compiler_stage", top_k=4
+            ).get("results", [])
+
+        code_matches = [
+            m
+            for m in matches
+            if m.get("node_type")
+            in (
+                "runtime_code",
+                "promoted_model",
+                "neural_architecture_package",
+                "portfolio_service",
+                "toolset_index",
+                "toolset_module",
+                "ui_component",
+            )
+        ][:4]
+
+        geodesic_path = (
+            self.trace_full_geodesic_code_path(
+                start_query=q_clean,
+                target_query="",
+                system_id=system_id,
+                include_source_excerpts=True,
+            )
+            if include_geodesic_trace
+            else {}
+        )
+
+        return {
+            "query": q_clean,
+            "system_id": system_id or primary_node.get("repo_name", "all"),
+            "anchor_node": {
+                "node_id": primary_node.get("node_id", ""),
+                "title": primary_node.get("title", ""),
+                "node_type": primary_node.get("node_type", ""),
+                "repo_name": primary_node.get("repo_name", ""),
+                "layer": self._classify_node_layer(primary_node),
+                "poincare_coords": primary_node.get("poincare_coords", []),
+            },
+            "juxtaposition": tri_juxtaposition,
+            "design_layer_nodes": [
+                {
+                    "node_id": d.get("node_id"),
+                    "title": d.get("title"),
+                    "doc_path": (d.get("juxtaposed_code") or {}).get("code_path"),
+                    "excerpt": (d.get("juxtaposed_docs") or {}).get("doc_excerpt", "")[:450],
+                }
+                for d in design_matches
+            ],
+            "compiler_layer_nodes": [
+                {
+                    "node_id": c.get("node_id"),
+                    "title": c.get("title"),
+                    "code_path": (c.get("juxtaposed_code") or {}).get("code_path"),
+                    "exported_symbols": (c.get("juxtaposed_code") or {}).get("exported_symbols", []),
+                    "excerpt": (c.get("juxtaposed_code") or {}).get("code_excerpt", "")[:450],
+                }
+                for c in compiler_matches
+            ],
+            "code_layer_nodes": [
+                {
+                    "node_id": r.get("node_id"),
+                    "title": r.get("title"),
+                    "code_path": (r.get("juxtaposed_code") or {}).get("code_path"),
+                    "exported_symbols": (r.get("juxtaposed_code") or {}).get("exported_symbols", []),
+                    "excerpt": (r.get("juxtaposed_code") or {}).get("code_excerpt", "")[:450],
+                }
+                for r in code_matches
+            ],
+            "geodesic_code_path": geodesic_path,
+        }
+
+    def trace_full_geodesic_code_path(
+        self,
+        start_query: str = "",
+        target_query: str = "",
+        system_id: Optional[str] = None,
+        include_source_excerpts: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        Computes the full start-to-finish Poincaré hyperbolic geodesic code path:
+        - When both `start_query` and `target_query` are provided, traces the shortest
+          geodesic path from `start_query` to `target_query` and enriches every hop with
+          its Design + Compiler + Code juxtaposition context and hyperbolic geometry.
+        - When only `start_query` (or `system_id` / empty) is provided, traces the complete
+          Start-to-Finish End-to-End Execution Geodesic Path across all 7 architectural phases
+          (1_DESIGN -> 2_COMPILER_BOOTSTRAP_AND_INGRESS -> 3_COMPILER_PARSER_AND_IR ->
+           4_COMPILER_EMIT_AND_SYNTHESIS -> 5_RUNTIME_VCPU_AND_NEURAL_MODEL ->
+           6_HARNESS_LEDGER_AND_SERVICE -> 7_UI_STREAMING_PRESENTATION), anchored through
+          the queried node if not already in the canonical spine.
+        """
+        canonical_spine_ids = [
+            "design:large_tools:project_master_spec",
+            "design:hypoborea_vm:vcpu_microloop_spec",
+            "design:hypoborea_vm:polyphonic_cohesive_rns_register_spec",
+            "compiler:stage_compiler:stage0_bootstrap",
+            "compiler:stage_compiler:stage1_main",
+            "compiler:stage_compiler:stage1_ingress",
+            "compiler:stage_compiler:stage1_parser",
+            "compiler:stage_compiler:stage1_symbols",
+            "compiler:stage_compiler:stage1_mcc_ir",
+            "compiler:stage_compiler:stage1_emitter",
+            "compiler:stage_compiler:stage1_linker",
+            "compiler:stage_compiler:macho_synthesizer",
+            "code:stage_compiler:core_vcpu_monadic_cavity",
+            "code:stage_compiler:core_vcpu_cohesive_continuum",
+            "code:neural_networks:implicit_vcpu_layer",
+            "model_pkg:neural_networks:stage_compiler",
+            "model_pkg:neural_networks:monadic_cavity",
+            "code:neural_networks:promoted_harness",
+            "module:toolset:benchmark_ledger",
+            "service:portfolio:benchmark_service",
+            "service:portfolio:portfolio_api",
+            "ui:portfolio:PromotedModelSection",
+            "ui:components:AsyncChatWindow",
+        ]
+
+        start_clean = mask_restricted_string((start_query or "").strip())
+        target_clean = mask_restricted_string((target_query or "").strip())
+        system_id = mask_restricted_string(system_id) if system_id else system_id
+
+        ordered_node_ids: List[str] = []
+        edge_lookup: Dict[Tuple[str, str], Dict[str, Any]] = {}
+        for s_id in canonical_spine_ids:
+            for e in self.index.load_from_index("edges_by_node", s_id) or []:
+                if isinstance(e, dict) and e.get("source") and e.get("target"):
+                    edge_lookup[(str(e["source"]), str(e["target"]))] = e
+
+        if start_clean and target_clean:
+            wf = self.trace_wayfinding_path(start_clean, target_clean)
+            wf_hops = [str(h["node_id"]) for h in wf.get("hops", [])] if wf.get("found") else []
+            s_resolved = start_clean if start_clean in canonical_spine_ids else (wf_hops[0] if wf_hops else "")
+            t_resolved = target_clean if target_clean in canonical_spine_ids else (wf_hops[-1] if wf_hops else "")
+            if s_resolved in canonical_spine_ids and t_resolved in canonical_spine_ids:
+                s_idx = canonical_spine_ids.index(s_resolved)
+                t_idx = canonical_spine_ids.index(t_resolved)
+                if s_idx <= t_idx:
+                    ordered_node_ids = canonical_spine_ids[s_idx : t_idx + 1]
+                else:
+                    ordered_node_ids = list(reversed(canonical_spine_ids[t_idx : s_idx + 1]))
+            elif wf_hops:
+                ordered_node_ids = wf_hops
+                for e in wf.get("edges", []):
+                    if isinstance(e, dict) and e.get("source") and e.get("target"):
+                        edge_lookup[(str(e["source"]), str(e["target"]))] = e
+
+        if not ordered_node_ids:
+            # Build full start-to-finish spine, ensuring any queried node is included at its proper phase
+            ordered_node_ids = [
+                nid
+                for nid in canonical_spine_ids
+                if isinstance(self.index.load_from_index("nodes", nid), dict)
+            ]
+            if start_clean:
+                matched = self.query_juxtaposed_map(
+                    query=start_clean,
+                    repo_name=system_id if system_id and system_id != "all" else None,
+                    top_k=1,
+                ).get("results", [])
+                if matched:
+                    m_id = str(matched[0]["node_id"])
+                    if m_id not in ordered_node_ids:
+                        m_layer = self._classify_node_layer(matched[0])
+                        insert_idx = len(ordered_node_ids) - 2 if len(ordered_node_ids) >= 2 else len(ordered_node_ids)
+                        if m_layer == "design":
+                            insert_idx = min(3, len(ordered_node_ids))
+                        elif m_layer == "compiler":
+                            insert_idx = min(11, len(ordered_node_ids))
+                        ordered_node_ids.insert(insert_idx, m_id)
+
+        stage_phase_labels = {
+            "design": "1_DESIGN_SPECIFICATION",
+            "compiler": "2_COMPILER_PIPELINE",
+            "model": "3_NEURAL_COMPILER_AND_CAVITY_MODEL",
+            "code": "4_RUNTIME_CODE_AND_SERVICE",
+            "index": "5_QDRANT_AND_TOOLSET_INDEX",
+            "ui": "6_UI_STREAMING_PRESENTATION",
+        }
+
+        hops: List[Dict[str, Any]] = []
+        cumulative_geo = 0.0
+        prev_coords: Optional[List[float]] = None
+
+        for idx, nid in enumerate(ordered_node_ids):
+            node_obj = self.index.load_from_index("nodes", nid)
+            if not isinstance(node_obj, dict):
+                continue
+            coords = list(node_obj.get("poincare_coords") or [])
+            step_geo = self._poincare_distance(prev_coords, coords) if prev_coords is not None else 0.0
+            midpoint = (
+                self._poincare_midpoint(prev_coords, coords)
+                if prev_coords is not None
+                else coords
+            )
+            cumulative_geo = round(cumulative_geo + step_geo, 6)
+            prev_coords = coords
+
+            prev_nid = ordered_node_ids[idx - 1] if idx > 0 else ""
+            edge_info = edge_lookup.get((prev_nid, nid), {}) if prev_nid else {}
+            layer_name = self._classify_node_layer(node_obj)
+            code_meta = dict(node_obj.get("juxtaposed_code") or {})
+            doc_meta = dict(node_obj.get("juxtaposed_docs") or {})
+            tri_jux = self._build_tri_layer_juxtaposition_for_node(node_obj)
+
+            hop_entry: Dict[str, Any] = {
+                "hop_index": idx,
+                "stage_phase": stage_phase_labels.get(layer_name, "4_RUNTIME_CODE_AND_SERVICE"),
+                "layer": layer_name,
+                "node_id": nid,
+                "title": node_obj.get("title", ""),
+                "idiomatic_name": node_obj.get("idiomatic_name", ""),
+                "repo_name": node_obj.get("repo_name", ""),
+                "node_type": node_obj.get("node_type", ""),
+                "file_path": code_meta.get("code_path", ""),
+                "relative_path": code_meta.get("relative_path", ""),
+                "language": code_meta.get("language", ""),
+                "exported_symbols": code_meta.get("exported_symbols", []),
+                "sha256": code_meta.get("sha256", ""),
+                "doc_path": doc_meta.get("doc_path", ""),
+                "qdrant_namespace": node_obj.get("qdrant_namespace", self.collection_name),
+                "keep_in_place": bool(node_obj.get("keep_in_place", True)),
+                "poincare_coords": coords,
+                "step_geodesic_distance": step_geo,
+                "cumulative_geodesic_distance": cumulative_geo,
+                "poincare_midpoint": midpoint,
+                "incoming_edge_relation": edge_info.get("relation", "PIPELINE_START" if idx == 0 else "GEODESIC_NEXT_HOP"),
+                "transition_rationale": edge_info.get(
+                    "rationale",
+                    "Entry point of the Design -> Compiler -> Code geodesic pipeline"
+                    if idx == 0
+                    else f"Geodesic transition from {prev_nid} to {nid}",
+                ),
+                "juxtaposed_context": tri_jux,
+            }
+            if include_source_excerpts:
+                hop_entry["code_excerpt"] = code_meta.get("code_excerpt", "")[:650]
+                hop_entry["doc_excerpt"] = doc_meta.get("doc_excerpt", "")[:500]
+            hops.append(hop_entry)
+
+        start_coords = hops[0]["poincare_coords"] if hops else []
+        end_coords = hops[-1]["poincare_coords"] if hops else []
+        direct_geo = self._poincare_distance(start_coords, end_coords) if len(hops) >= 2 else 0.0
+
+        return {
+            "found": len(hops) > 0,
+            "start_query": start_clean or "design:large_tools:project_master_spec",
+            "target_query": target_clean or "ui:components:AsyncChatWindow",
+            "start_node_id": hops[0]["node_id"] if hops else "",
+            "target_node_id": hops[-1]["node_id"] if hops else "",
+            "hop_count": len(hops),
+            "total_geodesic_distance": cumulative_geo,
+            "direct_geodesic_distance": direct_geo,
+            "layers_traversed": list(dict.fromkeys(h["layer"] for h in hops)),
+            "repositories_traversed": list(dict.fromkeys(h["repo_name"] for h in hops)),
+            "hops": hops,
+        }
+
+    def manage_system_lifecycle(
+        self,
+        action: str = "status",
+        system_id: str = "all",
+        target_environment: Optional[str | Path] = None,
+        direction: str = "bidirectional",
+        options: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Manages the full lifecycle across all systems (`portfolio`, `components`, `toolset`,
+        `neural_networks`, `large_tools`, `StageCompiler-development`, `qdrant_staging`):
+        - `status`: Returns system catalog, Qdrant staging telemetry, and promoted harness state.
+        - `build` / `rebuild`: Rebuilds the juxtaposed Design+Compiler+Code informational graph
+          and unifies all Qdrant collections into `/Users/jarek/IdeaProjects/qdrant_staging`.
+        - `sync`: Synchronizes Qdrant collections across repo-local stores, staging, or an external environment.
+        - `verify`: Verifies SHA-256 code integrity (`CodeCorpusIndex.verify_code_unchanged`),
+          chunk rejoin integrity across Qdrant collections, and `keep_in_place` invariants.
+        - `promote_harness`: Executes lifecycle actions on `PromotedModelHarness` (`status`, `learn`,
+          `generate`, `memorize`, `reset_memory`, `predict_next`).
+        - `snapshot`: Exports portable JSONL + manifest snapshots to `/Users/jarek/IdeaProjects/qdrant_staging/snapshots`.
+        """
+        t0 = time.perf_counter()
+        norm_action = (action or "status").strip().lower()
+        system_id = mask_restricted_string(system_id) if system_id else "all"
+        opts = dict(options or {})
+
+        if norm_action in ("build", "rebuild", "rebuild_index"):
+            telemetry = self.build_and_unify(force_rebuild=True, export_snapshots=True)
+            return {
+                "action": norm_action,
+                "system_id": system_id,
+                "status": "COMPLETED",
+                "telemetry": telemetry,
+                "systems": self.list_systems(include_collections=True, include_lifecycle=True)["systems"],
+                "wall_time_ms": round((time.perf_counter() - t0) * 1000.0, 2),
+            }
+
+        if norm_action == "sync":
+            sync_res = self.sync_staging(
+                target_environment=target_environment,
+                direction=direction,
+                collections=opts.get("collections"),
+                rebuild_graph=bool(opts.get("rebuild_graph", True)),
+            )
+            return {
+                "action": "sync",
+                "system_id": system_id,
+                "status": "COMPLETED",
+                "sync_result": sync_res["sync_result"],
+                "staging_overview": sync_res["staging_overview"],
+                "wall_time_ms": round((time.perf_counter() - t0) * 1000.0, 2),
+            }
+
+        if norm_action == "snapshot":
+            manifest = self.staging_manager.unify_all_collections(export_snapshots=True)
+            return {
+                "action": "snapshot",
+                "system_id": system_id,
+                "status": "COMPLETED",
+                "snapshots_dir": str(self.staging_manager.snapshots_dir),
+                "bundle_manifest": str(self.staging_manager.snapshots_dir / "staging_bundle_manifest.json"),
+                "informational_snapshot": str(
+                    self.staging_manager.snapshots_dir / f"{INFORMATIONAL_COLLECTION_NAME}.jsonl"
+                ),
+                "total_collections": manifest.get("total_collections", 0),
+                "total_staged_points": manifest.get("total_staged_points", 0),
+                "wall_time_ms": round((time.perf_counter() - t0) * 1000.0, 2),
+            }
+
+        if norm_action == "verify":
+            # 1. Verify placement invariants (`keep_in_place=True`)
+            all_nodes = [v for _, v in self.index.range_index("nodes") if isinstance(v, dict)]
+            if not all_nodes:
+                self.build_and_unify(force_rebuild=False)
+                all_nodes = [v for _, v in self.index.range_index("nodes") if isinstance(v, dict)]
+            missing_paths: List[str] = []
+            verified_paths = 0
+            for n in all_nodes:
+                cp = str((n.get("juxtaposed_code") or {}).get("code_path", ""))
+                if cp and Path(cp).exists():
+                    verified_paths += 1
+                elif cp:
+                    missing_paths.append(cp)
+
+            # 2. Verify neural_networks CodeCorpusIndex SHA-256 integrity if available
+            nn_repo = self.idea_projects_root / "neural_networks"
+            nn_ledger = nn_repo / "src" / "models" / "monadic_cavity" / "results" / "code_corpus_ledger.json"
+            nn_qdrant = nn_repo / ".qdrant_code_index"
+            code_verification: Dict[str, Any] = {"available": False}
+            if nn_repo.is_dir():
+                try:
+                    from indexes.code_index.code_index import CodeCorpusIndex
+
+                    c_idx = CodeCorpusIndex(
+                        repo_path=nn_repo,
+                        qdrant_path=nn_qdrant if nn_qdrant.is_dir() else None,
+                        collection_name="neural_networks_code_corpus",
+                        ledger_path=nn_ledger if nn_ledger.is_file() else None,
+                    )
+                    code_verification = c_idx.verify_code_unchanged(
+                        subdirs=["src/models/monadic_cavity", "src/models/stage_compiler", "promoted"]
+                    )
+                    code_verification["available"] = True
+                except Exception as exc:
+                    code_verification = {"available": False, "error": str(exc)}
+
+            return {
+                "action": "verify",
+                "system_id": system_id,
+                "status": "VERIFIED" if len(missing_paths) == 0 else "PARTIAL",
+                "verified_node_paths_count": verified_paths,
+                "missing_node_paths": missing_paths,
+                "keep_in_place_invariants_valid": len(missing_paths) == 0,
+                "code_corpus_sha256_verification": code_verification,
+                "wall_time_ms": round((time.perf_counter() - t0) * 1000.0, 2),
+            }
+
+        if norm_action in ("promote_harness", "harness"):
+            nn_root = self.idea_projects_root / "neural_networks"
+            harness_result: Dict[str, Any] = {"available": False}
+            if (nn_root / "promoted" / "harness.py").is_file():
+                import sys
+
+                for p_cand in (str(nn_root), str(nn_root / "src")):
+                    if p_cand not in sys.path:
+                        sys.path.insert(0, p_cand)
+                import promoted.harness as h_mod
+
+                harness = h_mod.build_promoted_harness(vocab_size=256, d_model=128, device="cpu")
+                sub_action = str(opts.get("harness_action", "status")).lower()
+                prompt_text = str(
+                    opts.get("prompt")
+                    or opts.get("text")
+                    or "def execute_monadic_cycle(cavity, wave):"
+                )
+                if sub_action == "learn":
+                    harness_result = harness.learn(prompt_text, steps=int(opts.get("steps", 2)))
+                elif sub_action == "generate":
+                    harness_result = {
+                        "generated": harness.generate(
+                            prompt_text,
+                            max_new_tokens=int(opts.get("max_new_tokens", 24)),
+                        )
+                    }
+                elif sub_action == "memorize":
+                    harness_result = harness.memorize(prompt_text)
+                elif sub_action == "reset_memory":
+                    harness_result = harness.reset_memory()
+                elif sub_action == "predict_next":
+                    harness_result = {"predictions": harness.predict_next(prompt_text, top_k=5)}
+                else:
+                    harness_result = harness.status()
+                if not isinstance(harness_result, dict):
+                    harness_result = {"result": harness_result}
+                harness_result["available"] = True
+            return {
+                "action": "promote_harness",
+                "system_id": "neural_networks",
+                "status": "COMPLETED" if harness_result.get("available") else "UNAVAILABLE",
+                "harness_result": harness_result,
+                "wall_time_ms": round((time.perf_counter() - t0) * 1000.0, 2),
+            }
+
+        # Default: `status` / `health_check`
+        sys_catalog = self.list_systems(include_collections=True, include_lifecycle=True)
+        systems_filtered = (
+            [s for s in sys_catalog["systems"] if s["system_id"] == system_id]
+            if system_id and system_id != "all"
+            else sys_catalog["systems"]
+        )
+        return {
+            "action": "status",
+            "system_id": system_id,
+            "status": "READY",
+            "staging_overview": self.get_staging_overview(),
+            "systems": systems_filtered,
+            "audit_log_tail": list(self.audit_log.all())[-10:],
+            "wall_time_ms": round((time.perf_counter() - t0) * 1000.0, 2),
+        }
+
+    # =========================================================================
+    # Wiki File System Tree, Git-Like Code Viewer & Line-Level Geodesic Trace
+    # =========================================================================
+
+    _STOP_IDENTIFIERS: set[str] = {
+        "def",
+        "class",
+        "return",
+        "import",
+        "from",
+        "const",
+        "let",
+        "var",
+        "export",
+        "interface",
+        "type",
+        "function",
+        "async",
+        "await",
+        "true",
+        "false",
+        "True",
+        "False",
+        "None",
+        "null",
+        "undefined",
+        "self",
+        "cls",
+        "str",
+        "int",
+        "float",
+        "bool",
+        "dict",
+        "list",
+        "tuple",
+        "set",
+        "Any",
+        "Optional",
+        "Dict",
+        "List",
+        "Tuple",
+        "Set",
+        "Union",
+        "for",
+        "while",
+        "elif",
+        "else",
+        "try",
+        "except",
+        "finally",
+        "with",
+        "pass",
+        "continue",
+        "break",
+        "and",
+        "not",
+        "isinstance",
+        "len",
+        "max",
+        "min",
+        "sum",
+    }
+
+    def _ensure_nodes_loaded(self) -> List[Dict[str, Any]]:
+        all_nodes = [v for _, v in self.index.range_index("nodes") if isinstance(v, dict)]
+        if not all_nodes:
+            self.build_and_unify(force_rebuild=False)
+            all_nodes = [v for _, v in self.index.range_index("nodes") if isinstance(v, dict)]
+        return all_nodes
+
+    def get_wiki_filesystem_tree(self) -> Dict[str, Any]:
+        """
+        Builds a nested FileSystemRootNode tree across all 7 systems so the reusable
+        `FileSystemExplorer` component can browse Design specs, Stage-0/Stage-1 Compiler
+        files, Promoted Neural Models, Toolset packages, Portfolio services, and UI components.
+        """
+        all_nodes = self._ensure_nodes_loaded()
+
+        system_order = [
+            ("large_tools", "Large Tools (Design & Stage-0/1 Compiler)"),
+            ("neural_networks", "Neural Networks (Promoted Model & Compiler)"),
+            ("toolset", "Toolset (38 Python Libraries & Indexes)"),
+            ("portfolio", "Portfolio (Services, API & Code Wiki UI)"),
+            ("components", "Components (Reusable Meta-Components)"),
+            ("StageCompiler-development", "StageCompiler Development Specs"),
+            ("qdrant_staging", "Qdrant Staging & Knowledge Items"),
+        ]
+        layer_folder_meta = {
+            "design": ("design", "Design Specifications"),
+            "compiler": ("compiler", "Compiler Pipeline"),
+            "model": ("models", "Promoted & Neural Models"),
+            "code": ("runtime", "Runtime & Services"),
+            "index": ("indexes", "Qdrant & Toolset Indexes"),
+            "ui": ("ui", "UI & Meta-Components"),
+        }
+
+        by_system_folders: Dict[str, Dict[str, List[Dict[str, Any]]]] = {
+            sys_id: {} for sys_id, _ in system_order
+        }
+        seen_paths_per_system: Dict[str, set[str]] = {
+            sys_id: set() for sys_id, _ in system_order
+        }
+
+        default_file_path = ""
+        default_node_id = ""
+
+        for node in all_nodes:
+            repo_name = str(node.get("repo_name") or "toolset")
+            if repo_name not in by_system_folders:
+                by_system_folders[repo_name] = {}
+                seen_paths_per_system[repo_name] = set()
+
+            layer = self._classify_node_layer(node)
+            folder_rel, _ = layer_folder_meta.get(layer, ("runtime", "Runtime & Services"))
+            code_meta = dict(node.get("juxtaposed_code") or {})
+            doc_meta = dict(node.get("juxtaposed_docs") or {})
+
+            candidates = [
+                (
+                    str(code_meta.get("code_path") or ""),
+                    str(code_meta.get("relative_path") or ""),
+                    layer,
+                )
+            ]
+            doc_p = str(doc_meta.get("doc_path") or "")
+            if doc_p and doc_p != candidates[0][0]:
+                candidates.append((doc_p, Path(doc_p).name, "design"))
+
+            for raw_path, rel_path, item_layer in candidates:
+                if not raw_path or raw_path in seen_paths_per_system[repo_name]:
+                    continue
+                p_obj = Path(raw_path)
+                if not p_obj.is_file():
+                    continue
+                seen_paths_per_system[repo_name].add(raw_path)
+
+                f_rel, _ = layer_folder_meta.get(item_layer, (folder_rel, "Runtime & Services"))
+                try:
+                    st = p_obj.stat()
+                    size_bytes = int(st.st_size)
+                    mtime_iso = time.strftime("%Y-%m-%d %H:%M", time.localtime(st.st_mtime))
+                except OSError:
+                    size_bytes = 0
+                    mtime_iso = ""
+
+                file_item: Dict[str, Any] = {
+                    "name": p_obj.name,
+                    "friendly_name": str(node.get("title") or p_obj.name),
+                    "title": str(node.get("title") or p_obj.name),
+                    "path": str(p_obj),
+                    "absolute_path": str(p_obj),
+                    "relative_path": rel_path or p_obj.name,
+                    "folder": f_rel,
+                    "size_bytes": size_bytes,
+                    "updated_at": mtime_iso,
+                    "modified_at": mtime_iso,
+                    "extension": p_obj.suffix.lstrip("."),
+                    "file_type": item_layer,
+                    "node_id": str(node.get("node_id") or ""),
+                    "layer": item_layer,
+                    "repo_name": repo_name,
+                }
+                by_system_folders[repo_name].setdefault(f_rel, []).append(file_item)
+
+                if (
+                    not default_file_path
+                    and str(node.get("node_id") or "")
+                    == "model:neural_networks:PolyphonicStageCompilerCascadeModel"
+                    and p_obj.suffix == ".py"
+                ):
+                    default_file_path = str(p_obj)
+                    default_node_id = str(node.get("node_id") or "")
+
+        tree: List[Dict[str, Any]] = []
+        total_files_count = 0
+
+        for sys_id, sys_label in system_order:
+            folder_map = by_system_folders.get(sys_id, {})
+            if not folder_map:
+                continue
+            folders_list: List[Dict[str, Any]] = []
+            sys_file_count = 0
+            for layer_key in ("design", "compiler", "models", "runtime", "indexes", "ui"):
+                files_in_folder = folder_map.get(layer_key, [])
+                if not files_in_folder:
+                    continue
+                files_sorted = sorted(files_in_folder, key=lambda x: str(x["name"]).lower())
+                friendly_folder = next(
+                    (
+                        lbl
+                        for _, (f_k, lbl) in layer_folder_meta.items()
+                        if f_k == layer_key
+                    ),
+                    layer_key.title(),
+                )
+                folders_list.append(
+                    {
+                        "folder_id": f"{sys_id}:{layer_key}",
+                        "node_id": f"{sys_id}:{layer_key}",
+                        "name": layer_key,
+                        "friendly_name": friendly_folder,
+                        "relative_path": layer_key,
+                        "file_count": len(files_sorted),
+                        "files": files_sorted,
+                        "children": files_sorted,
+                        "folders": [],
+                    }
+                )
+                sys_file_count += len(files_sorted)
+                if not default_file_path and files_sorted:
+                    default_file_path = str(files_sorted[0]["path"])
+                    default_node_id = str(files_sorted[0].get("node_id") or "")
+
+            total_files_count += sys_file_count
+            tree.append(
+                {
+                    "node_id": f"wiki_sys_{sys_id}",
+                    "conversation_id": f"wiki_sys_{sys_id}",
+                    "short_id": sys_id,
+                    "friendly_name": sys_label,
+                    "workspace_project": sys_id,
+                    "path": str(self.idea_projects_root / sys_id),
+                    "updated_at": "live",
+                    "total_files": sys_file_count,
+                    "artifact_count": sys_file_count,
+                    "folders": folders_list,
+                    "children": folders_list,
+                    "root_files": [],
+                }
+            )
+
+        return {
+            "total_systems": len(tree),
+            "total_files": total_files_count,
+            "default_file_path": default_file_path,
+            "default_node_id": default_node_id,
+            "tree": tree,
+        }
+
+    def _resolve_node_and_path(
+        self, file_path_or_query: str
+    ) -> Tuple[Optional[Path], Optional[Dict[str, Any]]]:
+        all_nodes = self._ensure_nodes_loaded()
+        clean = mask_restricted_string((file_path_or_query or "").strip())
+        if not clean:
+            tree_info = self.get_wiki_filesystem_tree()
+            clean = str(tree_info.get("default_file_path") or "")
+
+        # 1. Exact node_id match
+        direct_node = self.index.load_from_index("nodes", clean)
+        if isinstance(direct_node, dict):
+            cp = str((direct_node.get("juxtaposed_code") or {}).get("code_path") or "")
+            if cp and Path(cp).is_file():
+                return Path(cp).absolute(), direct_node
+
+        # 2. Direct file path match (preserve non-restricted symlinks via .absolute())
+        cand_path = Path(clean)
+        if not cand_path.is_absolute():
+            for base in (self.idea_projects_root, self.idea_projects_root / "portfolio" / "portfolio"):
+                if (base / clean).is_file():
+                    cand_path = (base / clean).absolute()
+                    break
+
+        best_node: Optional[Dict[str, Any]] = None
+        if cand_path.is_file():
+            abs_str = mask_restricted_string(str(cand_path.absolute()))
+            resolved_str = str(cand_path.resolve())
+            for node in all_nodes:
+                cp = str((node.get("juxtaposed_code") or {}).get("code_path") or "")
+                dp = str((node.get("juxtaposed_docs") or {}).get("doc_path") or "")
+                if cp in (abs_str, resolved_str):
+                    best_node = node
+                    break
+                if dp in (abs_str, resolved_str) and best_node is None:
+                    best_node = node
+            if best_node is None:
+                # Match by parent repo
+                for node in all_nodes:
+                    r_name = str(node.get("repo_name") or "")
+                    if r_name and f"/{r_name}/" in abs_str:
+                        best_node = node
+                        break
+            return Path(abs_str) if Path(abs_str).is_file() else cand_path.absolute(), best_node
+
+        # 3. Search juxtaposed nodes by query / filename
+        matched = self.query_juxtaposed_map(query=clean, top_k=1).get("results", [])
+        if matched:
+            node = matched[0]
+            cp = str((node.get("juxtaposed_code") or {}).get("code_path") or "")
+            if cp and Path(cp).is_file():
+                return Path(cp).absolute(), node
+
+        return None, None
+
+    def _extract_line_tokens(self, line_text: str) -> List[str]:
+        raw_tokens = re.findall(r"\b[A-Za-z_][A-Za-z0-9_]{2,}\b", line_text or "")
+        seen: set[str] = set()
+        tokens: List[str] = []
+        for tok in raw_tokens:
+            if tok in self._STOP_IDENTIFIERS or tok in seen:
+                continue
+            seen.add(tok)
+            tokens.append(tok)
+        return tokens[:8]
+
+    def get_wiki_file_content(
+        self, file_path: str, max_lines: int = 500
+    ) -> Dict[str, Any]:
+        """
+        Reads a physical source/design/compiler file for the Code Wiki Git-like viewer,
+        returning numbered lines, extracted variable/symbol tokens per line, git markers,
+        and juxtaposed node metadata.
+        """
+        resolved_path, node_obj = self._resolve_node_and_path(file_path)
+        if resolved_path is None or not resolved_path.is_file():
+            raise ValueError(f"Wiki file not found: {file_path}")
+
+        # Enforce workspace boundary check
+        resolved_str = mask_restricted_string(str(resolved_path))
+        real_str = str(resolved_path.resolve())
+        allowed_roots = (
+            str(self.idea_projects_root.resolve()),
+            str(Path("/Users/jarek/.gemini").resolve()),
+        )
+        if not any(real_str.startswith(root) for root in allowed_roots):
+            raise ValueError(f"File path outside allowed workspace roots: {resolved_str}")
+
+        raw_text = mask_restricted_string(resolved_path.read_text(encoding="utf-8", errors="replace"))
+        raw_lines = raw_text.splitlines()
+        capped_lines = raw_lines[: max(1, max_lines)]
+
+        exported_syms: set[str] = set()
+        if isinstance(node_obj, dict):
+            for s in (node_obj.get("juxtaposed_code") or {}).get("exported_symbols", []):
+                exported_syms.add(str(s))
+
+        lines_out: List[Dict[str, Any]] = []
+        for idx, text in enumerate(capped_lines, start=1):
+            stripped = text.strip()
+            tokens = self._extract_line_tokens(text)
+            is_def = stripped.startswith(
+                ("def ", "class ", "async def ", "export ", "interface ", "func ", "stage ", "## ")
+            )
+            has_exported = any(t in exported_syms for t in tokens)
+            git_marker = "+" if (is_def or has_exported) else ("~" if tokens else " ")
+            lines_out.append(
+                {
+                    "line_number": idx,
+                    "text": text,
+                    "git_marker": git_marker,
+                    "is_anchor": bool(is_def or has_exported),
+                    "tokens": tokens,
+                }
+            )
+
+        try:
+            st = resolved_path.stat()
+            size_bytes = int(st.st_size)
+            updated_at = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(st.st_mtime))
+        except OSError:
+            size_bytes = len(raw_text.encode("utf-8"))
+            updated_at = ""
+
+        node_id = str(node_obj.get("node_id") or "") if isinstance(node_obj, dict) else ""
+        layer = self._classify_node_layer(node_obj) if isinstance(node_obj, dict) else "code"
+        repo_name = (
+            str(node_obj.get("repo_name") or resolved_path.parent.name)
+            if isinstance(node_obj, dict)
+            else resolved_path.parent.name
+        )
+        title = (
+            str(node_obj.get("title") or resolved_path.name)
+            if isinstance(node_obj, dict)
+            else resolved_path.name
+        )
+        idiomatic_name = (
+            str(node_obj.get("idiomatic_name") or resolved_path.stem)
+            if isinstance(node_obj, dict)
+            else resolved_path.stem
+        )
+
+        try:
+            rel_path = mask_restricted_string(str(resolved_path.relative_to(self.idea_projects_root)))
+        except ValueError:
+            rel_path = mask_restricted_string(resolved_path.name)
+
+        return {
+            "path": resolved_str,
+            "name": mask_restricted_string(resolved_path.name),
+            "relative_path": rel_path,
+            "language": resolved_path.suffix.lstrip(".") or "text",
+            "size_bytes": size_bytes,
+            "updated_at": updated_at,
+            "total_lines": len(raw_lines),
+            "displayed_lines": len(lines_out),
+            "node_id": node_id,
+            "title": mask_restricted_string(title),
+            "idiomatic_name": mask_restricted_string(idiomatic_name),
+            "repo_name": mask_restricted_string(repo_name),
+            "layer": layer,
+            "exported_symbols": sorted(exported_syms),
+            "content": "\n".join(capped_lines),
+            "lines": lines_out,
+        }
+
+    def _build_panel_code_window(
+        self,
+        file_path_str: str,
+        search_terms: List[str],
+        preferred_line: Optional[int] = None,
+        window_radius: int = 7,
+    ) -> Dict[str, Any]:
+        """
+        Locates the best matching line for `search_terms` in `file_path_str` (or uses
+        `preferred_line`) and extracts a Git-like code window with highlighted lines
+        and clickable tokens.
+        """
+        p_obj = Path(file_path_str) if file_path_str else None
+        if p_obj is None or not p_obj.is_file():
+            return {
+                "focal_line_number": 1,
+                "focal_line_text": "",
+                "highlighted_lines": [1],
+                "code_lines": [],
+            }
+
+        raw_lines = mask_restricted_string(
+            p_obj.read_text(encoding="utf-8", errors="replace")
+        ).splitlines()
+        if not raw_lines:
+            return {
+                "focal_line_number": 1,
+                "focal_line_text": "",
+                "highlighted_lines": [1],
+                "code_lines": [],
+            }
+
+        clean_terms = [t.strip() for t in search_terms if t and len(t.strip()) >= 2]
+        lower_terms = [t.lower() for t in clean_terms]
+
+        matched_line_nums: List[int] = []
+        best_line = preferred_line if (preferred_line and 1 <= preferred_line <= len(raw_lines)) else 0
+        best_score = -1
+
+        for idx, line_text in enumerate(raw_lines, start=1):
+            l_low = line_text.lower()
+            score = 0
+            for rank_i, term_low in enumerate(lower_terms):
+                if term_low in l_low:
+                    weight = max(1, 10 - rank_i * 2)
+                    if re.search(rf"\b{re.escape(term_low)}\b", l_low):
+                        weight += 5
+                    score += weight
+            if score > 0:
+                matched_line_nums.append(idx)
+                if line_text.strip().startswith(("def ", "class ", "export ", "func ", "stage ", "## ")):
+                    score += 4
+                if best_line == 0 or (preferred_line is None and score > best_score):
+                    best_score = score
+                    best_line = idx
+
+        if best_line == 0:
+            # Find first definition line or non-empty line
+            for idx, line_text in enumerate(raw_lines, start=1):
+                if line_text.strip().startswith(("def ", "class ", "export ", "func ", "stage ", "## ")):
+                    best_line = idx
+                    break
+            if best_line == 0:
+                best_line = 1
+
+        if best_line not in matched_line_nums:
+            matched_line_nums.insert(0, best_line)
+
+        start_ln = max(1, best_line - window_radius)
+        end_ln = min(len(raw_lines), best_line + window_radius)
+        highlighted_set = set(matched_line_nums[:24])
+        highlighted_set.add(best_line)
+
+        code_lines: List[Dict[str, Any]] = []
+        for ln in range(start_ln, end_ln + 1):
+            txt = raw_lines[ln - 1]
+            is_hl = ln in highlighted_set
+            is_focal = ln == best_line
+            code_lines.append(
+                {
+                    "line_number": ln,
+                    "text": txt,
+                    "is_highlighted": is_hl,
+                    "is_focal": is_focal,
+                    "git_marker": "+" if is_focal else ("~" if is_hl else " "),
+                    "tokens": self._extract_line_tokens(txt),
+                }
+            )
+
+        return {
+            "focal_line_number": best_line,
+            "focal_line_text": raw_lines[best_line - 1].strip(),
+            "highlighted_lines": sorted(highlighted_set),
+            "code_lines": code_lines,
+        }
+
+    def trace_geodesic_from_file_line(
+        self,
+        file_path: str,
+        line_number: int = 1,
+        symbol: str = "",
+        target_query: str = "ui:components:AsyncChatWindow",
+    ) -> Dict[str, Any]:
+        """
+        Traces the full Geodesic Code Path starting from a clicked file, line number,
+        and variable/symbol in the Code Wiki:
+        1. Identifies the variable/symbol on the clicked line and highlights all participating
+           lines in the active file.
+        2. Uses `get_design_compiler_code_juxtaposition` and `trace_full_geodesic_code_path`
+           to build:
+           - `sidebar_elements`: A scrollable sidebar list following every hop from the clicked
+             variable/line through to the terminal component.
+           - `stage_columns`: A side-to-side horizontal track where panels split into parallel
+             juxtaposed/branch panels (`1 -> N` divergence) and converge (`N -> 1` convergence)
+             along the geodesic code path.
+        """
+        file_info = self.get_wiki_file_content(file_path, max_lines=500)
+        lines = file_info.get("lines", [])
+        total_displayed = len(lines)
+        clamped_line = max(1, min(int(line_number or 1), max(1, total_displayed)))
+        line_obj = lines[clamped_line - 1] if lines else {"text": "", "tokens": []}
+        line_text = str(line_obj.get("text") or "")
+        line_tokens = list(line_obj.get("tokens") or [])
+
+        exported_set = set(file_info.get("exported_symbols") or [])
+        focal_symbol = mask_restricted_string((symbol or "").strip())
+        if not focal_symbol:
+            for tok in line_tokens:
+                if tok in exported_set:
+                    focal_symbol = tok
+                    break
+        if not focal_symbol and line_tokens:
+            focal_symbol = line_tokens[0]
+        if not focal_symbol:
+            focal_symbol = str(file_info.get("idiomatic_name") or Path(file_info["path"]).stem)
+
+        # Compute highlighted lines in the active file where `focal_symbol` or line tokens participate
+        search_terms_primary = [focal_symbol] + [t for t in line_tokens if t != focal_symbol][:3]
+        origin_window = self._build_panel_code_window(
+            file_info["path"],
+            search_terms=search_terms_primary,
+            preferred_line=clamped_line,
+            window_radius=8,
+        )
+        active_highlighted_lines = origin_window["highlighted_lines"]
+
+        start_node_id = str(file_info.get("node_id") or file_info["path"])
+        juxtaposition = self.get_design_compiler_code_juxtaposition(
+            query=start_node_id,
+            include_geodesic_trace=True,
+        )
+        geodesic_trace = self.trace_full_geodesic_code_path(
+            start_query=start_node_id,
+            target_query=target_query or "ui:components:AsyncChatWindow",
+            include_source_excerpts=True,
+        )
+
+        hops = list(geodesic_trace.get("hops") or [])
+
+        # Build Split-and-Converge Stage Columns:
+        # Column 0: Origin Clicked File & Line (Single Panel)
+        # Column 1: Tri-Layer Juxtaposition Divergence (Splits into 3 parallel panels: Design, Compiler, Code)
+        # Column 2..K: Geodesic Execution Hops (Splits into parallel phase panels when multiple hops share a stage_phase,
+        #              and converges into downstream execution hops, ending at the converged terminal component).
+        raw_columns: List[Dict[str, Any]] = []
+
+        # --- Column 0: Origin Panel ---
+        raw_columns.append(
+            {
+                "column_index": 0,
+                "stage_id": "stage-0-origin",
+                "stage_label": "0_CLICKED_LINE_ORIGIN",
+                "split_mode": "origin",
+                "panels": [
+                    {
+                        "panel_id": "col-0-panel-0",
+                        "branch_label": "ORIGIN LINE & VARIABLE",
+                        "node_id": start_node_id,
+                        "title": file_info["title"],
+                        "idiomatic_name": file_info["idiomatic_name"],
+                        "repo_name": file_info["repo_name"],
+                        "layer": file_info["layer"],
+                        "stage_phase": "0_CLICKED_LINE_ORIGIN",
+                        "file_path": file_info["path"],
+                        "relative_path": file_info["relative_path"],
+                        "file_name": file_info["name"],
+                        "focal_symbol": focal_symbol,
+                        "focal_line_number": clamped_line,
+                        "focal_line_text": line_text.strip(),
+                        "highlighted_lines": active_highlighted_lines,
+                        "code_lines": origin_window["code_lines"],
+                        "step_geodesic_distance": 0.0,
+                        "cumulative_geodesic_distance": 0.0,
+                        "transition_rationale": f"Selected variable '{focal_symbol}' on line {clamped_line} of {file_info['name']}",
+                    }
+                ],
+            }
+        )
+
+        # --- Column 1: Tri-Layer Juxtaposition Split (3 Parallel Panels: Design, Compiler, Code) ---
+        tri_layers = [
+            ("design", "DESIGN SPECIFICATION BRANCH", juxtaposition.get("design") or {}),
+            ("compiler", "COMPILER PIPELINE BRANCH", juxtaposition.get("compiler") or {}),
+            ("code", "RUNTIME IMPLEMENTATION BRANCH", juxtaposition.get("code") or {}),
+        ]
+        tri_panels: List[Dict[str, Any]] = []
+        for p_idx, (l_key, b_label, l_data) in enumerate(tri_layers):
+            p_path = str(
+                l_data.get("code_path")
+                or l_data.get("doc_path")
+                or file_info["path"]
+            )
+            p_terms = [
+                focal_symbol,
+                str(l_data.get("idiomatic_name") or ""),
+                str(file_info.get("idiomatic_name") or ""),
+            ] + list(l_data.get("exported_symbols") or [])[:3]
+            p_win = self._build_panel_code_window(
+                p_path,
+                search_terms=p_terms,
+                preferred_line=clamped_line if p_path == file_info["path"] else None,
+                window_radius=6,
+            )
+            try:
+                p_rel = str(Path(p_path).relative_to(self.idea_projects_root))
+            except ValueError:
+                p_rel = Path(p_path).name if p_path else ""
+
+            tri_panels.append(
+                {
+                    "panel_id": f"col-1-panel-{p_idx}",
+                    "branch_label": b_label,
+                    "node_id": str(l_data.get("node_id") or start_node_id),
+                    "title": str(l_data.get("title") or b_label),
+                    "idiomatic_name": str(l_data.get("idiomatic_name") or focal_symbol),
+                    "repo_name": str(l_data.get("repo_name") or file_info["repo_name"]),
+                    "layer": l_key,
+                    "stage_phase": "1_TRI_LAYER_JUXTAPOSITION_SPLIT",
+                    "file_path": p_path,
+                    "relative_path": p_rel,
+                    "file_name": Path(p_path).name if p_path else "",
+                    "focal_symbol": focal_symbol,
+                    "focal_line_number": p_win["focal_line_number"],
+                    "focal_line_text": p_win["focal_line_text"],
+                    "highlighted_lines": p_win["highlighted_lines"],
+                    "code_lines": p_win["code_lines"],
+                    "step_geodesic_distance": float(
+                        (juxtaposition.get("tri_layer_geodesic_distances") or {}).get(
+                            "design_to_compiler" if l_key == "compiler" else "compiler_to_code",
+                            0.18,
+                        )
+                    ),
+                    "cumulative_geodesic_distance": 0.18,
+                    "transition_rationale": str(
+                        l_data.get("relationship")
+                        or f"Tri-layer {l_key} juxtaposition for '{focal_symbol}'"
+                    ),
+                }
+            )
+
+        raw_columns.append(
+            {
+                "column_index": 1,
+                "stage_id": "stage-1-juxtaposition-split",
+                "stage_label": "1_TRI_LAYER_JUXTAPOSITION_SPLIT",
+                "split_mode": "split",
+                "panels": tri_panels,
+            }
+        )
+
+        # --- Columns 2..K: Geodesic Hops with Split & Converge Grouping ---
+        remaining_hops = hops[1:] if len(hops) > 1 and hops[0].get("node_id") == start_node_id else hops
+        idx_h = 0
+        col_counter = 2
+        while idx_h < len(remaining_hops):
+            curr_hop = remaining_hops[idx_h]
+            curr_phase = str(curr_hop.get("stage_phase") or "4_RUNTIME_CODE_AND_SERVICE")
+            is_last_hop = idx_h == len(remaining_hops) - 1
+
+            # Group up to 2 same-phase consecutive hops into a parallel split column,
+            # except ensure the final hop of the geodesic path converges into a single terminal panel,
+            # and alternate split/converge so the user sees explicit convergence!
+            prev_was_split = raw_columns[-1]["split_mode"] == "split"
+            group_hops = [curr_hop]
+            if (
+                not is_last_hop
+                and not prev_was_split
+                and idx_h + 1 < len(remaining_hops) - 1
+                and str(remaining_hops[idx_h + 1].get("stage_phase")) == curr_phase
+            ):
+                group_hops.append(remaining_hops[idx_h + 1])
+                idx_h += 2
+            else:
+                idx_h += 1
+
+            col_panels: List[Dict[str, Any]] = []
+            for p_i, h_item in enumerate(group_hops):
+                h_path = str(h_item.get("file_path") or h_item.get("doc_path") or "")
+                h_terms = [
+                    focal_symbol,
+                    str(h_item.get("idiomatic_name") or ""),
+                ] + list(h_item.get("exported_symbols") or [])[:4]
+                h_win = self._build_panel_code_window(
+                    h_path,
+                    search_terms=h_terms,
+                    preferred_line=None,
+                    window_radius=6,
+                )
+                col_panels.append(
+                    {
+                        "panel_id": f"col-{col_counter}-panel-{p_i}",
+                        "branch_label": (
+                            f"PARALLEL BRANCH {p_i + 1} ({h_item.get('layer', 'code').upper()})"
+                            if len(group_hops) > 1
+                            else f"CONVERGED HOP ({h_item.get('layer', 'code').upper()})"
+                        ),
+                        "node_id": str(h_item.get("node_id") or ""),
+                        "title": str(h_item.get("title") or ""),
+                        "idiomatic_name": str(h_item.get("idiomatic_name") or ""),
+                        "repo_name": str(h_item.get("repo_name") or ""),
+                        "layer": str(h_item.get("layer") or "code"),
+                        "stage_phase": curr_phase,
+                        "file_path": h_path,
+                        "relative_path": str(h_item.get("relative_path") or Path(h_path).name if h_path else ""),
+                        "file_name": Path(h_path).name if h_path else "",
+                        "focal_symbol": (
+                            focal_symbol
+                            if focal_symbol.lower() in h_win["focal_line_text"].lower()
+                            else str(h_item.get("idiomatic_name") or focal_symbol)
+                        ),
+                        "focal_line_number": h_win["focal_line_number"],
+                        "focal_line_text": h_win["focal_line_text"],
+                        "highlighted_lines": h_win["highlighted_lines"],
+                        "code_lines": h_win["code_lines"],
+                        "step_geodesic_distance": float(h_item.get("step_geodesic_distance") or 0.0),
+                        "cumulative_geodesic_distance": float(
+                            h_item.get("cumulative_geodesic_distance") or 0.0
+                        ),
+                        "transition_rationale": str(h_item.get("transition_rationale") or ""),
+                    }
+                )
+
+            split_mode = "split" if len(col_panels) > 1 else "converged"
+            raw_columns.append(
+                {
+                    "column_index": col_counter,
+                    "stage_id": f"stage-{col_counter}-{curr_phase.lower()}",
+                    "stage_label": curr_phase,
+                    "split_mode": split_mode,
+                    "panels": col_panels,
+                }
+            )
+            col_counter += 1
+
+        # Wire incoming_from_panel_ids and outgoing_to_panel_ids across columns
+        # and flatten into `sidebar_elements`
+        sidebar_elements: List[Dict[str, Any]] = []
+        step_counter = 0
+        for c_idx, col in enumerate(raw_columns):
+            prev_ids = (
+                [p["panel_id"] for p in raw_columns[c_idx - 1]["panels"]]
+                if c_idx > 0
+                else []
+            )
+            next_ids = (
+                [p["panel_id"] for p in raw_columns[c_idx + 1]["panels"]]
+                if c_idx + 1 < len(raw_columns)
+                else []
+            )
+            col["incoming_panel_Count"] = len(prev_ids)
+            col["outgoing_panel_count"] = len(next_ids)
+            for p in col["panels"]:
+                p["incoming_from_panel_ids"] = prev_ids
+                p["outgoing_to_panel_ids"] = next_ids
+                sidebar_elements.append(
+                    {
+                        "element_id": p["panel_id"],
+                        "step_index": step_counter,
+                        "column_index": c_idx,
+                        "panel_id": p["panel_id"],
+                        "split_mode": col["split_mode"],
+                        "panel_count_in_column": len(col["panels"]),
+                        "branch_label": p["branch_label"],
+                        "node_id": p["node_id"],
+                        "title": p["title"],
+                        "idiomatic_name": p["idiomatic_name"],
+                        "repo_name": p["repo_name"],
+                        "layer": p["layer"],
+                        "stage_phase": p["stage_phase"],
+                        "file_path": p["file_path"],
+                        "relative_path": p["relative_path"],
+                        "file_name": p["file_name"],
+                        "focal_symbol": p["focal_symbol"],
+                        "focal_line_number": p["focal_line_number"],
+                        "focal_line_text": p["focal_line_text"],
+                        "highlighted_lines": p["highlighted_lines"],
+                        "step_geodesic_distance": p["step_geodesic_distance"],
+                        "cumulative_geodesic_distance": p["cumulative_geodesic_distance"],
+                        "transition_rationale": p["transition_rationale"],
+                    }
+                )
+                step_counter += 1
+
+        return {
+            "file_path": file_info["path"],
+            "file_name": file_info["name"],
+            "relative_path": file_info["relative_path"],
+            "node_id": start_node_id,
+            "clicked_line_number": clamped_line,
+            "clicked_line_text": line_text,
+            "focal_symbol": focal_symbol,
+            "highlighted_lines": active_highlighted_lines,
+            "total_columns": len(raw_columns),
+            "total_sidebar_elements": len(sidebar_elements),
+            "split_columns_count": sum(1 for c in raw_columns if len(c["panels"]) > 1),
+            "converged_columns_count": sum(1 for c in raw_columns if len(c["panels"]) == 1),
+            "total_geodesic_distance": float(geodesic_trace.get("total_geodesic_distance") or 0.0),
+            "sidebar_elements": sidebar_elements,
+            "stage_columns": raw_columns,
+            "juxtaposition": juxtaposition,
+            "geodesic_trace": geodesic_trace,
         }

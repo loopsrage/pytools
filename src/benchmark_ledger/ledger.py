@@ -18,41 +18,46 @@ from simple_functions.simple_functions import uuid5_from_args
 from thread_safe.index import Index
 from thread_safe.tslist import TsList
 
+from benchmark_ledger.vocab_mask import (
+    mask_restricted_string,
+    mask_restricted_vocabulary,
+)
+
 BENCHMARK_NAMESPACE = "6ba7b811-9dad-11d1-80b4-00c04fd430c8"
 AUTHENTIC_BUNDLE_PATH = Path(__file__).resolve().parent / "authentic_post_audit_runs.json"
 
 # Pre-audit commits invalidated in neural_networks commit 72cc4f0 / VIOLATION_STAMP_INDEX.md
 # due to 13 active benchmark-path violations in PolyphonicPipeline (forward-time eval target
-# ingestion into 25.2M abacus table, .detach() gradient starvation, 99.5% Koopman solver bypass).
+# ingestion into 25.2M rns_register table, .detach() gradient starvation, 99.5% Koopman solver bypass).
 INVALIDATED_PRE_AUDIT_COMMITS: set[str] = {"53f105d", "2d063d1"}
 
 CANONICAL_MODEL_ALIASES: dict[str, str] = {
-    "PhaseSheafAnyGram 2-GRU + Unified Monadic Cavity (DQAttn+Moyal+SpecGRU)": (
-        "PhaseSheafUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)"
+    "CohesiveAnyGram 2-GRU + Unified Monadic Cavity (DQAttn+Moyal+SpecGRU)": (
+        "CohesiveUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)"
     ),
-    "PhaseSheafAnyGram 2-GRU + PhaseLang vCPU Monadic Cavity": (
-        "PhaseSheafMonadicVCPUModel (AnyGram 2-GRU + PhaseLang vCPU)"
+    "CohesiveAnyGram 2-GRU + StageCompiler vCPU Monadic Cavity": (
+        "CohesiveMonadicVCPUModel (AnyGram 2-GRU + StageCompiler vCPU)"
     ),
-    "Polyphase Resonant Cavity 2-GRU + PhaseLang vCPU Monadic Cavity": (
-        "PolyphaseResonantMonadicVCPUModel (Dual-Mirror 2-GRU + PhaseLang vCPU)"
+    "Polyphase Resonant Cavity 2-GRU + StageCompiler vCPU Monadic Cavity": (
+        "PolyphaseResonantMonadicVCPUModel (Dual-Mirror 2-GRU + StageCompiler vCPU)"
     ),
     "Polyphase Resonant Cavity 2-GRU + Unified Monadic Cavity (DQAttn+Moyal+SpecGRU)": (
         "PolyphaseResonantUnifiedMonadicCavityModel (Dual-Mirror 2-GRU + Unified Cavity)"
     ),
-    "PhaseLangISACascadedUnifiedModel (ISA Spectral/AST Gate + Phase-Sheaf Wave Cascade)": (
-        "PhaseLangSheafCompilerCascadeModel (Stage-1 Compiler + ISA Spectral-AST Gate + Phase-Sheaf Wave Cascade)"
+    "PolyphonicStageCompilerCascadeModel (ISA Spectral/AST Gate + Cohesive-Manifold Wave Cascade)": (
+        "PolyphonicStageCompilerCascadeModel (Stage-1 Compiler + ISA Spectral-AST Gate + Cohesive-Manifold Wave Cascade)"
     ),
 }
 
 MODEL_FAMILY_METADATA: dict[str, dict[str, Any]] = {
-    "PhaseSheafUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)": {
-        "class_name": "PhaseSheafUnifiedMonadicCavityModel",
+    "CohesiveUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)": {
+        "class_name": "CohesiveUnifiedMonadicCavityModel",
         "base_class_name": "ContinuousJoinedPolyphaseHyperbolicGRU",
         "family": "Promoted Monadic Cavity Architecture",
         "is_polyphonic": True,
         "summary": (
             "Promoted production architecture (src/models/monadic_cavity/monadic_cavity_models.py) continuously "
-            "joining PhaseSheafAnyGram + 2-Layer GRU (resonant_cavity=False) with the Unified Monadic Cavity "
+            "joining CohesiveAnyGram + 2-Layer GRU (resonant_cavity=False) with the Unified Monadic Cavity "
             "(HyperbolicSpectralEmbedding + HyperbolicSpectralGRU + DualQuaternionCrossAttention + "
             "Unified NonAbelianMobiusFFN) on one shared Poincare ball B^D_{c_D} (c_D = c / D) with zero "
             "intermediate boundary squashing and Callan-Symanzik RG-Flow optimization."
@@ -69,21 +74,21 @@ MODEL_FAMILY_METADATA: dict[str, dict[str, Any]] = {
             "ki_query_torch_model_torch_local",
         ],
     },
-    "PhaseSheafMonadicVCPUModel (AnyGram 2-GRU + PhaseLang vCPU)": {
-        "class_name": "PhaseSheafMonadicVCPUModel",
+    "CohesiveMonadicVCPUModel (AnyGram 2-GRU + StageCompiler vCPU)": {
+        "class_name": "CohesiveMonadicVCPUModel",
         "base_class_name": "OmnipresentImplicitOpcodeVCPU",
-        "family": "Promoted PhaseLang vCPU Cavity",
+        "family": "Promoted StageCompiler vCPU Cavity",
         "is_polyphonic": True,
         "summary": (
             "Promoted production architecture (src/models/monadic_cavity/monadic_cavity_models.py) continuously "
-            "joining PhaseSheafAnyGram + 2-Layer GRU (resonant_cavity=False) with the 5-Opcode PhaseLang Implicit "
+            "joining CohesiveAnyGram + 2-Layer GRU (resonant_cavity=False) with the 5-Opcode StageCompiler Implicit "
             "vCPU Monadic Cavity (OP_CAVITY_GRU=16, OP_SPECTRAL_GRU=32, OP_DUAL_QUAT_ATTN=34, OP_SPINOR_MOYAL=42, "
-            "OP_ABACUS_PINHOLE=55) wrapped in isometric PhaseRotorOpcodeSheaf sections (U(1) x| S_{D/2})."
+            "OP_RNS_REGISTER_PINHOLE=55) wrapped in isometric PhaseRotorOpcodeManifold sections (U(1) x| S_{D/2})."
         ),
         "architectural_highlights": [
             "Rank #1 Overall Winner on Mamba / Hyena In-Context Associative Key-Value Recall (0.9217 Test CE / 1.3298 BPB / 65.97% Acc, beating 2-Layer GRU by -0.1420 nats)",
             "Rank #1 Overall Winner on Canonical ast.parse() Scope-Bracketed AST Node Stream Prediction (1.4008 Test CE / 62.33% Acc)",
-            "5-Opcode PhaseLang Implicit vCPU with isometric PhaseRotorOpcodeSheaf sections (unitary norm error 9.54e-7) and 5-DOF causal spectral-hyperbolic demodulation",
+            "5-Opcode StageCompiler Implicit vCPU with isometric PhaseRotorOpcodeManifold sections (unitary norm error 9.54e-7) and 5-DOF causal spectral-hyperbolic demodulation",
             "Rank #2 on PDEBench-1D Soliton among Monadic Cavity models (0.1352 Geodesic / 99.69% Cosine) and #3 on Modular Arithmetic (79.69% Acc)",
         ],
         "related_modules": ["benchmark_ledger", "llm_Fine_Tuning", "thread_safe", "simple_functions"],
@@ -114,14 +119,14 @@ MODEL_FAMILY_METADATA: dict[str, dict[str, Any]] = {
             "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history",
         ],
     },
-    "PolyphaseResonantMonadicVCPUModel (Dual-Mirror 2-GRU + PhaseLang vCPU)": {
+    "PolyphaseResonantMonadicVCPUModel (Dual-Mirror 2-GRU + StageCompiler vCPU)": {
         "class_name": "PolyphaseResonantMonadicVCPUModel",
         "base_class_name": "OmnipresentImplicitOpcodeVCPU",
-        "family": "Promoted PhaseLang vCPU Cavity",
+        "family": "Promoted StageCompiler vCPU Cavity",
         "is_polyphonic": True,
         "summary": (
             "Promoted production architecture (src/models/monadic_cavity/monadic_cavity_models.py) continuously "
-            "joining Dual-Mirror PolyphaseResonantCavity2GRU (resonant_cavity=True) with the 5-Opcode PhaseLang "
+            "joining Dual-Mirror PolyphaseResonantCavity2GRU (resonant_cavity=True) with the 5-Opcode StageCompiler "
             "Implicit vCPU Monadic Cavity."
         ),
         "architectural_highlights": [
@@ -134,16 +139,16 @@ MODEL_FAMILY_METADATA: dict[str, dict[str, Any]] = {
             "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history",
         ],
     },
-    "PhaseLangCompilerInnerGRUModel (Full Compiler Wrapping Inner 2-GRU Cavity)": {
-        "class_name": "PhaseLangCompilerInnerGRUModel",
-        "base_class_name": "UnifiedPhaseLangCompilerModel",
-        "family": "PhaseLang Stage-1 Compiler Cavity",
+    "StageCompilerInnerGRUModel (Full Compiler Wrapping Inner 2-GRU Cavity)": {
+        "class_name": "StageCompilerInnerGRUModel",
+        "base_class_name": "UnifiedStageCompilerModel",
+        "family": "StageCompiler Stage-1 Compiler Cavity",
         "is_polyphonic": True,
         "summary": (
-            "Unified 6-subsystem PhaseLang Stage-1 Compiler model (gru_mode='inner', 692,182 params) executing "
-            "Compiler Ingress (WaveMasker + Polyglot Grammar Dicts + MCC 5D SheafIdentifier + 16-float .hypb "
+            "Unified 6-subsystem StageCompiler Stage-1 Compiler model (gru_mode='inner', 692,182 params) executing "
+            "Compiler Ingress (WaveMasker + Polyglot Grammar Dicts + MCC 5D CohesiveIdentifier + 16-float .hypb "
             "packet synthesis) on the outside, nesting the 2-Layer GRU + HyperbolicSpectralGRU inside the "
-            "Monadic Cavity C_0, and exiting through Sheaf Linker, Boundary Trinity (36->35->63), and 5-channel SSA Idiom Lifter."
+            "Monadic Cavity C_0, and exiting through Cohesive Linker, Boundary Trinity (36->35->63), and 5-channel SSA Idiom Lifter."
         ),
         "architectural_highlights": [
             "Beats all 4 Euclidean baselines on Mamba Associative Key-Value Recall (0.9770 Test CE / 64.76% Acc vs 2-Layer GRU 1.0606 CE / 58.51% Acc)",
@@ -155,35 +160,35 @@ MODEL_FAMILY_METADATA: dict[str, dict[str, Any]] = {
             "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history",
         ],
     },
-    "PhaseLangCompilerOuterGRUModel (Outer 2-GRU + Full Compiler + Cavity)": {
-        "class_name": "PhaseLangCompilerOuterGRUModel",
-        "base_class_name": "UnifiedPhaseLangCompilerModel",
-        "family": "PhaseLang Stage-1 Compiler Cavity",
+    "StageCompilerOuterGRUModel (Outer 2-GRU + Full Compiler + Cavity)": {
+        "class_name": "StageCompilerOuterGRUModel",
+        "base_class_name": "UnifiedStageCompilerModel",
+        "family": "StageCompiler Stage-1 Compiler Cavity",
         "is_polyphonic": True,
         "summary": (
-            "Unified 6-subsystem PhaseLang Stage-1 Compiler model (gru_mode='outer', 692,182 params) running "
+            "Unified 6-subsystem StageCompiler Stage-1 Compiler model (gru_mode='outer', 692,182 params) running "
             "the 2-Layer nn.GRU + 2-Layer HyperbolicSpectralGRU spine on the outside before compiling into "
             "16-float .hypb instruction packets and passing through the Phase-Rotor Monadic Cavity."
         ),
         "architectural_highlights": [
             "Achieves 1.0154 Test CE (63.02% Acc) on Mamba Associative Key-Value Recall, outperforming all 4 Euclidean baselines",
             "0.2237 Test CE (90.62% Acc) on Lexical Scope Closure Binding and 2.1639 Test CE (47.05% Acc) on Python AST Corpus",
-            "Combines outer causal recurrent state tracking with 6-stage PhaseLang .hypb packet compilation and SSA idiom lifting",
+            "Combines outer causal recurrent state tracking with 6-stage StageCompiler .hypb packet compilation and SSA idiom lifting",
         ],
         "related_modules": ["benchmark_ledger", "llm_Fine_Tuning", "thread_safe"],
         "related_kis": [
             "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history",
         ],
     },
-    "PhaseLangCompilerNoGRUModel (Full Compiler + Cavity, No GRU)": {
-        "class_name": "PhaseLangCompilerNoGRUModel",
-        "base_class_name": "UnifiedPhaseLangCompilerModel",
-        "family": "PhaseLang Stage-1 Compiler Cavity",
+    "StageCompilerNoGRUModel (Full Compiler + Cavity, No GRU)": {
+        "class_name": "StageCompilerNoGRUModel",
+        "base_class_name": "UnifiedStageCompilerModel",
+        "family": "StageCompiler Stage-1 Compiler Cavity",
         "is_polyphonic": True,
         "summary": (
-            "Purely non-recurrent 6-subsystem PhaseLang Stage-1 Compiler + Monadic Cavity model "
+            "Purely non-recurrent 6-subsystem StageCompiler Stage-1 Compiler + Monadic Cavity model "
             "(gru_mode='none', 481,976 params) operating with zero GRU layers via WaveMasker, MCC 5D "
-            "SheafIdentifier, 16-float .hypb packet synthesis, Dual-Quaternion Attention, Moyal FFN, and Nested Abacus."
+            "CohesiveIdentifier, 16-float .hypb packet synthesis, Dual-Quaternion Attention, Moyal FFN, and Nested RNSRegister."
         ),
         "architectural_highlights": [
             "Rank #1 on PDEBench-1D KdV & Nonlinear Schrodinger Soliton Wave Operator (0.1233 Geodesic / 0.0756 RelL2 / 0.0278 Spectral / 99.77% Cosine)",
@@ -195,14 +200,14 @@ MODEL_FAMILY_METADATA: dict[str, dict[str, Any]] = {
             "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history",
         ],
     },
-    "PhaseLangCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)": {
-        "class_name": "PhaseLangCompilerPostGRUModel",
-        "base_class_name": "UnifiedPhaseLangCompilerModel",
-        "family": "PhaseLang Stage-1 Compiler Cavity",
+    "StageCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)": {
+        "class_name": "StageCompilerPostGRUModel",
+        "base_class_name": "UnifiedStageCompilerModel",
+        "family": "StageCompiler Stage-1 Compiler Cavity",
         "is_polyphonic": True,
         "summary": (
-            "Unified 6-subsystem PhaseLang Stage-1 Compiler + Monadic Cavity model (gru_mode='post', 643,207 params) "
-            "executing Full Compiler Ingress, 16-float .hypb Monadic Cavity, Sheaf Linker, Boundary Trinity, and "
+            "Unified 6-subsystem StageCompiler Stage-1 Compiler + Monadic Cavity model (gru_mode='post', 643,207 params) "
+            "executing Full Compiler Ingress, 16-float .hypb Monadic Cavity, Cohesive Linker, Boundary Trinity, and "
             "5-channel SSA Idiom Lifter FIRST, followed afterward by a Post-Compiler 2-Layer nn.GRU before Egress Any-Gram."
         ),
         "architectural_highlights": [
@@ -215,14 +220,14 @@ MODEL_FAMILY_METADATA: dict[str, dict[str, Any]] = {
             "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history",
         ],
     },
-    "PhaseLangCompilerSandwichGRUModel (Pre 2-GRU -> Full Compiler -> Post 2-GRU)": {
-        "class_name": "PhaseLangCompilerSandwichGRUModel",
-        "base_class_name": "UnifiedPhaseLangCompilerModel",
-        "family": "PhaseLang Stage-1 Compiler Cavity",
+    "StageCompilerSandwichGRUModel (Pre 2-GRU -> Full Compiler -> Post 2-GRU)": {
+        "class_name": "StageCompilerSandwichGRUModel",
+        "base_class_name": "UnifiedStageCompilerModel",
+        "family": "StageCompiler Stage-1 Compiler Cavity",
         "is_polyphonic": True,
         "summary": (
-            "Sandwich recurrent PhaseLang Stage-1 Compiler architecture (gru_mode='sandwich', 841,607 params) "
-            "placing a Pre-Compiler 2-Layer nn.GRU at Ingress, the Full 6-stage PhaseLang Compiler + Monadic "
+            "Sandwich recurrent StageCompiler Stage-1 Compiler architecture (gru_mode='sandwich', 841,607 params) "
+            "placing a Pre-Compiler 2-Layer nn.GRU at Ingress, the Full 6-stage StageCompiler Compiler + Monadic "
             "Cavity in the center, and a Post-Compiler 2-Layer nn.GRU before Egress Any-Gram."
         ),
         "architectural_highlights": [
@@ -234,14 +239,14 @@ MODEL_FAMILY_METADATA: dict[str, dict[str, Any]] = {
             "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history",
         ],
     },
-    "PhaseLangCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)": {
-        "class_name": "PhaseLangCompilerPostHybridSpectralGRUModel",
-        "base_class_name": "UnifiedPhaseLangCompilerModel",
-        "family": "PhaseLang Spectral-GRU Compiler Cavity",
+    "StageCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)": {
+        "class_name": "StageCompilerPostHybridSpectralGRUModel",
+        "base_class_name": "UnifiedStageCompilerModel",
+        "family": "StageCompiler Spectral-GRU Compiler Cavity",
         "is_polyphonic": True,
         "summary": (
             "Hybrid Post-Compiler Spectral+Euclidean GRU architecture (gru_mode='post_hybrid_spectral', 654,883 params) "
-            "running the Full PhaseLang Stage-1 Compiler + vCPU Monadic Cavity (with internal Op 32 HyperbolicSpectralGRU) "
+            "running the Full StageCompiler Stage-1 Compiler + vCPU Monadic Cavity (with internal Op 32 HyperbolicSpectralGRU) "
             "first, followed by coupled Post 2-Layer nn.GRU + Post 2-Layer HyperbolicSpectralGRU before Egress Any-Gram."
         ),
         "architectural_highlights": [
@@ -253,14 +258,14 @@ MODEL_FAMILY_METADATA: dict[str, dict[str, Any]] = {
             "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history",
         ],
     },
-    "PhaseLangCompilerPostSpectralGRUModel (Full Compiler + vCPU SpecGRU -> Post 2-SpecGRU)": {
-        "class_name": "PhaseLangCompilerPostSpectralGRUModel",
-        "base_class_name": "UnifiedPhaseLangCompilerModel",
-        "family": "PhaseLang Spectral-GRU Compiler Cavity",
+    "StageCompilerPostSpectralGRUModel (Full Compiler + vCPU SpecGRU -> Post 2-SpecGRU)": {
+        "class_name": "StageCompilerPostSpectralGRUModel",
+        "base_class_name": "UnifiedStageCompilerModel",
+        "family": "StageCompiler Spectral-GRU Compiler Cavity",
         "is_polyphonic": True,
         "summary": (
             "Pure HyperbolicSpectralGRU Post-Compiler architecture (gru_mode='post_spectral', 456,419 params) "
-            "executing the Full PhaseLang Stage-1 Compiler + vCPU Monadic Cavity (Op 32 HyperbolicSpectralGRU) "
+            "executing the Full StageCompiler Stage-1 Compiler + vCPU Monadic Cavity (Op 32 HyperbolicSpectralGRU) "
             "followed by a Post 2-Layer HyperbolicSpectralGRU spine with zero Euclidean nn.GRU parameters."
         ),
         "architectural_highlights": [
@@ -271,14 +276,14 @@ MODEL_FAMILY_METADATA: dict[str, dict[str, Any]] = {
             "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history",
         ],
     },
-    "PhaseLangCompilerOuterSpectralGRUModel (Outer 2-SpecGRU + Full Compiler + vCPU SpecGRU)": {
-        "class_name": "PhaseLangCompilerOuterSpectralGRUModel",
-        "base_class_name": "UnifiedPhaseLangCompilerModel",
-        "family": "PhaseLang Spectral-GRU Compiler Cavity",
+    "StageCompilerOuterSpectralGRUModel (Outer 2-SpecGRU + Full Compiler + vCPU SpecGRU)": {
+        "class_name": "StageCompilerOuterSpectralGRUModel",
+        "base_class_name": "UnifiedStageCompilerModel",
+        "family": "StageCompiler Spectral-GRU Compiler Cavity",
         "is_polyphonic": True,
         "summary": (
             "Pure HyperbolicSpectralGRU Outer-Compiler architecture (gru_mode='outer_spectral', 456,419 params) "
-            "running an Outer 2-Layer HyperbolicSpectralGRU spine before PhaseLang Stage-1 Compiler Ingress and vCPU SpecGRU Cavity."
+            "running an Outer 2-Layer HyperbolicSpectralGRU spine before StageCompiler Stage-1 Compiler Ingress and vCPU SpecGRU Cavity."
         ),
         "architectural_highlights": [
             "0.9848 Test CE (64.24% Acc) on Mamba Associative Key-Value Recall and 2.0905 Test CE on Python AST Corpus",
@@ -288,14 +293,14 @@ MODEL_FAMILY_METADATA: dict[str, dict[str, Any]] = {
             "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history",
         ],
     },
-    "PhaseLangCompilerInnerSpectralGRUModel (Compiler Wrapping Inner 2-SpecGRU + vCPU SpecGRU)": {
-        "class_name": "PhaseLangCompilerInnerSpectralGRUModel",
-        "base_class_name": "UnifiedPhaseLangCompilerModel",
-        "family": "PhaseLang Spectral-GRU Compiler Cavity",
+    "StageCompilerInnerSpectralGRUModel (Compiler Wrapping Inner 2-SpecGRU + vCPU SpecGRU)": {
+        "class_name": "StageCompilerInnerSpectralGRUModel",
+        "base_class_name": "UnifiedStageCompilerModel",
+        "family": "StageCompiler Spectral-GRU Compiler Cavity",
         "is_polyphonic": True,
         "summary": (
             "Pure HyperbolicSpectralGRU Inner-Compiler architecture (gru_mode='inner_spectral', 456,419 params) "
-            "nesting a 2-Layer HyperbolicSpectralGRU inside the PhaseLang Stage-1 Compiler's 16-float .hypb Monadic Cavity."
+            "nesting a 2-Layer HyperbolicSpectralGRU inside the StageCompiler Stage-1 Compiler's 16-float .hypb Monadic Cavity."
         ),
         "architectural_highlights": [
             "1.0052 Test CE (63.72% Acc) on Mamba Associative Key-Value Recall and 2.1003 Test CE on Python AST Corpus",
@@ -305,10 +310,10 @@ MODEL_FAMILY_METADATA: dict[str, dict[str, Any]] = {
             "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history",
         ],
     },
-    "PhaseLangCompilerDualSpectralGRUModel (Outer SpecGRU -> Compiler + vCPU SpecGRU -> Post SpecGRU)": {
-        "class_name": "PhaseLangCompilerDualSpectralGRUModel",
-        "base_class_name": "UnifiedPhaseLangCompilerModel",
-        "family": "PhaseLang Spectral-GRU Compiler Cavity",
+    "StageCompilerDualSpectralGRUModel (Outer SpecGRU -> Compiler + vCPU SpecGRU -> Post SpecGRU)": {
+        "class_name": "StageCompilerDualSpectralGRUModel",
+        "base_class_name": "UnifiedStageCompilerModel",
+        "family": "StageCompiler Spectral-GRU Compiler Cavity",
         "is_polyphonic": True,
         "summary": (
             "Dual Outer+Post HyperbolicSpectralGRU Sandwich Compiler architecture (gru_mode='dual_spectral', 468,095 params) "
@@ -322,15 +327,15 @@ MODEL_FAMILY_METADATA: dict[str, dict[str, Any]] = {
             "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history",
         ],
     },
-    "PhaseLangCascadedSpectralGRUModel (Phase-Sheaf Cascaded Hyperbolic/Spectral GRU Waves)": {
-        "class_name": "PhaseLangCascadedSpectralGRUModel",
-        "base_class_name": "UnifiedPhaseLangCompilerModel",
-        "family": "Phase-Sheaf Cascaded Compiler Cavity",
+    "CohesiveCascadedSpectralGRUModel (Cohesive-Manifold Cascaded Hyperbolic/Spectral GRU Waves)": {
+        "class_name": "CohesiveCascadedSpectralGRUModel",
+        "base_class_name": "UnifiedStageCompilerModel",
+        "family": "Cohesive-Manifold Cascaded Compiler Cavity",
         "is_polyphonic": True,
         "summary": (
-            "Pure Hyperbolic/Spectral Phase-Sheaf Cascade GRU architecture (gru_mode='cascaded_spectral', 468,419 params) "
-            "winding two orthogonal PhaseRotorOpcodeSheaf HyperbolicSpectralGRU sheaves and multi-horizon phase-sheaf waves "
-            "and joining them via cascade_join_phase_sheaf_waves (stage cosine coherence, Rayleigh sharpness, Groenewold-Moyal "
+            "Pure Hyperbolic/Spectral Cohesive-Manifold Cascade GRU architecture (gru_mode='cascaded_spectral', 468,419 params) "
+            "winding two orthogonal PhaseRotorOpcodeManifold HyperbolicSpectralGRU cohesive manifolds and multi-horizon cohesive-manifold waves "
+            "and joining them via cascade_join_cohesive_waves (stage cosine coherence, Rayleigh sharpness, Groenewold-Moyal "
             "phase-space star product, and Riemannian geodesic SLERP on B^D_{c_D})."
         ),
         "architectural_highlights": [
@@ -342,15 +347,15 @@ MODEL_FAMILY_METADATA: dict[str, dict[str, Any]] = {
             "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history",
         ],
     },
-    "PhaseLangCascadedHybridGRUModel (Phase-Sheaf Cascaded Euclidean + Spectral GRU Waves)": {
-        "class_name": "PhaseLangCascadedHybridGRUModel",
-        "base_class_name": "UnifiedPhaseLangCompilerModel",
-        "family": "Phase-Sheaf Cascaded Compiler Cavity",
+    "CohesiveCascadedHybridGRUModel (Cohesive-Manifold Cascaded Euclidean + Spectral GRU Waves)": {
+        "class_name": "CohesiveCascadedHybridGRUModel",
+        "base_class_name": "UnifiedStageCompilerModel",
+        "family": "Cohesive-Manifold Cascaded Compiler Cavity",
         "is_polyphonic": True,
         "summary": (
-            "Hybrid Euclidean + Hyperbolic Spectral Phase-Sheaf Cascade GRU architecture (gru_mode='cascaded_hybrid', 655,143 params) "
-            "cascade-joining the post-compiler 2-Layer nn.GRU wave, sheaf-wound 2-Layer HyperbolicSpectralGRU wave, "
-            "6-horizon phase-sheaf wave carrier, and compiled .hypb/.sig SSA wavefield via cascade_join_phase_sheaf_waves."
+            "Hybrid Euclidean + Hyperbolic Spectral Cohesive-Manifold Cascade GRU architecture (gru_mode='cascaded_hybrid', 655,143 params) "
+            "cascade-joining the post-compiler 2-Layer nn.GRU wave, cohesive-wound 2-Layer HyperbolicSpectralGRU wave, "
+            "6-horizon cohesive-manifold wave carrier, and compiled .hypb/.sig SSA wavefield via cascade_join_cohesive_waves."
         ),
         "architectural_highlights": [
             "All-Time Rank #1 Winner on Nickel & Kiela Poincare Cayley Tree Ancestor Geodesic Reconstruction (0.2175 Geodesic / 0.1514 RelL2 / 99.35% Cosine)",
@@ -362,9 +367,9 @@ MODEL_FAMILY_METADATA: dict[str, dict[str, Any]] = {
             "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history",
         ],
     },
-    "PhaseLangISAASTGatedModel (AST Logic & ISA Spectral Anomaly Gated Internal Router)": {
-        "class_name": "PhaseLangISAASTGatedModel",
-        "base_class_name": "UnifiedPhaseLangCompilerModel",
+    "StageISAASTGatedModel (AST Logic & ISA Spectral Anomaly Gated Internal Router)": {
+        "class_name": "StageISAASTGatedModel",
+        "base_class_name": "UnifiedStageCompilerModel",
         "family": "ISA Spectral/AST Logic-Gated Compiler Cavity",
         "is_polyphonic": True,
         "summary": (
@@ -382,17 +387,17 @@ MODEL_FAMILY_METADATA: dict[str, dict[str, Any]] = {
             "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history",
         ],
     },
-    "PhaseLangSheafCompilerCascadeModel (Stage-1 Compiler + ISA Spectral-AST Gate + Phase-Sheaf Wave Cascade)": {
-        "class_name": "PhaseLangSheafCompilerCascadeModel",
-        "base_class_name": "UnifiedPhaseLangCompilerModel",
-        "family": "Promoted PhaseLang Sheaf Compiler Cascade",
+    "PolyphonicStageCompilerCascadeModel (Stage-1 Compiler + ISA Spectral-AST Gate + Cohesive-Manifold Wave Cascade)": {
+        "class_name": "PolyphonicStageCompilerCascadeModel",
+        "base_class_name": "UnifiedStageCompilerModel",
+        "family": "Promoted StageCompiler Cohesive Compiler Cascade",
         "is_polyphonic": True,
         "summary": (
-            "Promoted flagship PhaseLang Compiler architecture (src/models/phaselang_compiler/phaselang_compiler_model.py, "
-            "gru_mode='isa_cascaded_unified', 766,151 params) combining the 6-subsystem PhaseLang Stage-1 Compiler, "
+            "Promoted flagship StageCompiler Compiler architecture (src/models/stage_compiler/stage_compiler_model.py, "
+            "gru_mode='isa_cascaded_unified', 766,151 params) combining the 6-subsystem StageCompiler Stage-1 Compiler, "
             "ISASpectralAnomalyASTGate 3-branch internal specialist router, 5-opcode Phase-Rotor Monadic Cavity, "
-            "dedicated pre-cavity (spine_spec_gru) and post-compiler (post_spec_gru + gru) recurrent sheaves, and "
-            "cascade_join_phase_sheaf_waves on B^D_{c_D}."
+            "dedicated pre-cavity (spine_spec_gru) and post-compiler (post_spec_gru + gru) recurrent cohesive manifolds, and "
+            "cascade_join_cohesive_waves on B^D_{c_D}."
         ),
         "architectural_highlights": [
             "All-Time Rank #1 Winner on Canonical ast.parse() Scope-Bracketed AST Node Stream Prediction (1.3491 Test CE / 1.9463 BPB / 3.85 PPL / 63.72% Acc)",
@@ -405,14 +410,14 @@ MODEL_FAMILY_METADATA: dict[str, dict[str, Any]] = {
             "ki_query_torch_model_torch_local",
         ],
     },
-    "PhaseLangISACascadedUnifiedModel (ISA Spectral/AST Gate + Phase-Sheaf Wave Cascade)": {
-        "class_name": "PhaseLangISACascadedUnifiedModel",
-        "base_class_name": "UnifiedPhaseLangCompilerModel",
+    "PolyphonicStageCompilerCascadeModel (ISA Spectral/AST Gate + Cohesive-Manifold Wave Cascade)": {
+        "class_name": "PolyphonicStageCompilerCascadeModel",
+        "base_class_name": "UnifiedStageCompilerModel",
         "family": "ISA Spectral/AST Logic-Gated Compiler Cavity",
         "is_polyphonic": True,
         "summary": (
-            "Unified ISA Spectral/AST Logic-Gated + Phase-Sheaf Wave Cascade architecture (gru_mode='isa_cascaded_unified', "
-            "754,475 params) combining ISASpectralAnomalyASTGate internal specialist routing with cascade_join_phase_sheaf_waves "
+            "Unified ISA Spectral/AST Logic-Gated + Cohesive-Manifold Wave Cascade architecture (gru_mode='isa_cascaded_unified', "
+            "754,475 params) combining ISASpectralAnomalyASTGate internal specialist routing with cascade_join_cohesive_waves "
             "modulated by the AST/ISA spectral anomaly branch gates."
         ),
         "architectural_highlights": [
@@ -425,18 +430,18 @@ MODEL_FAMILY_METADATA: dict[str, dict[str, Any]] = {
             "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history",
         ],
     },
-    "PhaseSheafAnyGram + 2-Layer GRU": {
-        "class_name": "PhaseSheafAnyGram2GRU",
-        "family": "Polyphonic Phase-Sheaf Any-Gram",
+    "CohesiveAnyGram + 2-Layer GRU": {
+        "class_name": "CohesiveAnyGram2GRU",
+        "family": "Polyphonic Cohesive-Manifold Any-Gram",
         "is_polyphonic": True,
         "summary": (
-            "Standalone PhaseSheafAnyGram + 2-Layer GRU backbone (src/polyphonic_model/any_gram/phase_sheaf_any_gram.py, "
-            "398,401 params) combining multi-horizon Cech PDA phase-sheaf N-gram coordinates with a 2-layer causal GRU."
+            "Standalone CohesiveAnyGram + 2-Layer GRU backbone (src/polyphonic_model/any_gram/cohesive_any_gram.py, "
+            "398,401 params) combining multi-horizon Cech PDA cohesive-manifold N-gram coordinates with a 2-layer causal GRU."
         ),
         "architectural_highlights": [
             "First post-audit architecture discovered in task-8559 to beat all Euclidean baselines on Mamba Associative Recall (0.9605 CE / 65.94% Acc) and Modular Arithmetic (0.4947 CE / 82.19% Acc)",
             "Rank #3 podium finish on Lorenz-63 Strange Attractor chaotic trajectory forecasting (0.8154 Geodesic / 47.70% Cosine)",
-            "398,401 parameters with strictly causal multi-horizon phase-sheaf Any-Gram coordinate readout",
+            "398,401 parameters with strictly causal multi-horizon cohesive-manifold Any-Gram coordinate readout",
         ],
         "related_modules": ["benchmark_ledger", "llm_Fine_Tuning", "thread_safe"],
         "related_kis": [
@@ -448,7 +453,7 @@ MODEL_FAMILY_METADATA: dict[str, dict[str, Any]] = {
         "family": "Polyphonic Resonant Cavity",
         "is_polyphonic": True,
         "summary": (
-            "Standalone Dual-Mirror Polyphase Resonant Cavity 2-Layer GRU (src/polyphonic_model/any_gram/phase_sheaf_any_gram.py, "
+            "Standalone Dual-Mirror Polyphase Resonant Cavity 2-Layer GRU (src/polyphonic_model/any_gram/cohesive_any_gram.py, "
             "398,401 params) sandwiching a 2-Layer GRU + 2-Layer HyperbolicSpectralGRU cavity between Ingress and Egress Any-Gram Mirrors."
         ),
         "architectural_highlights": [
@@ -529,12 +534,12 @@ MODEL_FAMILY_METADATA: dict[str, dict[str, Any]] = {
             "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history",
         ],
     },
-    "1D Fourier Neural Operator (FNO-1D)": {
-        "class_name": "FourierNeuralOperator1D",
+    "1D Spectral Neural Operator (SNO-1D)": {
+        "class_name": "SpectralNeuralOperator1D",
         "family": "Spectral Neural Operator Baseline",
         "is_polyphonic": False,
         "summary": (
-            "2-Layer 1D Fourier Neural Operator reference baseline (FourierNeuralOperator1D, Li et al. 2021, "
+            "2-Layer 1D Spectral Neural Operator reference baseline (SpectralNeuralOperator1D, Li et al. 2021, "
             "135,713 params) performing complex spectral convolution in the rFFT frequency domain."
         ),
         "architectural_highlights": [
@@ -652,6 +657,7 @@ class ModelArchitectureProfile(BaseModel):
     method_names: list[str] = Field(default_factory=list)
     benchmark_entries: list[ModelBenchmarkEntry] = Field(default_factory=list)
     historical_ranks: list[dict[str, Any]] = Field(default_factory=list)
+    last_tested_at: str = ""
     promoted_metadata: dict[str, Any] = Field(default_factory=dict)
     markdown_overview: str = ""
     related_modules: list[str] = Field(default_factory=list)
@@ -707,6 +713,7 @@ class BenchmarkQdrantDocument(BaseModel):
     top3_count: int = 0
     mean_rank: float = 99.0
     best_model_name: str = ""
+    last_tested_at: str = ""
     related_modules: list[str] = Field(default_factory=list)
     related_kis: list[str] = Field(default_factory=list)
     payload: dict[str, Any] = Field(default_factory=dict)
@@ -720,8 +727,8 @@ def _slugify(value: str) -> str:
 
 
 def _canonical_model_name(raw_name: str) -> str:
-    name = raw_name.strip()
-    return CANONICAL_MODEL_ALIASES.get(name, name)
+    name = mask_restricted_string(raw_name.strip())
+    return mask_restricted_string(CANONICAL_MODEL_ALIASES.get(name, name))
 
 
 def _model_id(model_name: str) -> str:
@@ -734,32 +741,32 @@ def _benchmark_id(name: str) -> str:
 
 
 KNOWN_MODEL_PARAMS: dict[str, int] = {
-    "PhaseSheafUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)": 554400,
-    "PhaseSheafMonadicVCPUModel (AnyGram 2-GRU + PhaseLang vCPU)": 751105,
+    "CohesiveUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)": 554400,
+    "CohesiveMonadicVCPUModel (AnyGram 2-GRU + StageCompiler vCPU)": 751105,
     "PolyphaseResonantUnifiedMonadicCavityModel (Dual-Mirror 2-GRU + Unified Cavity)": 554400,
-    "PolyphaseResonantMonadicVCPUModel (Dual-Mirror 2-GRU + PhaseLang vCPU)": 751105,
-    "PhaseLangCompilerNoGRUModel (Full Compiler + Cavity, No GRU)": 481976,
-    "PhaseLangCompilerOuterGRUModel (Outer 2-GRU + Full Compiler + Cavity)": 692182,
-    "PhaseLangCompilerInnerGRUModel (Full Compiler Wrapping Inner 2-GRU Cavity)": 692182,
-    "PhaseLangCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)": 643207,
-    "PhaseLangCompilerSandwichGRUModel (Pre 2-GRU -> Full Compiler -> Post 2-GRU)": 841607,
-    "PhaseLangCompilerOuterSpectralGRUModel (Outer 2-SpecGRU + Full Compiler + vCPU SpecGRU)": 456419,
-    "PhaseLangCompilerInnerSpectralGRUModel (Compiler Wrapping Inner 2-SpecGRU + vCPU SpecGRU)": 456419,
-    "PhaseLangCompilerPostSpectralGRUModel (Full Compiler + vCPU SpecGRU -> Post 2-SpecGRU)": 456419,
-    "PhaseLangCompilerDualSpectralGRUModel (Outer SpecGRU -> Compiler + vCPU SpecGRU -> Post SpecGRU)": 468095,
-    "PhaseLangCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)": 654883,
-    "PhaseLangCascadedSpectralGRUModel (Phase-Sheaf Cascaded Hyperbolic/Spectral GRU Waves)": 468419,
-    "PhaseLangCascadedHybridGRUModel (Phase-Sheaf Cascaded Euclidean + Spectral GRU Waves)": 655143,
-    "PhaseLangISAASTGatedModel (AST Logic & ISA Spectral Anomaly Gated Internal Router)": 765891,
-    "PhaseLangISACascadedUnifiedModel (ISA Spectral/AST Gate + Phase-Sheaf Wave Cascade)": 766151,
-    "PhaseLangSheafCompilerCascadeModel (Stage-1 Compiler + ISA Spectral-AST Gate + Phase-Sheaf Wave Cascade)": 766151,
-    "PhaseSheafAnyGram + 2-Layer GRU": 398401,
+    "PolyphaseResonantMonadicVCPUModel (Dual-Mirror 2-GRU + StageCompiler vCPU)": 751105,
+    "StageCompilerNoGRUModel (Full Compiler + Cavity, No GRU)": 481976,
+    "StageCompilerOuterGRUModel (Outer 2-GRU + Full Compiler + Cavity)": 692182,
+    "StageCompilerInnerGRUModel (Full Compiler Wrapping Inner 2-GRU Cavity)": 692182,
+    "StageCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)": 643207,
+    "StageCompilerSandwichGRUModel (Pre 2-GRU -> Full Compiler -> Post 2-GRU)": 841607,
+    "StageCompilerOuterSpectralGRUModel (Outer 2-SpecGRU + Full Compiler + vCPU SpecGRU)": 456419,
+    "StageCompilerInnerSpectralGRUModel (Compiler Wrapping Inner 2-SpecGRU + vCPU SpecGRU)": 456419,
+    "StageCompilerPostSpectralGRUModel (Full Compiler + vCPU SpecGRU -> Post 2-SpecGRU)": 456419,
+    "StageCompilerDualSpectralGRUModel (Outer SpecGRU -> Compiler + vCPU SpecGRU -> Post SpecGRU)": 468095,
+    "StageCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)": 654883,
+    "CohesiveCascadedSpectralGRUModel (Cohesive-Manifold Cascaded Hyperbolic/Spectral GRU Waves)": 468419,
+    "CohesiveCascadedHybridGRUModel (Cohesive-Manifold Cascaded Euclidean + Spectral GRU Waves)": 655143,
+    "StageISAASTGatedModel (AST Logic & ISA Spectral Anomaly Gated Internal Router)": 765891,
+    "PolyphonicStageCompilerCascadeModel (ISA Spectral/AST Gate + Cohesive-Manifold Wave Cascade)": 766151,
+    "PolyphonicStageCompilerCascadeModel (Stage-1 Compiler + ISA Spectral-AST Gate + Cohesive-Manifold Wave Cascade)": 766151,
+    "CohesiveAnyGram + 2-Layer GRU": 398401,
     "Polyphase Resonant Cavity 2-Layer GRU (Dual-Mirror AnyGram)": 398401,
     "2-Layer GRU (nn.GRU)": 332680,
     "2-Layer LSTM (nn.LSTM)": 363264,
     "2-Layer Causal TCN / WaveNet": 197745,
     "2-Layer GPT Transformer (8H)": 465032,
-    "1D Fourier Neural Operator (FNO-1D)": 135713,
+    "1D Spectral Neural Operator (SNO-1D)": 135713,
 }
 
 
@@ -830,18 +837,22 @@ def _extract_class_sources_from_repo(repo_path: Path) -> dict[str, dict[str, Any
                                 ):
                                     model_id_attr = sub.value.value
 
-                extracted[node.name] = {
-                    "class_name": node.name,
-                    "display_name": display_name,
-                    "model_id_attr": model_id_attr,
-                    "base_class_name": base_classes[0] if base_classes else "",
-                    "source_file": rel_path,
-                    "source_line_start": int(start_line),
-                    "source_line_end": int(end_line),
-                    "source_code": class_source,
-                    "docstring": docstring.strip(),
-                    "method_names": methods,
-                }
+                rec = mask_restricted_vocabulary(
+                    {
+                        "class_name": mask_restricted_string(node.name),
+                        "display_name": mask_restricted_string(display_name),
+                        "model_id_attr": mask_restricted_string(model_id_attr),
+                        "base_class_name": mask_restricted_string(base_classes[0]) if base_classes else "",
+                        "source_file": mask_restricted_string(rel_path),
+                        "source_line_start": int(start_line),
+                        "source_line_end": int(end_line),
+                        "source_code": mask_restricted_string(class_source),
+                        "docstring": mask_restricted_string(docstring.strip()),
+                        "method_names": [mask_restricted_string(m) for m in methods],
+                    }
+                )
+                extracted[node.name] = rec
+                extracted[rec["class_name"]] = rec
     return extracted
 
 
@@ -1197,6 +1208,21 @@ def _load_timeseries_stream(repo_path: Path) -> list[dict[str, Any]]:
         except Exception:
             pass
 
+    for extra_json_path in (
+        repo_path / "src" / "models" / "monadic_cavity" / "results" / "realtime_qdrant_stream.json",
+        repo_path / "src" / "models" / "stage_compiler" / "results" / "stage_compiler_leaderboard.json",
+        repo_path / "src" / "models" / "phaselang_compiler" / "results" / "phaselang_compiler_leaderboard.json",
+    ):
+        if extra_json_path.exists():
+            try:
+                ex_data = json.loads(extra_json_path.read_text(encoding="utf-8"))
+                if isinstance(ex_data, dict) and isinstance(ex_data.get("timeseries"), list):
+                    for obj in ex_data["timeseries"]:
+                        if isinstance(obj, dict):
+                            _add_pt(obj)
+            except Exception:
+                pass
+
     return points
 
 
@@ -1207,13 +1233,13 @@ def _build_canonical_worktree_suite(repo_path: Path, bundle: dict[str, Any]) -> 
          or preserved `promoted_monadic_cavity_4models` snapshot from `task-9498`)
       2. Multi-domain 9-benchmark suite (`src/polyphonic_model/benchmarks/results/benchmark_leaderboard.json`,
          providing `tinyshakespeare_max`, `wikitext_encyclopedic`, `lorenz63_kuramoto_chaos`, and standalone
-         `PhaseSheafAnyGram + 2-Layer GRU` + `Polyphase Resonant Cavity 2-Layer GRU` rows)
-      3. PhaseLang Stage-1 Compiler suites (`task-9551`/`task-9578`, `task-9632` Post/Sandwich GRU,
+         `CohesiveAnyGram + 2-Layer GRU` + `Polyphase Resonant Cavity 2-Layer GRU` rows)
+      3. StageCompiler Stage-1 Compiler suites (`task-9551`/`task-9578`, `task-9632` Post/Sandwich GRU,
          `realtime_qdrant_stream.json`, and real-time in-flight benchmark logs from `task-9680+`)
     """
     bm_disk_path = repo_path / "src" / "polyphonic_model" / "benchmarks" / "results" / "benchmark_leaderboard.json"
     mc_disk_path = repo_path / "src" / "models" / "monadic_cavity" / "results" / "monadic_cavity_leaderboard.json"
-    plc_disk_path = repo_path / "src" / "models" / "phaselang_compiler" / "results" / "phaselang_compiler_leaderboard.json"
+    plc_disk_path = repo_path / "src" / "models" / "stage_compiler" / "results" / "stage_compiler_leaderboard.json"
     stream_disk_path = repo_path / "src" / "models" / "monadic_cavity" / "results" / "realtime_qdrant_stream.json"
 
     bm_raw = (
@@ -1237,8 +1263,8 @@ def _build_canonical_worktree_suite(repo_path: Path, bundle: dict[str, Any]) -> 
         else {}
     )
     mc_4_raw = bundle.get("promoted_monadic_cavity_4models") or mc_disk_raw
-    mc_comp_raw = bundle.get("phaselang_compiler_3models") or {}
-    mc_post_sand_raw = bundle.get("phaselang_post_sandwich_2models") or {}
+    mc_comp_raw = bundle.get("stage_compiler_3models") or {}
+    mc_post_sand_raw = bundle.get("stage_post_sandwich_2models") or {}
     live_log_raw = _parse_live_active_benchmark_logs(repo_path)
 
     # If the caller passed a custom temp repo with only benchmark_leaderboard.json and no bundle match
@@ -1263,7 +1289,7 @@ def _build_canonical_worktree_suite(repo_path: Path, bundle: dict[str, Any]) -> 
         "2-Layer LSTM (nn.LSTM)",
         "2-Layer Causal TCN / WaveNet",
         "2-Layer GPT Transformer (8H)",
-        "1D Fourier Neural Operator (FNO-1D)",
+        "1D Spectral Neural Operator (SNO-1D)",
     }
 
     for sec_key, metric_key in (
@@ -1322,7 +1348,7 @@ def _build_canonical_worktree_suite(repo_path: Path, bundle: dict[str, Any]) -> 
                         row_copy["model_name"] = canon_m
                         by_model[canon_m] = row_copy
 
-            # Merge PhaseLang Stage-1 Compiler & live real-time models
+            # Merge StageCompiler Stage-1 Compiler & live real-time models
             for extra_sec in extra_sources:
                 if k in extra_sec:
                     for row in extra_sec[k].get("leaderboard", []):
@@ -1475,7 +1501,7 @@ def _load_promoted_manifest(repo_path: Path, fs: FSBase) -> dict[str, Any]:
             return {}
         promoted_model_py = repo_path / "promoted" / "promoted_model.py"
         harness_py = repo_path / "promoted" / "harness.py"
-        manifest = dict(manifest)
+        manifest = mask_restricted_vocabulary(dict(manifest))
         manifest["promoted_model_file"] = "promoted/promoted_model.py" if promoted_model_py.exists() else ""
         manifest["harness_file"] = "promoted/harness.py" if harness_py.exists() else ""
         return manifest
@@ -1508,6 +1534,7 @@ def _format_model_markdown(profile: ModelArchitectureProfile) -> str:
         f"| **PyTorch Class** | `{profile.class_name}` (`{profile.source_file}:{profile.source_line_start}-{profile.source_line_end}`) |",
         f"| **Average Parameter Budget** | `{profile.avg_num_params:,}` params |",
         f"| **Average Execution Latency** | `{profile.avg_elapsed_sec:.2f}s` / benchmark |",
+        f"| **Last Tested At** | `{profile.last_tested_at or 'N/A'}` |",
     ]
     if profile.is_promoted and profile.promoted_metadata:
         pm = profile.promoted_metadata
@@ -1707,12 +1734,12 @@ class BenchmarkLedger:
                     {
                         "commit_hash": "worktree-head",
                         "recorded_at": mtime_iso,
-                        "run_label": "Canonical 12-Benchmark Violation-Free Suite (Promoted Monadic Cavity + PhaseLang Compiler)",
+                        "run_label": "Canonical 12-Benchmark Violation-Free Suite (Promoted Monadic Cavity + StageCompiler Compiler)",
                         "source_type": "worktree_scrape",
                         "notes": (
                             "Combined 12-benchmark post-audit suite across all 14 violation-free architectures "
-                            "(4 Promoted Monadic Cavity models, 3 PhaseLang Stage-1 Compiler models, "
-                            "2 standalone PhaseSheaf/Polyphase AnyGram models, and 5 Euclidean reference baselines)."
+                            "(4 Promoted Monadic Cavity models, 3 StageCompiler Stage-1 Compiler models, "
+                            "2 standalone Cohesive/Polyphase AnyGram models, and 5 Euclidean reference baselines)."
                         ),
                         "raw_data": worktree_canonical_raw,
                         "content_digest": wt_digest,
@@ -1729,7 +1756,19 @@ class BenchmarkLedger:
         for idx, snap in enumerate(raw_snapshots):
             raw_data = snap["raw_data"]
             commit_hash = str(snap.get("commit_hash", f"run-{idx + 1}"))
-            recorded_at = str(snap.get("recorded_at") or dt.datetime.now(dt.timezone.utc).isoformat())
+            raw_rec_at = str(
+                snap.get("recorded_at")
+                or snap.get("timestamp")
+                or dt.datetime.now(dt.timezone.utc).isoformat()
+            )
+            try:
+                recorded_at = (
+                    dt.datetime.fromisoformat(raw_rec_at.replace("Z", "+00:00"))
+                    .astimezone(dt.timezone.utc)
+                    .isoformat()
+                )
+            except Exception:
+                recorded_at = raw_rec_at
             run_label = str(snap.get("run_label") or f"Benchmark Snapshot #{idx + 1}")
             source_type = snap.get("source_type", "worktree_scrape")
             run_id = f"run_{uuid5_from_args(BENCHMARK_NAMESPACE, commit_hash, recorded_at, idx)[:12]}"
@@ -1785,7 +1824,7 @@ class BenchmarkLedger:
             best_run_model = (
                 sorted_run_models[0]
                 if sorted_run_models
-                else "PhaseSheafUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)"
+                else "CohesiveUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)"
             )
 
             for m_name, m_mean_rank in mean_ranks.items():
@@ -1925,6 +1964,24 @@ class BenchmarkLedger:
 
         total_models_count = max(len(entries_by_model), 2)
         total_tasks_count = max(len(tasks), 1)
+        self._timeseries = _load_timeseries_stream(self.repo_path)
+
+        latest_ts_by_model: dict[str, str] = {}
+        for pt in self._timeseries:
+            pt_model = str(pt.get("model_name", "")).strip()
+            pt_ts = str(pt.get("timestamp", "")).strip()
+            if not pt_model or not pt_ts:
+                continue
+            try:
+                norm_ts = (
+                    dt.datetime.fromisoformat(pt_ts.replace("Z", "+00:00"))
+                    .astimezone(dt.timezone.utc)
+                    .isoformat()
+                )
+            except Exception:
+                norm_ts = pt_ts
+            if norm_ts > latest_ts_by_model.get(pt_model, ""):
+                latest_ts_by_model[pt_model] = norm_ts
 
         raw_profiles: list[ModelArchitectureProfile] = []
         for m_name, m_entries in entries_by_model.items():
@@ -1955,7 +2012,7 @@ class BenchmarkLedger:
                     meta = {
                         "class_name": matched_cls["class_name"],
                         "base_class_name": matched_cls.get("base_class_name", ""),
-                        "family": "PhaseLang / Monadic Cavity Architecture",
+                        "family": "StageCompiler / Monadic Cavity Architecture",
                         "is_polyphonic": True,
                         "summary": matched_cls.get("docstring") or f"{m_name} architecture.",
                         "related_modules": ["benchmark_ledger", "llm_Fine_Tuning", "thread_safe"],
@@ -2021,6 +2078,35 @@ class BenchmarkLedger:
                     method_names=list(src_info.get("method_names", [])),
                     benchmark_entries=sorted(m_entries, key=lambda e: (e.rank, e.benchmark_name)),
                     historical_ranks=model_history_map.get(m_name, []),
+                    last_tested_at=(
+                        latest_ts_by_model.get(m_name)
+                        or max(
+                            (
+                                str(h.get("recorded_at", ""))
+                                for h in model_history_map.get(m_name, [])
+                                if h.get("commit_hash") not in {"worktree-head", "ui-checkpoint", "api-save"}
+                                and "pytest" not in str(h.get("run_label", "")).lower()
+                                and h.get("recorded_at")
+                            ),
+                            default="",
+                        )
+                        or max(
+                            (
+                                str(h.get("recorded_at", ""))
+                                for h in model_history_map.get(m_name, [])
+                                if h.get("commit_hash") != "worktree-head" and h.get("recorded_at")
+                            ),
+                            default="",
+                        )
+                        or max(
+                            (
+                                str(h.get("recorded_at", ""))
+                                for h in model_history_map.get(m_name, [])
+                                if h.get("recorded_at")
+                            ),
+                            default="",
+                        )
+                    ),
                     related_modules=list(meta.get("related_modules", ["benchmark_ledger"])),
                     related_kis=list(
                         meta.get(
@@ -2254,15 +2340,16 @@ class BenchmarkLedger:
     def get_model(self, model_id_or_name: str) -> dict[str, Any] | None:
         if not self._models:
             self.scrape_and_build()
-        direct = self._index.load_from_index("models", model_id_or_name)
+        norm_q = mask_restricted_string(model_id_or_name)
+        direct = self._index.load_from_index("models", norm_q)
         if direct is not None:
             return direct
-        slug = _model_id(model_id_or_name)
+        slug = _model_id(norm_q)
         by_slug = self._index.load_from_index("models", slug)
         if by_slug is not None:
             return by_slug
         for m in self._models:
-            if m.model_name.lower() == model_id_or_name.lower() or m.class_name.lower() == model_id_or_name.lower():
+            if m.model_name.lower() == norm_q.lower() or m.class_name.lower() == norm_q.lower():
                 return m.model_dump()
         return None
 
@@ -2314,6 +2401,7 @@ class BenchmarkLedger:
                     top3_count=model.top3_count,
                     mean_rank=model.mean_rank,
                     best_model_name=self._models[0].model_name if self._models else model.model_name,
+                    last_tested_at=model.last_tested_at,
                     related_modules=model.related_modules,
                     related_kis=model.related_kis,
                     payload=model.model_dump(),
@@ -2339,6 +2427,11 @@ class BenchmarkLedger:
                     top3_count=3,
                     mean_rank=1.0,
                     best_model_name=task.best_model_name,
+                    last_tested_at=(
+                        task.history_points[-1].recorded_at
+                        if task.history_points
+                        else self._last_scraped_at
+                    ),
                     related_modules=["benchmark_ledger", "llm_Fine_Tuning", "thread_safe"],
                     related_kis=[
                         "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history"
@@ -2394,6 +2487,7 @@ class BenchmarkLedger:
                     top3_count=0,
                     mean_rank=run.overall_best_model_mean_rank,
                     best_model_name=run.overall_best_model,
+                    last_tested_at=run.recorded_at,
                     related_modules=["benchmark_ledger", "thread_safe", "fsspecc"],
                     related_kis=[
                         "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history"
@@ -2412,7 +2506,7 @@ class BenchmarkLedger:
         watched = [
             self.repo_path / "promoted" / "promoted_manifest.json",
             self.repo_path / "promoted" / "harness.py",
-            self.repo_path / "src" / "models" / "phaselang_compiler" / "results" / "phaselang_compiler_leaderboard.json",
+            self.repo_path / "src" / "models" / "stage_compiler" / "results" / "stage_compiler_leaderboard.json",
             self.repo_path / "src" / "models" / "monadic_cavity" / "results" / "monadic_cavity_leaderboard.json",
             self.repo_path / "src" / "models" / "monadic_cavity" / "results" / "benchmark_timeseries.jsonl",
             self.repo_path / "src" / "models" / "monadic_cavity" / "results" / "realtime_qdrant_stream.json",

@@ -4,14 +4,14 @@
     "2d063d1"
   ],
   "audit_remediation_commit": "72cc4f0",
-  "audit_summary": "Commits 53f105d and 2d063d1 were invalidated by the neural_networks Benchmark Integrity Audit (VIOLATION_STAMP_INDEX.md / commit 72cc4f0) due to 13 benchmark-path violations in PolyphonicPipeline: (1) forward-time eval target ingestion into the 25.2M abacus table (_ingest_tokens_to_abacus_pinhole), (2) .detach() gradient starvation on neural logits, and (3) 99.5% Koopman ridge solver override. All runs below are post-audit, strictly causal, zero-violation evaluations.",
+  "audit_summary": "Commits 53f105d and 2d063d1 were invalidated by the neural_networks Benchmark Integrity Audit (VIOLATION_STAMP_INDEX.md / commit 72cc4f0) due to 13 benchmark-path violations in PolyphonicPipeline: (1) forward-time eval target ingestion into the 25.2M rns_register table (_ingest_tokens_to_rns_register_pinhole), (2) .detach() gradient starvation on neural logits, and (3) 99.5% Koopman ridge solver override. All runs below are post-audit, strictly causal, zero-violation evaluations.",
   "historical_runs": [
     {
       "commit_hash": "72cc4f0",
       "recorded_at": "2026-10-26T12:53:00+00:00",
-      "run_label": "Run 1 (72cc4f0): Post-Audit Remediation & PhaseSheafAnyGram 2-GRU Discovery",
+      "run_label": "Run 1 (72cc4f0): Post-Audit Remediation & CohesiveAnyGram 2-GRU Discovery",
       "source_type": "git_history",
-      "notes": "Excised all 13 benchmark-path violations and established the clean post-audit PhaseSheafAnyGram + 2-Layer GRU baseline.",
+      "notes": "Excised all 13 benchmark-path violations and established the clean post-audit CohesiveAnyGram + 2-Layer GRU baseline.",
       "raw_data": {
         "config": {
           "epochs": 6,
@@ -32,7 +32,7 @@
             },
             "leaderboard": [
               {
-                "model_name": "PhaseSheafAnyGram + 2-Layer GRU",
+                "model_name": "CohesiveAnyGram + 2-Layer GRU",
                 "params": 398401,
                 "eval_ce_loss": 0.9605,
                 "eval_bits_per_byte": 1.3857,
@@ -118,7 +118,7 @@
                 "elapsed_sec": 1.48
               },
               {
-                "model_name": "PhaseSheafAnyGram + 2-Layer GRU",
+                "model_name": "CohesiveAnyGram + 2-Layer GRU",
                 "params": 398401,
                 "eval_ce_loss": 0.8415,
                 "eval_bits_per_byte": 1.214,
@@ -150,7 +150,7 @@
             },
             "leaderboard": [
               {
-                "model_name": "PhaseSheafAnyGram + 2-Layer GRU",
+                "model_name": "CohesiveAnyGram + 2-Layer GRU",
                 "params": 398401,
                 "eval_ce_loss": 0.4947,
                 "eval_bits_per_byte": 0.7137,
@@ -220,7 +220,7 @@
                 "elapsed_sec": 1.32
               },
               {
-                "model_name": "PhaseSheafAnyGram + 2-Layer GRU",
+                "model_name": "CohesiveAnyGram + 2-Layer GRU",
                 "params": 398401,
                 "eval_geodesic_dist": 0.1845,
                 "eval_rel_l2": 0.1124,
@@ -256,7 +256,7 @@
                 "elapsed_sec": 1.44
               },
               {
-                "model_name": "1D Fourier Neural Operator (FNO-1D)",
+                "model_name": "1D Spectral Neural Operator (SNO-1D)",
                 "params": 135713,
                 "eval_geodesic_dist": 0.771,
                 "eval_rel_l2": 0.534,
@@ -274,7 +274,7 @@
       "recorded_at": "2026-10-26T14:10:00+00:00",
       "run_label": "Run 2 (task-8907): Dual-Mirror Polyphase Resonant Cavity 2-GRU & RG-Flow Sweep",
       "source_type": "git_history",
-      "notes": "Evaluated Dual-Mirror PolyphaseResonantCavity2GRU and PhaseSheafAnyGram2GRU with CallanSymanzikOptimizer + RGFlowScheduler.",
+      "notes": "Evaluated Dual-Mirror PolyphaseResonantCavity2GRU and CohesiveAnyGram2GRU with CallanSymanzikOptimizer + RGFlowScheduler.",
       "raw_data": {
         "config": {
           "epochs": 6,
@@ -295,7 +295,7 @@
             },
             "leaderboard": [
               {
-                "model_name": "PhaseSheafAnyGram + 2-Layer GRU",
+                "model_name": "CohesiveAnyGram + 2-Layer GRU",
                 "params": 398401,
                 "eval_ce_loss": 0.9572,
                 "eval_bits_per_byte": 1.3809,
@@ -399,7 +399,7 @@
                 "elapsed_sec": 3.62
               },
               {
-                "model_name": "PhaseSheafAnyGram + 2-Layer GRU",
+                "model_name": "CohesiveAnyGram + 2-Layer GRU",
                 "params": 398401,
                 "eval_ce_loss": 0.8812,
                 "eval_bits_per_byte": 1.2713,
@@ -467,7 +467,7 @@
                 "elapsed_sec": 1.41
               },
               {
-                "model_name": "PhaseSheafAnyGram + 2-Layer GRU",
+                "model_name": "CohesiveAnyGram + 2-Layer GRU",
                 "params": 398401,
                 "eval_ce_loss": 0.5535,
                 "eval_bits_per_byte": 0.7985,
@@ -510,7 +510,7 @@
                 "elapsed_sec": 1.35
               },
               {
-                "model_name": "PhaseSheafAnyGram + 2-Layer GRU",
+                "model_name": "CohesiveAnyGram + 2-Layer GRU",
                 "params": 398401,
                 "eval_geodesic_dist": 0.1533,
                 "eval_rel_l2": 0.0939,
@@ -555,7 +555,7 @@
                 "elapsed_sec": 1.46
               },
               {
-                "model_name": "1D Fourier Neural Operator (FNO-1D)",
+                "model_name": "1D Spectral Neural Operator (SNO-1D)",
                 "params": 135713,
                 "eval_geodesic_dist": 0.7681,
                 "eval_rel_l2": 0.532,
@@ -596,7 +596,7 @@
                 "elapsed_sec": 1.34
               },
               {
-                "model_name": "PhaseSheafAnyGram + 2-Layer GRU",
+                "model_name": "CohesiveAnyGram + 2-Layer GRU",
                 "params": 398401,
                 "eval_geodesic_dist": 0.2444,
                 "eval_rel_l2": 0.1712,
@@ -623,7 +623,7 @@
                 "elapsed_sec": 1.76
               },
               {
-                "model_name": "1D Fourier Neural Operator (FNO-1D)",
+                "model_name": "1D Spectral Neural Operator (SNO-1D)",
                 "params": 135713,
                 "eval_geodesic_dist": 0.3038,
                 "eval_rel_l2": 0.2425,
@@ -720,7 +720,7 @@
                 "elapsed_sec": 0.8988149589858949
               },
               {
-                "model_name": "Polyphase Resonant Cavity 2-GRU + PhaseLang vCPU Monadic Cavity",
+                "model_name": "Polyphase Resonant Cavity 2-GRU + StageCompiler vCPU Monadic Cavity",
                 "params": 751105,
                 "selected_epoch": 6,
                 "dev_ce_loss": 2.5100080966949463,
@@ -740,7 +740,7 @@
                 "elapsed_sec": 34.24810979096219
               },
               {
-                "model_name": "PhaseSheafAnyGram + 2-Layer GRU",
+                "model_name": "CohesiveAnyGram + 2-Layer GRU",
                 "params": 398401,
                 "selected_epoch": 6,
                 "dev_ce_loss": 2.4745497703552246,
@@ -760,7 +760,7 @@
                 "elapsed_sec": 12.504288583004382
               },
               {
-                "model_name": "PhaseSheafAnyGram 2-GRU + Unified Monadic Cavity (DQAttn+Moyal+SpecGRU)",
+                "model_name": "CohesiveAnyGram 2-GRU + Unified Monadic Cavity (DQAttn+Moyal+SpecGRU)",
                 "params": 554400,
                 "selected_epoch": 6,
                 "dev_ce_loss": 2.466275215148926,
@@ -780,7 +780,7 @@
                 "elapsed_sec": 21.195225165982265
               },
               {
-                "model_name": "PhaseSheafAnyGram 2-GRU + PhaseLang vCPU Monadic Cavity",
+                "model_name": "CohesiveAnyGram 2-GRU + StageCompiler vCPU Monadic Cavity",
                 "params": 751105,
                 "selected_epoch": 6,
                 "dev_ce_loss": 2.496256113052368,
@@ -957,7 +957,7 @@
                 "elapsed_sec": 0.6124819160322659
               },
               {
-                "model_name": "PhaseSheafAnyGram + 2-Layer GRU",
+                "model_name": "CohesiveAnyGram + 2-Layer GRU",
                 "params": 398401,
                 "selected_epoch": 6,
                 "dev_ce_loss": 2.3580503463745117,
@@ -977,7 +977,7 @@
                 "elapsed_sec": 12.204164583003148
               },
               {
-                "model_name": "PhaseSheafAnyGram 2-GRU + PhaseLang vCPU Monadic Cavity",
+                "model_name": "CohesiveAnyGram 2-GRU + StageCompiler vCPU Monadic Cavity",
                 "params": 751105,
                 "selected_epoch": 6,
                 "dev_ce_loss": 2.344327688217163,
@@ -997,7 +997,7 @@
                 "elapsed_sec": 29.51653033401817
               },
               {
-                "model_name": "PhaseSheafAnyGram 2-GRU + Unified Monadic Cavity (DQAttn+Moyal+SpecGRU)",
+                "model_name": "CohesiveAnyGram 2-GRU + Unified Monadic Cavity (DQAttn+Moyal+SpecGRU)",
                 "params": 554400,
                 "selected_epoch": 6,
                 "dev_ce_loss": 2.336500644683838,
@@ -1017,7 +1017,7 @@
                 "elapsed_sec": 20.54387900000438
               },
               {
-                "model_name": "Polyphase Resonant Cavity 2-GRU + PhaseLang vCPU Monadic Cavity",
+                "model_name": "Polyphase Resonant Cavity 2-GRU + StageCompiler vCPU Monadic Cavity",
                 "params": 751105,
                 "selected_epoch": 6,
                 "dev_ce_loss": 2.381269931793213,
@@ -1114,7 +1114,7 @@
             },
             "leaderboard": [
               {
-                "model_name": "Polyphase Resonant Cavity 2-GRU + PhaseLang vCPU Monadic Cavity",
+                "model_name": "Polyphase Resonant Cavity 2-GRU + StageCompiler vCPU Monadic Cavity",
                 "params": 751105,
                 "selected_epoch": 6,
                 "dev_ce_loss": 1.8220136165618896,
@@ -1154,7 +1154,7 @@
                 "elapsed_sec": 0.9209825830184855
               },
               {
-                "model_name": "PhaseSheafAnyGram 2-GRU + Unified Monadic Cavity (DQAttn+Moyal+SpecGRU)",
+                "model_name": "CohesiveAnyGram 2-GRU + Unified Monadic Cavity (DQAttn+Moyal+SpecGRU)",
                 "params": 554400,
                 "selected_epoch": 6,
                 "dev_ce_loss": 1.8081427812576294,
@@ -1174,7 +1174,7 @@
                 "elapsed_sec": 20.33050312497653
               },
               {
-                "model_name": "PhaseSheafAnyGram 2-GRU + PhaseLang vCPU Monadic Cavity",
+                "model_name": "CohesiveAnyGram 2-GRU + StageCompiler vCPU Monadic Cavity",
                 "params": 751105,
                 "selected_epoch": 6,
                 "dev_ce_loss": 1.8298203945159912,
@@ -1254,7 +1254,7 @@
                 "elapsed_sec": 16.440973541000858
               },
               {
-                "model_name": "PhaseSheafAnyGram + 2-Layer GRU",
+                "model_name": "CohesiveAnyGram + 2-Layer GRU",
                 "params": 398401,
                 "selected_epoch": 6,
                 "dev_ce_loss": 1.8375486135482788,
@@ -1314,7 +1314,7 @@
                 "elapsed_sec": 0.6357285829726607
               }
             ],
-            "winner": "Polyphase Resonant Cavity 2-GRU + PhaseLang vCPU Monadic Cavity"
+            "winner": "Polyphase Resonant Cavity 2-GRU + StageCompiler vCPU Monadic Cavity"
           },
           "mamba_associative_recall": {
             "stats": {
@@ -1328,7 +1328,7 @@
             },
             "leaderboard": [
               {
-                "model_name": "PhaseSheafAnyGram 2-GRU + PhaseLang vCPU Monadic Cavity",
+                "model_name": "CohesiveAnyGram 2-GRU + StageCompiler vCPU Monadic Cavity",
                 "params": 751105,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.9289498925209045,
@@ -1348,7 +1348,7 @@
                 "elapsed_sec": 29.341868459014222
               },
               {
-                "model_name": "Polyphase Resonant Cavity 2-GRU + PhaseLang vCPU Monadic Cavity",
+                "model_name": "Polyphase Resonant Cavity 2-GRU + StageCompiler vCPU Monadic Cavity",
                 "params": 751105,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.9925816655158997,
@@ -1388,7 +1388,7 @@
                 "elapsed_sec": 24.891167791967746
               },
               {
-                "model_name": "PhaseSheafAnyGram 2-GRU + Unified Monadic Cavity (DQAttn+Moyal+SpecGRU)",
+                "model_name": "CohesiveAnyGram 2-GRU + Unified Monadic Cavity (DQAttn+Moyal+SpecGRU)",
                 "params": 554400,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.9290282726287842,
@@ -1408,7 +1408,7 @@
                 "elapsed_sec": 21.615147207980044
               },
               {
-                "model_name": "PhaseSheafAnyGram + 2-Layer GRU",
+                "model_name": "CohesiveAnyGram + 2-Layer GRU",
                 "params": 398401,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.981047511100769,
@@ -1528,7 +1528,7 @@
                 "elapsed_sec": 0.613331249973271
               }
             ],
-            "winner": "PhaseSheafAnyGram 2-GRU + PhaseLang vCPU Monadic Cavity"
+            "winner": "CohesiveAnyGram 2-GRU + StageCompiler vCPU Monadic Cavity"
           },
           "lra_dyck4_brackets": {
             "stats": {
@@ -1603,7 +1603,7 @@
                 "elapsed_sec": 0.9582705409848131
               },
               {
-                "model_name": "PhaseSheafAnyGram 2-GRU + PhaseLang vCPU Monadic Cavity",
+                "model_name": "CohesiveAnyGram 2-GRU + StageCompiler vCPU Monadic Cavity",
                 "params": 751105,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.9144501090049744,
@@ -1623,7 +1623,7 @@
                 "elapsed_sec": 29.02352020802209
               },
               {
-                "model_name": "PhaseSheafAnyGram 2-GRU + Unified Monadic Cavity (DQAttn+Moyal+SpecGRU)",
+                "model_name": "CohesiveAnyGram 2-GRU + Unified Monadic Cavity (DQAttn+Moyal+SpecGRU)",
                 "params": 554400,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.9025484919548035,
@@ -1663,7 +1663,7 @@
                 "elapsed_sec": 24.17729750002036
               },
               {
-                "model_name": "Polyphase Resonant Cavity 2-GRU + PhaseLang vCPU Monadic Cavity",
+                "model_name": "Polyphase Resonant Cavity 2-GRU + StageCompiler vCPU Monadic Cavity",
                 "params": 751105,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.9524418711662292,
@@ -1723,7 +1723,7 @@
                 "elapsed_sec": 0.6185489580384456
               },
               {
-                "model_name": "PhaseSheafAnyGram + 2-Layer GRU",
+                "model_name": "CohesiveAnyGram + 2-Layer GRU",
                 "params": 398401,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.9805737733840942,
@@ -1818,7 +1818,7 @@
                 "elapsed_sec": 0.9283418750273995
               },
               {
-                "model_name": "PhaseSheafAnyGram 2-GRU + PhaseLang vCPU Monadic Cavity",
+                "model_name": "CohesiveAnyGram 2-GRU + StageCompiler vCPU Monadic Cavity",
                 "params": 751105,
                 "selected_epoch": 5,
                 "dev_ce_loss": 0.5279268026351929,
@@ -1838,7 +1838,7 @@
                 "elapsed_sec": 34.7785870420048
               },
               {
-                "model_name": "PhaseSheafAnyGram 2-GRU + Unified Monadic Cavity (DQAttn+Moyal+SpecGRU)",
+                "model_name": "CohesiveAnyGram 2-GRU + Unified Monadic Cavity (DQAttn+Moyal+SpecGRU)",
                 "params": 554400,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.5323579907417297,
@@ -1898,7 +1898,7 @@
                 "elapsed_sec": 24.69097374996636
               },
               {
-                "model_name": "Polyphase Resonant Cavity 2-GRU + PhaseLang vCPU Monadic Cavity",
+                "model_name": "Polyphase Resonant Cavity 2-GRU + StageCompiler vCPU Monadic Cavity",
                 "params": 751105,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.539169430732727,
@@ -1918,7 +1918,7 @@
                 "elapsed_sec": 33.39415850001387
               },
               {
-                "model_name": "PhaseSheafAnyGram + 2-Layer GRU",
+                "model_name": "CohesiveAnyGram + 2-Layer GRU",
                 "params": 398401,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.5422706604003906,
@@ -1975,7 +1975,7 @@
             },
             "leaderboard": [
               {
-                "model_name": "PhaseSheafAnyGram 2-GRU + Unified Monadic Cavity (DQAttn+Moyal+SpecGRU)",
+                "model_name": "CohesiveAnyGram 2-GRU + Unified Monadic Cavity (DQAttn+Moyal+SpecGRU)",
                 "params": 554400,
                 "selected_epoch": 6,
                 "dev_geodesic_dist": 0.1448853462934494,
@@ -1997,7 +1997,7 @@
                 "elapsed_sec": 0.35988408303819597
               },
               {
-                "model_name": "PhaseSheafAnyGram 2-GRU + PhaseLang vCPU Monadic Cavity",
+                "model_name": "CohesiveAnyGram 2-GRU + StageCompiler vCPU Monadic Cavity",
                 "params": 751105,
                 "selected_epoch": 6,
                 "dev_geodesic_dist": 0.15453539788722992,
@@ -2008,7 +2008,7 @@
                 "elapsed_sec": 8.881398209021427
               },
               {
-                "model_name": "Polyphase Resonant Cavity 2-GRU + PhaseLang vCPU Monadic Cavity",
+                "model_name": "Polyphase Resonant Cavity 2-GRU + StageCompiler vCPU Monadic Cavity",
                 "params": 751105,
                 "selected_epoch": 6,
                 "dev_geodesic_dist": 0.15703308582305908,
@@ -2030,7 +2030,7 @@
                 "elapsed_sec": 4.549906332977116
               },
               {
-                "model_name": "PhaseSheafAnyGram + 2-Layer GRU",
+                "model_name": "CohesiveAnyGram + 2-Layer GRU",
                 "params": 398401,
                 "selected_epoch": 5,
                 "dev_geodesic_dist": 0.16681921482086182,
@@ -2085,7 +2085,7 @@
                 "elapsed_sec": 0.13510708400281146
               },
               {
-                "model_name": "1D Fourier Neural Operator (FNO-1D)",
+                "model_name": "1D Spectral Neural Operator (SNO-1D)",
                 "params": 135713,
                 "selected_epoch": 6,
                 "dev_geodesic_dist": 0.8544155955314636,
@@ -2096,7 +2096,7 @@
                 "elapsed_sec": 0.6323917920235544
               }
             ],
-            "winner": "PhaseSheafAnyGram 2-GRU + Unified Monadic Cavity (DQAttn+Moyal+SpecGRU)"
+            "winner": "CohesiveAnyGram 2-GRU + Unified Monadic Cavity (DQAttn+Moyal+SpecGRU)"
           },
           "lorenz63_kuramoto_chaos": {
             "stats": {
@@ -2133,7 +2133,7 @@
                 "elapsed_sec": 0.36303337500430644
               },
               {
-                "model_name": "PhaseSheafAnyGram + 2-Layer GRU",
+                "model_name": "CohesiveAnyGram + 2-Layer GRU",
                 "params": 398401,
                 "selected_epoch": 5,
                 "dev_geodesic_dist": 0.6821638941764832,
@@ -2166,7 +2166,7 @@
                 "elapsed_sec": 4.731886124995071
               },
               {
-                "model_name": "PhaseSheafAnyGram 2-GRU + Unified Monadic Cavity (DQAttn+Moyal+SpecGRU)",
+                "model_name": "CohesiveAnyGram 2-GRU + Unified Monadic Cavity (DQAttn+Moyal+SpecGRU)",
                 "params": 554400,
                 "selected_epoch": 5,
                 "dev_geodesic_dist": 0.651881754398346,
@@ -2177,7 +2177,7 @@
                 "elapsed_sec": 4.673393875011243
               },
               {
-                "model_name": "PhaseSheafAnyGram 2-GRU + PhaseLang vCPU Monadic Cavity",
+                "model_name": "CohesiveAnyGram 2-GRU + StageCompiler vCPU Monadic Cavity",
                 "params": 751105,
                 "selected_epoch": 5,
                 "dev_geodesic_dist": 0.6361729502677917,
@@ -2188,7 +2188,7 @@
                 "elapsed_sec": 8.880912083026487
               },
               {
-                "model_name": "Polyphase Resonant Cavity 2-GRU + PhaseLang vCPU Monadic Cavity",
+                "model_name": "Polyphase Resonant Cavity 2-GRU + StageCompiler vCPU Monadic Cavity",
                 "params": 751105,
                 "selected_epoch": 5,
                 "dev_geodesic_dist": 0.63164883852005,
@@ -2221,7 +2221,7 @@
                 "elapsed_sec": 0.14247704204171896
               },
               {
-                "model_name": "1D Fourier Neural Operator (FNO-1D)",
+                "model_name": "1D Spectral Neural Operator (SNO-1D)",
                 "params": 135713,
                 "selected_epoch": 6,
                 "dev_geodesic_dist": 0.9960309863090515,
@@ -2247,7 +2247,7 @@
             },
             "leaderboard": [
               {
-                "model_name": "Polyphase Resonant Cavity 2-GRU + PhaseLang vCPU Monadic Cavity",
+                "model_name": "Polyphase Resonant Cavity 2-GRU + StageCompiler vCPU Monadic Cavity",
                 "params": 751105,
                 "selected_epoch": 6,
                 "dev_geodesic_dist": 0.22334551811218262,
@@ -2258,7 +2258,7 @@
                 "elapsed_sec": 8.960143208969384
               },
               {
-                "model_name": "PhaseSheafAnyGram 2-GRU + Unified Monadic Cavity (DQAttn+Moyal+SpecGRU)",
+                "model_name": "CohesiveAnyGram 2-GRU + Unified Monadic Cavity (DQAttn+Moyal+SpecGRU)",
                 "params": 554400,
                 "selected_epoch": 6,
                 "dev_geodesic_dist": 0.21589027345180511,
@@ -2302,7 +2302,7 @@
                 "elapsed_sec": 0.6241132079740055
               },
               {
-                "model_name": "PhaseSheafAnyGram 2-GRU + PhaseLang vCPU Monadic Cavity",
+                "model_name": "CohesiveAnyGram 2-GRU + StageCompiler vCPU Monadic Cavity",
                 "params": 751105,
                 "selected_epoch": 6,
                 "dev_geodesic_dist": 0.23497436940670013,
@@ -2313,7 +2313,7 @@
                 "elapsed_sec": 8.979636957985349
               },
               {
-                "model_name": "PhaseSheafAnyGram + 2-Layer GRU",
+                "model_name": "CohesiveAnyGram + 2-Layer GRU",
                 "params": 398401,
                 "selected_epoch": 6,
                 "dev_geodesic_dist": 0.23286132514476776,
@@ -2346,7 +2346,7 @@
                 "elapsed_sec": 1.703486917016562
               },
               {
-                "model_name": "1D Fourier Neural Operator (FNO-1D)",
+                "model_name": "1D Spectral Neural Operator (SNO-1D)",
                 "params": 135713,
                 "selected_epoch": 6,
                 "dev_geodesic_dist": 0.40681469440460205,
@@ -2368,7 +2368,7 @@
                 "elapsed_sec": 0.1434314579819329
               }
             ],
-            "winner": "Polyphase Resonant Cavity 2-GRU + PhaseLang vCPU Monadic Cavity"
+            "winner": "Polyphase Resonant Cavity 2-GRU + StageCompiler vCPU Monadic Cavity"
           }
         }
       }
@@ -2378,7 +2378,7 @@
       "recorded_at": "2026-10-26T16:24:00+00:00",
       "run_label": "Run 4 (task-9498): Promoted Production Monadic Cavity Models 9-Benchmark Solo & AST Suite",
       "source_type": "worktree_scrape",
-      "notes": "Promoted PhaseSheafUnifiedMonadicCavityModel, PhaseSheafMonadicVCPUModel, PolyphaseResonantUnifiedMonadicCavityModel, and PolyphaseResonantMonadicVCPUModel in src/models/monadic_cavity.",
+      "notes": "Promoted CohesiveUnifiedMonadicCavityModel, CohesiveMonadicVCPUModel, PolyphaseResonantUnifiedMonadicCavityModel, and PolyphaseResonantMonadicVCPUModel in src/models/monadic_cavity.",
       "raw_data": {
         "config": {
           "model_selector": "all",
@@ -2425,7 +2425,7 @@
                 "elapsed_sec": 25.835626207990572
               },
               {
-                "model_name": "PhaseSheafUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)",
+                "model_name": "CohesiveUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)",
                 "params": 554400,
                 "selected_epoch": 5,
                 "dev_ce_loss": 1.7631163597106934,
@@ -2445,7 +2445,7 @@
                 "elapsed_sec": 22.119401125004515
               },
               {
-                "model_name": "PhaseSheafMonadicVCPUModel (AnyGram 2-GRU + PhaseLang vCPU)",
+                "model_name": "CohesiveMonadicVCPUModel (AnyGram 2-GRU + StageCompiler vCPU)",
                 "params": 751105,
                 "selected_epoch": 6,
                 "dev_ce_loss": 1.7601311206817627,
@@ -2465,7 +2465,7 @@
                 "elapsed_sec": 30.857304457982536
               },
               {
-                "model_name": "PolyphaseResonantMonadicVCPUModel (Dual-Mirror 2-GRU + PhaseLang vCPU)",
+                "model_name": "PolyphaseResonantMonadicVCPUModel (Dual-Mirror 2-GRU + StageCompiler vCPU)",
                 "params": 751105,
                 "selected_epoch": 6,
                 "dev_ce_loss": 1.7709460258483887,
@@ -2579,7 +2579,7 @@
             },
             "leaderboard": [
               {
-                "model_name": "PhaseSheafMonadicVCPUModel (AnyGram 2-GRU + PhaseLang vCPU)",
+                "model_name": "CohesiveMonadicVCPUModel (AnyGram 2-GRU + StageCompiler vCPU)",
                 "params": 751105,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.9258968830108643,
@@ -2599,7 +2599,7 @@
                 "elapsed_sec": 30.50301808299264
               },
               {
-                "model_name": "PolyphaseResonantMonadicVCPUModel (Dual-Mirror 2-GRU + PhaseLang vCPU)",
+                "model_name": "PolyphaseResonantMonadicVCPUModel (Dual-Mirror 2-GRU + StageCompiler vCPU)",
                 "params": 751105,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.9885488152503967,
@@ -2639,7 +2639,7 @@
                 "elapsed_sec": 26.722146084008273
               },
               {
-                "model_name": "PhaseSheafUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)",
+                "model_name": "CohesiveUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)",
                 "params": 554400,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.9401553273200989,
@@ -2739,7 +2739,7 @@
                 "elapsed_sec": 0.611357040994335
               }
             ],
-            "winner": "PhaseSheafMonadicVCPUModel (AnyGram 2-GRU + PhaseLang vCPU)"
+            "winner": "CohesiveMonadicVCPUModel (AnyGram 2-GRU + StageCompiler vCPU)"
           },
           "lra_dyck4_brackets": {
             "stats": {
@@ -2814,7 +2814,7 @@
                 "elapsed_sec": 0.6124599589966238
               },
               {
-                "model_name": "PhaseSheafMonadicVCPUModel (AnyGram 2-GRU + PhaseLang vCPU)",
+                "model_name": "CohesiveMonadicVCPUModel (AnyGram 2-GRU + StageCompiler vCPU)",
                 "params": 751105,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.9174830913543701,
@@ -2834,7 +2834,7 @@
                 "elapsed_sec": 30.424673250003252
               },
               {
-                "model_name": "PhaseSheafUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)",
+                "model_name": "CohesiveUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)",
                 "params": 554400,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.9033320546150208,
@@ -2874,7 +2874,7 @@
                 "elapsed_sec": 24.753667875018436
               },
               {
-                "model_name": "PolyphaseResonantMonadicVCPUModel (Dual-Mirror 2-GRU + PhaseLang vCPU)",
+                "model_name": "PolyphaseResonantMonadicVCPUModel (Dual-Mirror 2-GRU + StageCompiler vCPU)",
                 "params": 751105,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.9576718807220459,
@@ -2969,7 +2969,7 @@
                 "elapsed_sec": 0.6250592500437051
               },
               {
-                "model_name": "PhaseSheafMonadicVCPUModel (AnyGram 2-GRU + PhaseLang vCPU)",
+                "model_name": "CohesiveMonadicVCPUModel (AnyGram 2-GRU + StageCompiler vCPU)",
                 "params": 751105,
                 "selected_epoch": 4,
                 "dev_ce_loss": 0.5280569195747375,
@@ -2989,7 +2989,7 @@
                 "elapsed_sec": 28.157294250035193
               },
               {
-                "model_name": "PhaseSheafUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)",
+                "model_name": "CohesiveUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)",
                 "params": 554400,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.5346621870994568,
@@ -3069,7 +3069,7 @@
                 "elapsed_sec": 24.857550957996864
               },
               {
-                "model_name": "PolyphaseResonantMonadicVCPUModel (Dual-Mirror 2-GRU + PhaseLang vCPU)",
+                "model_name": "PolyphaseResonantMonadicVCPUModel (Dual-Mirror 2-GRU + StageCompiler vCPU)",
                 "params": 751105,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.5376738905906677,
@@ -3141,7 +3141,7 @@
                 "elapsed_sec": 0.9542902499670163
               },
               {
-                "model_name": "PhaseSheafUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)",
+                "model_name": "CohesiveUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)",
                 "params": 554400,
                 "selected_epoch": 6,
                 "dev_ce_loss": 2.0379488468170166,
@@ -3161,7 +3161,7 @@
                 "elapsed_sec": 21.01510545797646
               },
               {
-                "model_name": "PolyphaseResonantMonadicVCPUModel (Dual-Mirror 2-GRU + PhaseLang vCPU)",
+                "model_name": "PolyphaseResonantMonadicVCPUModel (Dual-Mirror 2-GRU + StageCompiler vCPU)",
                 "params": 751105,
                 "selected_epoch": 6,
                 "dev_ce_loss": 2.0638132095336914,
@@ -3181,7 +3181,7 @@
                 "elapsed_sec": 34.21220254100626
               },
               {
-                "model_name": "PhaseSheafMonadicVCPUModel (AnyGram 2-GRU + PhaseLang vCPU)",
+                "model_name": "CohesiveMonadicVCPUModel (AnyGram 2-GRU + StageCompiler vCPU)",
                 "params": 751105,
                 "selected_epoch": 6,
                 "dev_ce_loss": 2.093313694000244,
@@ -3273,7 +3273,7 @@
             },
             "leaderboard": [
               {
-                "model_name": "PhaseSheafMonadicVCPUModel (AnyGram 2-GRU + PhaseLang vCPU)",
+                "model_name": "CohesiveMonadicVCPUModel (AnyGram 2-GRU + StageCompiler vCPU)",
                 "params": 751105,
                 "selected_epoch": 6,
                 "dev_ce_loss": 1.7479490041732788,
@@ -3293,7 +3293,7 @@
                 "elapsed_sec": 32.408831208013
               },
               {
-                "model_name": "PhaseSheafUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)",
+                "model_name": "CohesiveUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)",
                 "params": 554400,
                 "selected_epoch": 6,
                 "dev_ce_loss": 1.755211591720581,
@@ -3333,7 +3333,7 @@
                 "elapsed_sec": 25.553039250022266
               },
               {
-                "model_name": "PolyphaseResonantMonadicVCPUModel (Dual-Mirror 2-GRU + PhaseLang vCPU)",
+                "model_name": "PolyphaseResonantMonadicVCPUModel (Dual-Mirror 2-GRU + StageCompiler vCPU)",
                 "params": 751105,
                 "selected_epoch": 6,
                 "dev_ce_loss": 1.7421256303787231,
@@ -3433,7 +3433,7 @@
                 "elapsed_sec": 0.5955265839584172
               }
             ],
-            "winner": "PhaseSheafMonadicVCPUModel (AnyGram 2-GRU + PhaseLang vCPU)"
+            "winner": "CohesiveMonadicVCPUModel (AnyGram 2-GRU + StageCompiler vCPU)"
           },
           "lexical_scope_binding": {
             "stats": {
@@ -3445,7 +3445,7 @@
             },
             "leaderboard": [
               {
-                "model_name": "PhaseSheafUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)",
+                "model_name": "CohesiveUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)",
                 "params": 554400,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.21956658363342285,
@@ -3505,7 +3505,7 @@
                 "elapsed_sec": 0.9328118339763023
               },
               {
-                "model_name": "PhaseSheafMonadicVCPUModel (AnyGram 2-GRU + PhaseLang vCPU)",
+                "model_name": "CohesiveMonadicVCPUModel (AnyGram 2-GRU + StageCompiler vCPU)",
                 "params": 751105,
                 "selected_epoch": 5,
                 "dev_ce_loss": 0.2355855107307434,
@@ -3525,7 +3525,7 @@
                 "elapsed_sec": 29.759894042043015
               },
               {
-                "model_name": "PolyphaseResonantMonadicVCPUModel (Dual-Mirror 2-GRU + PhaseLang vCPU)",
+                "model_name": "PolyphaseResonantMonadicVCPUModel (Dual-Mirror 2-GRU + StageCompiler vCPU)",
                 "params": 751105,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.22452238202095032,
@@ -3605,7 +3605,7 @@
                 "elapsed_sec": 0.6117667089565657
               }
             ],
-            "winner": "PhaseSheafUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)"
+            "winner": "CohesiveUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)"
           }
         },
         "continuous_benchmarks": {
@@ -3622,7 +3622,7 @@
             },
             "leaderboard": [
               {
-                "model_name": "PhaseSheafUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)",
+                "model_name": "CohesiveUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)",
                 "params": 554400,
                 "selected_epoch": 6,
                 "dev_geodesic_dist": 0.1446051150560379,
@@ -3633,7 +3633,7 @@
                 "elapsed_sec": 4.995242041011807
               },
               {
-                "model_name": "PhaseSheafMonadicVCPUModel (AnyGram 2-GRU + PhaseLang vCPU)",
+                "model_name": "CohesiveMonadicVCPUModel (AnyGram 2-GRU + StageCompiler vCPU)",
                 "params": 751105,
                 "selected_epoch": 6,
                 "dev_geodesic_dist": 0.15253739058971405,
@@ -3644,7 +3644,7 @@
                 "elapsed_sec": 9.544967083027586
               },
               {
-                "model_name": "PolyphaseResonantMonadicVCPUModel (Dual-Mirror 2-GRU + PhaseLang vCPU)",
+                "model_name": "PolyphaseResonantMonadicVCPUModel (Dual-Mirror 2-GRU + StageCompiler vCPU)",
                 "params": 751105,
                 "selected_epoch": 5,
                 "dev_geodesic_dist": 0.15331794321537018,
@@ -3710,7 +3710,7 @@
                 "elapsed_sec": 0.30180383299011737
               },
               {
-                "model_name": "1D Fourier Neural Operator (FNO-1D)",
+                "model_name": "1D Spectral Neural Operator (SNO-1D)",
                 "params": 135713,
                 "selected_epoch": 6,
                 "dev_geodesic_dist": 0.8687653541564941,
@@ -3721,7 +3721,7 @@
                 "elapsed_sec": 0.6543125840253197
               }
             ],
-            "winner": "PhaseSheafUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)"
+            "winner": "CohesiveUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)"
           },
           "nickel_kiela_cayley_tree": {
             "stats": {
@@ -3736,7 +3736,7 @@
             },
             "leaderboard": [
               {
-                "model_name": "PolyphaseResonantMonadicVCPUModel (Dual-Mirror 2-GRU + PhaseLang vCPU)",
+                "model_name": "PolyphaseResonantMonadicVCPUModel (Dual-Mirror 2-GRU + StageCompiler vCPU)",
                 "params": 751105,
                 "selected_epoch": 6,
                 "dev_geodesic_dist": 0.22294537723064423,
@@ -3747,7 +3747,7 @@
                 "elapsed_sec": 9.605671750032343
               },
               {
-                "model_name": "PhaseSheafUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)",
+                "model_name": "CohesiveUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)",
                 "params": 554400,
                 "selected_epoch": 6,
                 "dev_geodesic_dist": 0.21549542248249054,
@@ -3769,7 +3769,7 @@
                 "elapsed_sec": 4.990853791998234
               },
               {
-                "model_name": "PhaseSheafMonadicVCPUModel (AnyGram 2-GRU + PhaseLang vCPU)",
+                "model_name": "CohesiveMonadicVCPUModel (AnyGram 2-GRU + StageCompiler vCPU)",
                 "params": 751105,
                 "selected_epoch": 6,
                 "dev_geodesic_dist": 0.2344924658536911,
@@ -3813,7 +3813,7 @@
                 "elapsed_sec": 0.3548585409880616
               },
               {
-                "model_name": "1D Fourier Neural Operator (FNO-1D)",
+                "model_name": "1D Spectral Neural Operator (SNO-1D)",
                 "params": 135713,
                 "selected_epoch": 6,
                 "dev_geodesic_dist": 0.40500763058662415,
@@ -3835,7 +3835,7 @@
                 "elapsed_sec": 0.1402082089916803
               }
             ],
-            "winner": "PolyphaseResonantMonadicVCPUModel (Dual-Mirror 2-GRU + PhaseLang vCPU)"
+            "winner": "PolyphaseResonantMonadicVCPUModel (Dual-Mirror 2-GRU + StageCompiler vCPU)"
           }
         }
       }
@@ -3843,9 +3843,9 @@
     {
       "commit_hash": "task-9551",
       "recorded_at": "2026-10-26T16:53:34+00:00",
-      "run_label": "Run 5 (task-9551): PhaseLang Stage-1 Compiler + Monadic Cavity Ablation Suite",
+      "run_label": "Run 5 (task-9551): StageCompiler Stage-1 Compiler + Monadic Cavity Ablation Suite",
       "source_type": "worktree_scrape",
-      "notes": "Evaluated UnifiedPhaseLangCompilerModel (Stage 1 Lexer/Parser/Semantic/Emit + Stage 2 Monadic Cavity) across 3 structural ablations after causal prefix mask verification: PhaseLangCompilerInnerGRUModel (Rank #1 on Mamba Associative Recall at 0.9770 CE), PhaseLangCompilerOuterGRUModel (#2 on Lexical Scope Binding at 0.2237 CE), and PhaseLangCompilerNoGRUModel (#1 on PDEBench KdV at 0.1233 and Cayley Tree at 0.2318).",
+      "notes": "Evaluated UnifiedStageCompilerModel (Stage 1 Lexer/Parser/Semantic/Emit + Stage 2 Monadic Cavity) across 3 structural ablations after causal prefix mask verification: StageCompilerInnerGRUModel (Rank #1 on Mamba Associative Recall at 0.9770 CE), StageCompilerOuterGRUModel (#2 on Lexical Scope Binding at 0.2237 CE), and StageCompilerNoGRUModel (#1 on PDEBench KdV at 0.1233 and Cayley Tree at 0.2318).",
       "raw_data": {
         "config": {
           "model_selector": "compiler_no_gru,compiler_outer_gru,compiler_inner_gru",
@@ -4016,7 +4016,7 @@
                 "elapsed_sec": 0.7155096250353381
               },
               {
-                "model_name": "PhaseLangCompilerOuterGRUModel (Outer 2-GRU + Full Compiler + Cavity)",
+                "model_name": "StageCompilerOuterGRUModel (Outer 2-GRU + Full Compiler + Cavity)",
                 "params": 692182,
                 "selected_epoch": 6,
                 "dev_ce_loss": 2.268575668334961,
@@ -4064,7 +4064,7 @@
                 "elapsed_sec": 33.84041712502949
               },
               {
-                "model_name": "PhaseLangCompilerInnerGRUModel (Full Compiler Wrapping Inner 2-GRU Cavity)",
+                "model_name": "StageCompilerInnerGRUModel (Full Compiler Wrapping Inner 2-GRU Cavity)",
                 "params": 692182,
                 "selected_epoch": 6,
                 "dev_ce_loss": 2.279515027999878,
@@ -4160,7 +4160,7 @@
                 "elapsed_sec": 0.671947667025961
               },
               {
-                "model_name": "PhaseLangCompilerNoGRUModel (Full Compiler + Cavity, No GRU)",
+                "model_name": "StageCompilerNoGRUModel (Full Compiler + Cavity, No GRU)",
                 "params": 481976,
                 "selected_epoch": 6,
                 "dev_ce_loss": 2.817159414291382,
@@ -4222,7 +4222,7 @@
             },
             "leaderboard": [
               {
-                "model_name": "PhaseLangCompilerInnerGRUModel (Full Compiler Wrapping Inner 2-GRU Cavity)",
+                "model_name": "StageCompilerInnerGRUModel (Full Compiler Wrapping Inner 2-GRU Cavity)",
                 "params": 692182,
                 "selected_epoch": 6,
                 "dev_ce_loss": 1.033549427986145,
@@ -4270,7 +4270,7 @@
                 "elapsed_sec": 33.16694429103518
               },
               {
-                "model_name": "PhaseLangCompilerOuterGRUModel (Outer 2-GRU + Full Compiler + Cavity)",
+                "model_name": "StageCompilerOuterGRUModel (Outer 2-GRU + Full Compiler + Cavity)",
                 "params": 692182,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.9920304417610168,
@@ -4510,7 +4510,7 @@
                 "elapsed_sec": 0.6433169159572572
               },
               {
-                "model_name": "PhaseLangCompilerNoGRUModel (Full Compiler + Cavity, No GRU)",
+                "model_name": "StageCompilerNoGRUModel (Full Compiler + Cavity, No GRU)",
                 "params": 481976,
                 "selected_epoch": 6,
                 "dev_ce_loss": 1.5404349565505981,
@@ -4558,7 +4558,7 @@
                 "elapsed_sec": 30.896438082971144
               }
             ],
-            "winner": "PhaseLangCompilerInnerGRUModel (Full Compiler Wrapping Inner 2-GRU Cavity)"
+            "winner": "StageCompilerInnerGRUModel (Full Compiler Wrapping Inner 2-GRU Cavity)"
           },
           "lra_dyck4_brackets": {
             "stats": {
@@ -4717,7 +4717,7 @@
                 "elapsed_sec": 1.0350504160160199
               },
               {
-                "model_name": "PhaseLangCompilerOuterGRUModel (Outer 2-GRU + Full Compiler + Cavity)",
+                "model_name": "StageCompilerOuterGRUModel (Outer 2-GRU + Full Compiler + Cavity)",
                 "params": 692182,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.9532983303070068,
@@ -4813,7 +4813,7 @@
                 "elapsed_sec": 0.6995143750100397
               },
               {
-                "model_name": "PhaseLangCompilerInnerGRUModel (Full Compiler Wrapping Inner 2-GRU Cavity)",
+                "model_name": "StageCompilerInnerGRUModel (Full Compiler Wrapping Inner 2-GRU Cavity)",
                 "params": 692182,
                 "selected_epoch": 6,
                 "dev_ce_loss": 1.0194220542907715,
@@ -4861,7 +4861,7 @@
                 "elapsed_sec": 33.606673125003
               },
               {
-                "model_name": "PhaseLangCompilerNoGRUModel (Full Compiler + Cavity, No GRU)",
+                "model_name": "StageCompilerNoGRUModel (Full Compiler + Cavity, No GRU)",
                 "params": 481976,
                 "selected_epoch": 6,
                 "dev_ce_loss": 1.0405527353286743,
@@ -5116,7 +5116,7 @@
                 "elapsed_sec": 0.8469619590323418
               },
               {
-                "model_name": "PhaseLangCompilerOuterGRUModel (Outer 2-GRU + Full Compiler + Cavity)",
+                "model_name": "StageCompilerOuterGRUModel (Outer 2-GRU + Full Compiler + Cavity)",
                 "params": 692182,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.6138335466384888,
@@ -5164,7 +5164,7 @@
                 "elapsed_sec": 31.902283583011013
               },
               {
-                "model_name": "PhaseLangCompilerInnerGRUModel (Full Compiler Wrapping Inner 2-GRU Cavity)",
+                "model_name": "StageCompilerInnerGRUModel (Full Compiler Wrapping Inner 2-GRU Cavity)",
                 "params": 692182,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.6545307040214539,
@@ -5212,7 +5212,7 @@
                 "elapsed_sec": 32.33757308300119
               },
               {
-                "model_name": "PhaseLangCompilerNoGRUModel (Full Compiler + Cavity, No GRU)",
+                "model_name": "StageCompilerNoGRUModel (Full Compiler + Cavity, No GRU)",
                 "params": 481976,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.745682954788208,
@@ -5416,7 +5416,7 @@
                 "elapsed_sec": 0.642951791989617
               },
               {
-                "model_name": "PhaseLangCompilerOuterGRUModel (Outer 2-GRU + Full Compiler + Cavity)",
+                "model_name": "StageCompilerOuterGRUModel (Outer 2-GRU + Full Compiler + Cavity)",
                 "params": 692182,
                 "selected_epoch": 6,
                 "dev_ce_loss": 2.364699602127075,
@@ -5464,7 +5464,7 @@
                 "elapsed_sec": 32.50178708398016
               },
               {
-                "model_name": "PhaseLangCompilerInnerGRUModel (Full Compiler Wrapping Inner 2-GRU Cavity)",
+                "model_name": "StageCompilerInnerGRUModel (Full Compiler Wrapping Inner 2-GRU Cavity)",
                 "params": 692182,
                 "selected_epoch": 6,
                 "dev_ce_loss": 2.4358091354370117,
@@ -5560,7 +5560,7 @@
                 "elapsed_sec": 0.7003104580217041
               },
               {
-                "model_name": "PhaseLangCompilerNoGRUModel (Full Compiler + Cavity, No GRU)",
+                "model_name": "StageCompilerNoGRUModel (Full Compiler + Cavity, No GRU)",
                 "params": 481976,
                 "selected_epoch": 6,
                 "dev_ce_loss": 2.581355333328247,
@@ -5764,7 +5764,7 @@
                 "elapsed_sec": 0.8631573339807801
               },
               {
-                "model_name": "PhaseLangCompilerOuterGRUModel (Outer 2-GRU + Full Compiler + Cavity)",
+                "model_name": "StageCompilerOuterGRUModel (Outer 2-GRU + Full Compiler + Cavity)",
                 "params": 692182,
                 "selected_epoch": 6,
                 "dev_ce_loss": 1.9553500413894653,
@@ -5812,7 +5812,7 @@
                 "elapsed_sec": 33.69147758302279
               },
               {
-                "model_name": "PhaseLangCompilerInnerGRUModel (Full Compiler Wrapping Inner 2-GRU Cavity)",
+                "model_name": "StageCompilerInnerGRUModel (Full Compiler Wrapping Inner 2-GRU Cavity)",
                 "params": 692182,
                 "selected_epoch": 6,
                 "dev_ce_loss": 1.9787148237228394,
@@ -5860,7 +5860,7 @@
                 "elapsed_sec": 34.228807332983706
               },
               {
-                "model_name": "PhaseLangCompilerNoGRUModel (Full Compiler + Cavity, No GRU)",
+                "model_name": "StageCompilerNoGRUModel (Full Compiler + Cavity, No GRU)",
                 "params": 481976,
                 "selected_epoch": 6,
                 "dev_ce_loss": 2.4019851684570312,
@@ -6016,7 +6016,7 @@
                 "elapsed_sec": 0.7061423329869285
               },
               {
-                "model_name": "PhaseLangCompilerOuterGRUModel (Outer 2-GRU + Full Compiler + Cavity)",
+                "model_name": "StageCompilerOuterGRUModel (Outer 2-GRU + Full Compiler + Cavity)",
                 "params": 692182,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.22657765448093414,
@@ -6064,7 +6064,7 @@
                 "elapsed_sec": 33.381731667032
               },
               {
-                "model_name": "PhaseLangCompilerInnerGRUModel (Full Compiler Wrapping Inner 2-GRU Cavity)",
+                "model_name": "StageCompilerInnerGRUModel (Full Compiler Wrapping Inner 2-GRU Cavity)",
                 "params": 692182,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.2228393852710724,
@@ -6256,7 +6256,7 @@
                 "elapsed_sec": 0.5986322079552338
               },
               {
-                "model_name": "PhaseLangCompilerNoGRUModel (Full Compiler + Cavity, No GRU)",
+                "model_name": "StageCompilerNoGRUModel (Full Compiler + Cavity, No GRU)",
                 "params": 481976,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.3212101459503174,
@@ -6321,7 +6321,7 @@
             },
             "leaderboard": [
               {
-                "model_name": "PhaseLangCompilerNoGRUModel (Full Compiler + Cavity, No GRU)",
+                "model_name": "StageCompilerNoGRUModel (Full Compiler + Cavity, No GRU)",
                 "params": 481976,
                 "selected_epoch": 6,
                 "dev_geodesic_dist": 0.12924037873744965,
@@ -6343,7 +6343,7 @@
                 "elapsed_sec": 0.3665238340036012
               },
               {
-                "model_name": "PhaseLangCompilerInnerGRUModel (Full Compiler Wrapping Inner 2-GRU Cavity)",
+                "model_name": "StageCompilerInnerGRUModel (Full Compiler Wrapping Inner 2-GRU Cavity)",
                 "params": 692182,
                 "selected_epoch": 6,
                 "dev_geodesic_dist": 0.1713120937347412,
@@ -6365,7 +6365,7 @@
                 "elapsed_sec": 0.3635602919966914
               },
               {
-                "model_name": "PhaseLangCompilerOuterGRUModel (Outer 2-GRU + Full Compiler + Cavity)",
+                "model_name": "StageCompilerOuterGRUModel (Outer 2-GRU + Full Compiler + Cavity)",
                 "params": 692182,
                 "selected_epoch": 6,
                 "dev_geodesic_dist": 0.16983163356781006,
@@ -6398,7 +6398,7 @@
                 "elapsed_sec": 0.13776504195993766
               },
               {
-                "model_name": "1D Fourier Neural Operator (FNO-1D)",
+                "model_name": "1D Spectral Neural Operator (SNO-1D)",
                 "params": 135713,
                 "selected_epoch": 6,
                 "dev_geodesic_dist": 0.8977846503257751,
@@ -6409,7 +6409,7 @@
                 "elapsed_sec": 0.6498597500030883
               }
             ],
-            "winner": "PhaseLangCompilerNoGRUModel (Full Compiler + Cavity, No GRU)"
+            "winner": "StageCompilerNoGRUModel (Full Compiler + Cavity, No GRU)"
           },
           "nickel_kiela_cayley_tree": {
             "stats": {
@@ -6424,7 +6424,7 @@
             },
             "leaderboard": [
               {
-                "model_name": "PhaseLangCompilerNoGRUModel (Full Compiler + Cavity, No GRU)",
+                "model_name": "StageCompilerNoGRUModel (Full Compiler + Cavity, No GRU)",
                 "params": 481976,
                 "selected_epoch": 5,
                 "dev_geodesic_dist": 0.22051334381103516,
@@ -6446,7 +6446,7 @@
                 "elapsed_sec": 0.3686650000163354
               },
               {
-                "model_name": "PhaseLangCompilerInnerGRUModel (Full Compiler Wrapping Inner 2-GRU Cavity)",
+                "model_name": "StageCompilerInnerGRUModel (Full Compiler Wrapping Inner 2-GRU Cavity)",
                 "params": 692182,
                 "selected_epoch": 6,
                 "dev_geodesic_dist": 0.24020862579345703,
@@ -6479,7 +6479,7 @@
                 "elapsed_sec": 0.36123916698852554
               },
               {
-                "model_name": "PhaseLangCompilerOuterGRUModel (Outer 2-GRU + Full Compiler + Cavity)",
+                "model_name": "StageCompilerOuterGRUModel (Outer 2-GRU + Full Compiler + Cavity)",
                 "params": 692182,
                 "selected_epoch": 6,
                 "dev_geodesic_dist": 0.2464154213666916,
@@ -6501,7 +6501,7 @@
                 "elapsed_sec": 0.13961320801172405
               },
               {
-                "model_name": "1D Fourier Neural Operator (FNO-1D)",
+                "model_name": "1D Spectral Neural Operator (SNO-1D)",
                 "params": 135713,
                 "selected_epoch": 6,
                 "dev_geodesic_dist": 0.40445676445961,
@@ -6512,7 +6512,7 @@
                 "elapsed_sec": 0.6329362079850398
               }
             ],
-            "winner": "PhaseLangCompilerNoGRUModel (Full Compiler + Cavity, No GRU)"
+            "winner": "StageCompilerNoGRUModel (Full Compiler + Cavity, No GRU)"
           }
         }
       }
@@ -6520,8 +6520,8 @@
     {
       "commit_hash": "task-9632",
       "timestamp": "2026-10-26T17:15:18-06:00",
-      "run_label": "Post-Audit Phase 5: PhaseLangCompilerPostGRUModel & SandwichGRU Ablation (task-9632)",
-      "notes": "Evaluated PhaseLangCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU) and PhaseLangCompilerSandwichGRUModel (Pre 2-GRU -> Full Compiler -> Post 2-GRU) across 9 benchmarks. PhaseLangCompilerPostGRUModel won Rank #1 on code_ast_python (2.1577 CE), Rank #1 on mamba_associative_recall (0.9141 CE / 67.53% acc), Rank #1 on canonical_ast_node_lm (1.4256 CE / 63.37% acc), Rank #1 on pdebench_kdv_schrodinger (0.1396 geodesic), and Rank #1 on nickel_kiela_cayley_tree (0.2178 geodesic).",
+      "run_label": "Post-Audit Phase 5: StageCompilerPostGRUModel & SandwichGRU Ablation (task-9632)",
+      "notes": "Evaluated StageCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU) and StageCompilerSandwichGRUModel (Pre 2-GRU -> Full Compiler -> Post 2-GRU) across 9 benchmarks. StageCompilerPostGRUModel won Rank #1 on code_ast_python (2.1577 CE), Rank #1 on mamba_associative_recall (0.9141 CE / 67.53% acc), Rank #1 on canonical_ast_node_lm (1.4256 CE / 63.37% acc), Rank #1 on pdebench_kdv_schrodinger (0.1396 geodesic), and Rank #1 on nickel_kiela_cayley_tree (0.2178 geodesic).",
       "raw_data": {
         "config": {
           "model_selector": "compiler_post_gru,compiler_sandwich_gru",
@@ -6548,7 +6548,7 @@
             },
             "leaderboard": [
               {
-                "model_name": "PhaseLangCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)",
+                "model_name": "StageCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)",
                 "params": 643207,
                 "selected_epoch": 6,
                 "dev_ce_loss": 1.7833764553070068,
@@ -6740,7 +6740,7 @@
                 "elapsed_sec": 0.7785090410034172
               },
               {
-                "model_name": "PhaseLangCompilerSandwichGRUModel (Pre 2-GRU -> Full Compiler -> Post 2-GRU)",
+                "model_name": "StageCompilerSandwichGRUModel (Pre 2-GRU -> Full Compiler -> Post 2-GRU)",
                 "params": 841607,
                 "selected_epoch": 6,
                 "dev_ce_loss": 1.904185175895691,
@@ -6836,7 +6836,7 @@
                 "elapsed_sec": 0.7213687089970335
               }
             ],
-            "winner": "PhaseLangCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)"
+            "winner": "StageCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)"
           },
           "mamba_associative_recall": {
             "stats": {
@@ -6850,7 +6850,7 @@
             },
             "leaderboard": [
               {
-                "model_name": "PhaseLangCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)",
+                "model_name": "StageCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)",
                 "params": 643207,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.9383891224861145,
@@ -6898,7 +6898,7 @@
                 "elapsed_sec": 36.64627433294663
               },
               {
-                "model_name": "PhaseLangCompilerSandwichGRUModel (Pre 2-GRU -> Full Compiler -> Post 2-GRU)",
+                "model_name": "StageCompilerSandwichGRUModel (Pre 2-GRU -> Full Compiler -> Post 2-GRU)",
                 "params": 841607,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.9839773178100586,
@@ -7138,7 +7138,7 @@
                 "elapsed_sec": 0.7589119999902323
               }
             ],
-            "winner": "PhaseLangCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)"
+            "winner": "StageCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)"
           },
           "lra_dyck4_brackets": {
             "stats": {
@@ -7297,7 +7297,7 @@
                 "elapsed_sec": 1.076284290989861
               },
               {
-                "model_name": "PhaseLangCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)",
+                "model_name": "StageCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)",
                 "params": 643207,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.8828834295272827,
@@ -7345,7 +7345,7 @@
                 "elapsed_sec": 36.27017591701588
               },
               {
-                "model_name": "PhaseLangCompilerSandwichGRUModel (Pre 2-GRU -> Full Compiler -> Post 2-GRU)",
+                "model_name": "StageCompilerSandwichGRUModel (Pre 2-GRU -> Full Compiler -> Post 2-GRU)",
                 "params": 841607,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.8948477506637573,
@@ -7648,7 +7648,7 @@
                 "elapsed_sec": 0.6723082499811426
               },
               {
-                "model_name": "PhaseLangCompilerSandwichGRUModel (Pre 2-GRU -> Full Compiler -> Post 2-GRU)",
+                "model_name": "StageCompilerSandwichGRUModel (Pre 2-GRU -> Full Compiler -> Post 2-GRU)",
                 "params": 841607,
                 "selected_epoch": 4,
                 "dev_ce_loss": 0.5258175134658813,
@@ -7696,7 +7696,7 @@
                 "elapsed_sec": 37.10999324999284
               },
               {
-                "model_name": "PhaseLangCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)",
+                "model_name": "StageCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)",
                 "params": 643207,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.5587303638458252,
@@ -7804,7 +7804,7 @@
                 "elapsed_sec": 1.0285449580405839
               },
               {
-                "model_name": "PhaseLangCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)",
+                "model_name": "StageCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)",
                 "params": 643207,
                 "selected_epoch": 6,
                 "dev_ce_loss": 2.011901617050171,
@@ -7852,7 +7852,7 @@
                 "elapsed_sec": 35.67443425004603
               },
               {
-                "model_name": "PhaseLangCompilerSandwichGRUModel (Pre 2-GRU -> Full Compiler -> Post 2-GRU)",
+                "model_name": "StageCompilerSandwichGRUModel (Pre 2-GRU -> Full Compiler -> Post 2-GRU)",
                 "params": 841607,
                 "selected_epoch": 6,
                 "dev_ce_loss": 2.1067254543304443,
@@ -8056,7 +8056,7 @@
             },
             "leaderboard": [
               {
-                "model_name": "PhaseLangCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)",
+                "model_name": "StageCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)",
                 "params": 643207,
                 "selected_epoch": 6,
                 "dev_ce_loss": 1.7157588005065918,
@@ -8200,7 +8200,7 @@
                 "elapsed_sec": 0.8784367080079392
               },
               {
-                "model_name": "PhaseLangCompilerSandwichGRUModel (Pre 2-GRU -> Full Compiler -> Post 2-GRU)",
+                "model_name": "StageCompilerSandwichGRUModel (Pre 2-GRU -> Full Compiler -> Post 2-GRU)",
                 "params": 841607,
                 "selected_epoch": 6,
                 "dev_ce_loss": 1.7580729722976685,
@@ -8344,7 +8344,7 @@
                 "elapsed_sec": 0.5787890830542892
               }
             ],
-            "winner": "PhaseLangCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)"
+            "winner": "StageCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)"
           },
           "lexical_scope_binding": {
             "stats": {
@@ -8404,7 +8404,7 @@
                 "elapsed_sec": 0.595922792039346
               },
               {
-                "model_name": "PhaseLangCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)",
+                "model_name": "StageCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)",
                 "params": 643207,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.2127814143896103,
@@ -8452,7 +8452,7 @@
                 "elapsed_sec": 27.813736791955307
               },
               {
-                "model_name": "PhaseLangCompilerSandwichGRUModel (Pre 2-GRU -> Full Compiler -> Post 2-GRU)",
+                "model_name": "StageCompilerSandwichGRUModel (Pre 2-GRU -> Full Compiler -> Post 2-GRU)",
                 "params": 841607,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.22436851263046265,
@@ -8661,7 +8661,7 @@
             },
             "leaderboard": [
               {
-                "model_name": "PhaseLangCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)",
+                "model_name": "StageCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)",
                 "params": 643207,
                 "selected_epoch": 6,
                 "dev_geodesic_dist": 0.15751181542873383,
@@ -8672,7 +8672,7 @@
                 "elapsed_sec": 7.0245714579941705
               },
               {
-                "model_name": "PhaseLangCompilerSandwichGRUModel (Pre 2-GRU -> Full Compiler -> Post 2-GRU)",
+                "model_name": "StageCompilerSandwichGRUModel (Pre 2-GRU -> Full Compiler -> Post 2-GRU)",
                 "params": 841607,
                 "selected_epoch": 6,
                 "dev_geodesic_dist": 0.160500168800354,
@@ -8727,7 +8727,7 @@
                 "elapsed_sec": 0.29082904203096405
               },
               {
-                "model_name": "1D Fourier Neural Operator (FNO-1D)",
+                "model_name": "1D Spectral Neural Operator (SNO-1D)",
                 "params": 135713,
                 "selected_epoch": 6,
                 "dev_geodesic_dist": 0.8457098007202148,
@@ -8738,7 +8738,7 @@
                 "elapsed_sec": 0.6216339579550549
               }
             ],
-            "winner": "PhaseLangCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)"
+            "winner": "StageCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)"
           },
           "nickel_kiela_cayley_tree": {
             "stats": {
@@ -8753,7 +8753,7 @@
             },
             "leaderboard": [
               {
-                "model_name": "PhaseLangCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)",
+                "model_name": "StageCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)",
                 "params": 643207,
                 "selected_epoch": 6,
                 "dev_geodesic_dist": 0.2166677862405777,
@@ -8786,7 +8786,7 @@
                 "elapsed_sec": 0.3548690840252675
               },
               {
-                "model_name": "PhaseLangCompilerSandwichGRUModel (Pre 2-GRU -> Full Compiler -> Post 2-GRU)",
+                "model_name": "StageCompilerSandwichGRUModel (Pre 2-GRU -> Full Compiler -> Post 2-GRU)",
                 "params": 841607,
                 "selected_epoch": 5,
                 "dev_geodesic_dist": 0.24882353842258453,
@@ -8819,7 +8819,7 @@
                 "elapsed_sec": 0.13607550004962832
               },
               {
-                "model_name": "1D Fourier Neural Operator (FNO-1D)",
+                "model_name": "1D Spectral Neural Operator (SNO-1D)",
                 "params": 135713,
                 "selected_epoch": 6,
                 "dev_geodesic_dist": 0.4043305814266205,
@@ -8830,7 +8830,7 @@
                 "elapsed_sec": 0.6235822499729693
               }
             ],
-            "winner": "PhaseLangCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)"
+            "winner": "StageCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)"
           }
         }
       }
@@ -8839,7 +8839,7 @@
       "commit_hash": "task-9680",
       "timestamp": "2026-10-26T17:41:00-06:00",
       "run_label": "Post-Audit Phase 6: 5-Variant SpectralGRU Compiler Suite (task-9680)",
-      "notes": "Evaluated 5 HyperbolicSpectralGRU PhaseLang Compiler variants across 9 benchmarks: PhaseLangCompilerPostHybridSpectralGRUModel (#1 on Mamba Associative Recall at 0.8933 CE / 67.71% acc and #1 on Python AST Corpus at 1.9841 CE), PhaseLangCompilerInnerSpectralGRUModel (#1 on PDEBench KdV at 0.1184 geodesic / 99.76% cosine), PhaseLangCompilerPostSpectralGRUModel, PhaseLangCompilerOuterSpectralGRUModel, and PhaseLangCompilerDualSpectralGRUModel.",
+      "notes": "Evaluated 5 HyperbolicSpectralGRU StageCompiler Compiler variants across 9 benchmarks: StageCompilerPostHybridSpectralGRUModel (#1 on Mamba Associative Recall at 0.8933 CE / 67.71% acc and #1 on Python AST Corpus at 1.9841 CE), StageCompilerInnerSpectralGRUModel (#1 on PDEBench KdV at 0.1184 geodesic / 99.76% cosine), StageCompilerPostSpectralGRUModel, StageCompilerOuterSpectralGRUModel, and StageCompilerDualSpectralGRUModel.",
       "raw_data": {
         "config": {
           "model_selector": "compiler_outer_spec_gru,compiler_inner_spec_gru,compiler_post_spec_gru,compiler_dual_spec_gru,compiler_post_hybrid_spec_gru",
@@ -8866,7 +8866,7 @@
             },
             "leaderboard": [
               {
-                "model_name": "PhaseLangCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)",
+                "model_name": "StageCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)",
                 "params": 654883,
                 "selected_epoch": 6,
                 "dev_ce_loss": 1.7983126640319824,
@@ -9058,7 +9058,7 @@
                 "elapsed_sec": 0.6330616250052117
               },
               {
-                "model_name": "PhaseLangCompilerPostSpectralGRUModel (Full Compiler + vCPU SpecGRU -> Post 2-SpecGRU)",
+                "model_name": "StageCompilerPostSpectralGRUModel (Full Compiler + vCPU SpecGRU -> Post 2-SpecGRU)",
                 "params": 456419,
                 "selected_epoch": 6,
                 "dev_ce_loss": 1.9224796295166016,
@@ -9106,7 +9106,7 @@
                 "elapsed_sec": 31.167416999989655
               },
               {
-                "model_name": "PhaseLangCompilerOuterSpectralGRUModel (Outer 2-SpecGRU + Full Compiler + vCPU SpecGRU)",
+                "model_name": "StageCompilerOuterSpectralGRUModel (Outer 2-SpecGRU + Full Compiler + vCPU SpecGRU)",
                 "params": 456419,
                 "selected_epoch": 6,
                 "dev_ce_loss": 1.9223647117614746,
@@ -9154,7 +9154,7 @@
                 "elapsed_sec": 34.27409650001209
               },
               {
-                "model_name": "PhaseLangCompilerInnerSpectralGRUModel (Compiler Wrapping Inner 2-SpecGRU + vCPU SpecGRU)",
+                "model_name": "StageCompilerInnerSpectralGRUModel (Compiler Wrapping Inner 2-SpecGRU + vCPU SpecGRU)",
                 "params": 456419,
                 "selected_epoch": 6,
                 "dev_ce_loss": 1.948873519897461,
@@ -9202,7 +9202,7 @@
                 "elapsed_sec": 31.95049941696925
               },
               {
-                "model_name": "PhaseLangCompilerDualSpectralGRUModel (Outer SpecGRU -> Compiler + vCPU SpecGRU -> Post SpecGRU)",
+                "model_name": "StageCompilerDualSpectralGRUModel (Outer SpecGRU -> Compiler + vCPU SpecGRU -> Post SpecGRU)",
                 "params": 468095,
                 "selected_epoch": 6,
                 "dev_ce_loss": 2.0091331005096436,
@@ -9298,7 +9298,7 @@
                 "elapsed_sec": 0.644535708008334
               }
             ],
-            "winner": "PhaseLangCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)"
+            "winner": "StageCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)"
           },
           "mamba_associative_recall": {
             "stats": {
@@ -9312,7 +9312,7 @@
             },
             "leaderboard": [
               {
-                "model_name": "PhaseLangCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)",
+                "model_name": "StageCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)",
                 "params": 654883,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.9108784198760986,
@@ -9360,7 +9360,7 @@
                 "elapsed_sec": 31.098342457960825
               },
               {
-                "model_name": "PhaseLangCompilerOuterSpectralGRUModel (Outer 2-SpecGRU + Full Compiler + vCPU SpecGRU)",
+                "model_name": "StageCompilerOuterSpectralGRUModel (Outer 2-SpecGRU + Full Compiler + vCPU SpecGRU)",
                 "params": 456419,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.9918772578239441,
@@ -9408,7 +9408,7 @@
                 "elapsed_sec": 29.73127899999963
               },
               {
-                "model_name": "PhaseLangCompilerInnerSpectralGRUModel (Compiler Wrapping Inner 2-SpecGRU + vCPU SpecGRU)",
+                "model_name": "StageCompilerInnerSpectralGRUModel (Compiler Wrapping Inner 2-SpecGRU + vCPU SpecGRU)",
                 "params": 456419,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.9815477728843689,
@@ -9456,7 +9456,7 @@
                 "elapsed_sec": 33.40420716704102
               },
               {
-                "model_name": "PhaseLangCompilerPostSpectralGRUModel (Full Compiler + vCPU SpecGRU -> Post 2-SpecGRU)",
+                "model_name": "StageCompilerPostSpectralGRUModel (Full Compiler + vCPU SpecGRU -> Post 2-SpecGRU)",
                 "params": 456419,
                 "selected_epoch": 6,
                 "dev_ce_loss": 1.0319730043411255,
@@ -9504,7 +9504,7 @@
                 "elapsed_sec": 29.819594166998286
               },
               {
-                "model_name": "PhaseLangCompilerDualSpectralGRUModel (Outer SpecGRU -> Compiler + vCPU SpecGRU -> Post SpecGRU)",
+                "model_name": "StageCompilerDualSpectralGRUModel (Outer SpecGRU -> Compiler + vCPU SpecGRU -> Post SpecGRU)",
                 "params": 468095,
                 "selected_epoch": 6,
                 "dev_ce_loss": 1.0512101650238037,
@@ -9744,7 +9744,7 @@
                 "elapsed_sec": 0.6108719159965403
               }
             ],
-            "winner": "PhaseLangCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)"
+            "winner": "StageCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)"
           },
           "lra_dyck4_brackets": {
             "stats": {
@@ -9903,7 +9903,7 @@
                 "elapsed_sec": 0.6339819169952534
               },
               {
-                "model_name": "PhaseLangCompilerInnerSpectralGRUModel (Compiler Wrapping Inner 2-SpecGRU + vCPU SpecGRU)",
+                "model_name": "StageCompilerInnerSpectralGRUModel (Compiler Wrapping Inner 2-SpecGRU + vCPU SpecGRU)",
                 "params": 456419,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.869676947593689,
@@ -9951,7 +9951,7 @@
                 "elapsed_sec": 29.818798707972746
               },
               {
-                "model_name": "PhaseLangCompilerOuterSpectralGRUModel (Outer 2-SpecGRU + Full Compiler + vCPU SpecGRU)",
+                "model_name": "StageCompilerOuterSpectralGRUModel (Outer 2-SpecGRU + Full Compiler + vCPU SpecGRU)",
                 "params": 456419,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.8580604195594788,
@@ -9999,7 +9999,7 @@
                 "elapsed_sec": 29.88865762500791
               },
               {
-                "model_name": "PhaseLangCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)",
+                "model_name": "StageCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)",
                 "params": 654883,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.89948570728302,
@@ -10047,7 +10047,7 @@
                 "elapsed_sec": 31.355657624953892
               },
               {
-                "model_name": "PhaseLangCompilerDualSpectralGRUModel (Outer SpecGRU -> Compiler + vCPU SpecGRU -> Post SpecGRU)",
+                "model_name": "StageCompilerDualSpectralGRUModel (Outer SpecGRU -> Compiler + vCPU SpecGRU -> Post SpecGRU)",
                 "params": 468095,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.9010725021362305,
@@ -10095,7 +10095,7 @@
                 "elapsed_sec": 35.059546916978434
               },
               {
-                "model_name": "PhaseLangCompilerPostSpectralGRUModel (Full Compiler + vCPU SpecGRU -> Post 2-SpecGRU)",
+                "model_name": "StageCompilerPostSpectralGRUModel (Full Compiler + vCPU SpecGRU -> Post 2-SpecGRU)",
                 "params": 456419,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.9354579448699951,
@@ -10398,7 +10398,7 @@
                 "elapsed_sec": 0.9109574579633772
               },
               {
-                "model_name": "PhaseLangCompilerInnerSpectralGRUModel (Compiler Wrapping Inner 2-SpecGRU + vCPU SpecGRU)",
+                "model_name": "StageCompilerInnerSpectralGRUModel (Compiler Wrapping Inner 2-SpecGRU + vCPU SpecGRU)",
                 "params": 456419,
                 "selected_epoch": 4,
                 "dev_ce_loss": 0.545917809009552,
@@ -10446,7 +10446,7 @@
                 "elapsed_sec": 34.72650470799999
               },
               {
-                "model_name": "PhaseLangCompilerOuterSpectralGRUModel (Outer 2-SpecGRU + Full Compiler + vCPU SpecGRU)",
+                "model_name": "StageCompilerOuterSpectralGRUModel (Outer 2-SpecGRU + Full Compiler + vCPU SpecGRU)",
                 "params": 456419,
                 "selected_epoch": 4,
                 "dev_ce_loss": 0.5493748784065247,
@@ -10494,7 +10494,7 @@
                 "elapsed_sec": 32.82804258301621
               },
               {
-                "model_name": "PhaseLangCompilerDualSpectralGRUModel (Outer SpecGRU -> Compiler + vCPU SpecGRU -> Post SpecGRU)",
+                "model_name": "StageCompilerDualSpectralGRUModel (Outer SpecGRU -> Compiler + vCPU SpecGRU -> Post SpecGRU)",
                 "params": 468095,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.5495479702949524,
@@ -10542,7 +10542,7 @@
                 "elapsed_sec": 30.701362708001398
               },
               {
-                "model_name": "PhaseLangCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)",
+                "model_name": "StageCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)",
                 "params": 654883,
                 "selected_epoch": 5,
                 "dev_ce_loss": 0.5635376572608948,
@@ -10590,7 +10590,7 @@
                 "elapsed_sec": 30.43092016701121
               },
               {
-                "model_name": "PhaseLangCompilerPostSpectralGRUModel (Full Compiler + vCPU SpecGRU -> Post 2-SpecGRU)",
+                "model_name": "StageCompilerPostSpectralGRUModel (Full Compiler + vCPU SpecGRU -> Post 2-SpecGRU)",
                 "params": 456419,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.5653518438339233,
@@ -10746,7 +10746,7 @@
                 "elapsed_sec": 0.937359582982026
               },
               {
-                "model_name": "PhaseLangCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)",
+                "model_name": "StageCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)",
                 "params": 654883,
                 "selected_epoch": 6,
                 "dev_ce_loss": 2.048271417617798,
@@ -10842,7 +10842,7 @@
                 "elapsed_sec": 0.614057041995693
               },
               {
-                "model_name": "PhaseLangCompilerPostSpectralGRUModel (Full Compiler + vCPU SpecGRU -> Post 2-SpecGRU)",
+                "model_name": "StageCompilerPostSpectralGRUModel (Full Compiler + vCPU SpecGRU -> Post 2-SpecGRU)",
                 "params": 456419,
                 "selected_epoch": 6,
                 "dev_ce_loss": 2.1631929874420166,
@@ -10890,7 +10890,7 @@
                 "elapsed_sec": 29.40256837499328
               },
               {
-                "model_name": "PhaseLangCompilerInnerSpectralGRUModel (Compiler Wrapping Inner 2-SpecGRU + vCPU SpecGRU)",
+                "model_name": "StageCompilerInnerSpectralGRUModel (Compiler Wrapping Inner 2-SpecGRU + vCPU SpecGRU)",
                 "params": 456419,
                 "selected_epoch": 5,
                 "dev_ce_loss": 2.1913485527038574,
@@ -10938,7 +10938,7 @@
                 "elapsed_sec": 29.43817408301402
               },
               {
-                "model_name": "PhaseLangCompilerOuterSpectralGRUModel (Outer 2-SpecGRU + Full Compiler + vCPU SpecGRU)",
+                "model_name": "StageCompilerOuterSpectralGRUModel (Outer 2-SpecGRU + Full Compiler + vCPU SpecGRU)",
                 "params": 456419,
                 "selected_epoch": 6,
                 "dev_ce_loss": 2.200002908706665,
@@ -10986,7 +10986,7 @@
                 "elapsed_sec": 29.857834541995544
               },
               {
-                "model_name": "PhaseLangCompilerDualSpectralGRUModel (Outer SpecGRU -> Compiler + vCPU SpecGRU -> Post SpecGRU)",
+                "model_name": "StageCompilerDualSpectralGRUModel (Outer SpecGRU -> Compiler + vCPU SpecGRU -> Post SpecGRU)",
                 "params": 468095,
                 "selected_epoch": 6,
                 "dev_ce_loss": 2.2193970680236816,
@@ -11094,7 +11094,7 @@
             },
             "leaderboard": [
               {
-                "model_name": "PhaseLangCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)",
+                "model_name": "StageCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)",
                 "params": 654883,
                 "selected_epoch": 6,
                 "dev_ce_loss": 1.7399330139160156,
@@ -11286,7 +11286,7 @@
                 "elapsed_sec": 0.8731984589830972
               },
               {
-                "model_name": "PhaseLangCompilerInnerSpectralGRUModel (Compiler Wrapping Inner 2-SpecGRU + vCPU SpecGRU)",
+                "model_name": "StageCompilerInnerSpectralGRUModel (Compiler Wrapping Inner 2-SpecGRU + vCPU SpecGRU)",
                 "params": 456419,
                 "selected_epoch": 6,
                 "dev_ce_loss": 1.85289466381073,
@@ -11334,7 +11334,7 @@
                 "elapsed_sec": 32.180166415986605
               },
               {
-                "model_name": "PhaseLangCompilerOuterSpectralGRUModel (Outer 2-SpecGRU + Full Compiler + vCPU SpecGRU)",
+                "model_name": "StageCompilerOuterSpectralGRUModel (Outer 2-SpecGRU + Full Compiler + vCPU SpecGRU)",
                 "params": 456419,
                 "selected_epoch": 6,
                 "dev_ce_loss": 1.848511815071106,
@@ -11382,7 +11382,7 @@
                 "elapsed_sec": 30.965521667036228
               },
               {
-                "model_name": "PhaseLangCompilerPostSpectralGRUModel (Full Compiler + vCPU SpecGRU -> Post 2-SpecGRU)",
+                "model_name": "StageCompilerPostSpectralGRUModel (Full Compiler + vCPU SpecGRU -> Post 2-SpecGRU)",
                 "params": 456419,
                 "selected_epoch": 6,
                 "dev_ce_loss": 1.9001342058181763,
@@ -11430,7 +11430,7 @@
                 "elapsed_sec": 30.457030834048055
               },
               {
-                "model_name": "PhaseLangCompilerDualSpectralGRUModel (Outer SpecGRU -> Compiler + vCPU SpecGRU -> Post SpecGRU)",
+                "model_name": "StageCompilerDualSpectralGRUModel (Outer SpecGRU -> Compiler + vCPU SpecGRU -> Post SpecGRU)",
                 "params": 468095,
                 "selected_epoch": 6,
                 "dev_ce_loss": 1.899446964263916,
@@ -11526,7 +11526,7 @@
                 "elapsed_sec": 0.7161122920224443
               }
             ],
-            "winner": "PhaseLangCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)"
+            "winner": "StageCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)"
           },
           "lexical_scope_binding": {
             "stats": {
@@ -11586,7 +11586,7 @@
                 "elapsed_sec": 0.605739833030384
               },
               {
-                "model_name": "PhaseLangCompilerOuterSpectralGRUModel (Outer 2-SpecGRU + Full Compiler + vCPU SpecGRU)",
+                "model_name": "StageCompilerOuterSpectralGRUModel (Outer 2-SpecGRU + Full Compiler + vCPU SpecGRU)",
                 "params": 456419,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.22097592055797577,
@@ -11634,7 +11634,7 @@
                 "elapsed_sec": 30.59521408303408
               },
               {
-                "model_name": "PhaseLangCompilerDualSpectralGRUModel (Outer SpecGRU -> Compiler + vCPU SpecGRU -> Post SpecGRU)",
+                "model_name": "StageCompilerDualSpectralGRUModel (Outer SpecGRU -> Compiler + vCPU SpecGRU -> Post SpecGRU)",
                 "params": 468095,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.2250879555940628,
@@ -11682,7 +11682,7 @@
                 "elapsed_sec": 30.043382917006966
               },
               {
-                "model_name": "PhaseLangCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)",
+                "model_name": "StageCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)",
                 "params": 654883,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.21691276133060455,
@@ -11778,7 +11778,7 @@
                 "elapsed_sec": 0.9387423750013113
               },
               {
-                "model_name": "PhaseLangCompilerInnerSpectralGRUModel (Compiler Wrapping Inner 2-SpecGRU + vCPU SpecGRU)",
+                "model_name": "StageCompilerInnerSpectralGRUModel (Compiler Wrapping Inner 2-SpecGRU + vCPU SpecGRU)",
                 "params": 456419,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.22536049783229828,
@@ -11874,7 +11874,7 @@
                 "elapsed_sec": 0.8777950419462286
               },
               {
-                "model_name": "PhaseLangCompilerPostSpectralGRUModel (Full Compiler + vCPU SpecGRU -> Post 2-SpecGRU)",
+                "model_name": "StageCompilerPostSpectralGRUModel (Full Compiler + vCPU SpecGRU -> Post 2-SpecGRU)",
                 "params": 456419,
                 "selected_epoch": 6,
                 "dev_ce_loss": 0.22723256051540375,
@@ -11987,7 +11987,7 @@
             },
             "leaderboard": [
               {
-                "model_name": "PhaseLangCompilerInnerSpectralGRUModel (Compiler Wrapping Inner 2-SpecGRU + vCPU SpecGRU)",
+                "model_name": "StageCompilerInnerSpectralGRUModel (Compiler Wrapping Inner 2-SpecGRU + vCPU SpecGRU)",
                 "params": 456419,
                 "selected_epoch": 6,
                 "dev_geodesic_dist": 0.14160864055156708,
@@ -12009,7 +12009,7 @@
                 "elapsed_sec": 0.37774925003759563
               },
               {
-                "model_name": "PhaseLangCompilerPostSpectralGRUModel (Full Compiler + vCPU SpecGRU -> Post 2-SpecGRU)",
+                "model_name": "StageCompilerPostSpectralGRUModel (Full Compiler + vCPU SpecGRU -> Post 2-SpecGRU)",
                 "params": 456419,
                 "selected_epoch": 6,
                 "dev_geodesic_dist": 0.1467188149690628,
@@ -12020,7 +12020,7 @@
                 "elapsed_sec": 7.698319416027516
               },
               {
-                "model_name": "PhaseLangCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)",
+                "model_name": "StageCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)",
                 "params": 654883,
                 "selected_epoch": 6,
                 "dev_geodesic_dist": 0.15071511268615723,
@@ -12031,7 +12031,7 @@
                 "elapsed_sec": 8.176847250026185
               },
               {
-                "model_name": "PhaseLangCompilerOuterSpectralGRUModel (Outer 2-SpecGRU + Full Compiler + vCPU SpecGRU)",
+                "model_name": "StageCompilerOuterSpectralGRUModel (Outer 2-SpecGRU + Full Compiler + vCPU SpecGRU)",
                 "params": 456419,
                 "selected_epoch": 6,
                 "dev_geodesic_dist": 0.1622675508260727,
@@ -12042,7 +12042,7 @@
                 "elapsed_sec": 7.852973834029399
               },
               {
-                "model_name": "PhaseLangCompilerDualSpectralGRUModel (Outer SpecGRU -> Compiler + vCPU SpecGRU -> Post SpecGRU)",
+                "model_name": "StageCompilerDualSpectralGRUModel (Outer SpecGRU -> Compiler + vCPU SpecGRU -> Post SpecGRU)",
                 "params": 468095,
                 "selected_epoch": 6,
                 "dev_geodesic_dist": 0.1632343977689743,
@@ -12086,7 +12086,7 @@
                 "elapsed_sec": 0.29581870802212507
               },
               {
-                "model_name": "1D Fourier Neural Operator (FNO-1D)",
+                "model_name": "1D Spectral Neural Operator (SNO-1D)",
                 "params": 135713,
                 "selected_epoch": 6,
                 "dev_geodesic_dist": 0.8658066391944885,
@@ -12097,7 +12097,7 @@
                 "elapsed_sec": 0.624356042011641
               }
             ],
-            "winner": "PhaseLangCompilerInnerSpectralGRUModel (Compiler Wrapping Inner 2-SpecGRU + vCPU SpecGRU)"
+            "winner": "StageCompilerInnerSpectralGRUModel (Compiler Wrapping Inner 2-SpecGRU + vCPU SpecGRU)"
           },
           "nickel_kiela_cayley_tree": {
             "stats": {
@@ -12112,7 +12112,7 @@
             },
             "leaderboard": [
               {
-                "model_name": "PhaseLangCompilerPostSpectralGRUModel (Full Compiler + vCPU SpecGRU -> Post 2-SpecGRU)",
+                "model_name": "StageCompilerPostSpectralGRUModel (Full Compiler + vCPU SpecGRU -> Post 2-SpecGRU)",
                 "params": 456419,
                 "selected_epoch": 6,
                 "dev_geodesic_dist": 0.2265695184469223,
@@ -12134,7 +12134,7 @@
                 "elapsed_sec": 0.37527695804601535
               },
               {
-                "model_name": "PhaseLangCompilerInnerSpectralGRUModel (Compiler Wrapping Inner 2-SpecGRU + vCPU SpecGRU)",
+                "model_name": "StageCompilerInnerSpectralGRUModel (Compiler Wrapping Inner 2-SpecGRU + vCPU SpecGRU)",
                 "params": 456419,
                 "selected_epoch": 6,
                 "dev_geodesic_dist": 0.22768151760101318,
@@ -12145,7 +12145,7 @@
                 "elapsed_sec": 7.876868958002888
               },
               {
-                "model_name": "PhaseLangCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)",
+                "model_name": "StageCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)",
                 "params": 654883,
                 "selected_epoch": 6,
                 "dev_geodesic_dist": 0.23158465325832367,
@@ -12156,7 +12156,7 @@
                 "elapsed_sec": 8.160391040961258
               },
               {
-                "model_name": "PhaseLangCompilerOuterSpectralGRUModel (Outer 2-SpecGRU + Full Compiler + vCPU SpecGRU)",
+                "model_name": "StageCompilerOuterSpectralGRUModel (Outer 2-SpecGRU + Full Compiler + vCPU SpecGRU)",
                 "params": 456419,
                 "selected_epoch": 6,
                 "dev_geodesic_dist": 0.24403341114521027,
@@ -12178,7 +12178,7 @@
                 "elapsed_sec": 0.293194041994866
               },
               {
-                "model_name": "PhaseLangCompilerDualSpectralGRUModel (Outer SpecGRU -> Compiler + vCPU SpecGRU -> Post SpecGRU)",
+                "model_name": "StageCompilerDualSpectralGRUModel (Outer SpecGRU -> Compiler + vCPU SpecGRU -> Post SpecGRU)",
                 "params": 468095,
                 "selected_epoch": 6,
                 "dev_geodesic_dist": 0.2517298758029938,
@@ -12200,7 +12200,7 @@
                 "elapsed_sec": 0.3547202500049025
               },
               {
-                "model_name": "1D Fourier Neural Operator (FNO-1D)",
+                "model_name": "1D Spectral Neural Operator (SNO-1D)",
                 "params": 135713,
                 "selected_epoch": 6,
                 "dev_geodesic_dist": 0.4073134660720825,
@@ -12222,7 +12222,7 @@
                 "elapsed_sec": 0.14380787505069748
               }
             ],
-            "winner": "PhaseLangCompilerPostSpectralGRUModel (Full Compiler + vCPU SpecGRU -> Post 2-SpecGRU)"
+            "winner": "StageCompilerPostSpectralGRUModel (Full Compiler + vCPU SpecGRU -> Post 2-SpecGRU)"
           }
         }
       }
@@ -12274,7 +12274,7 @@
             "elapsed_sec": 25.835626207990572
           },
           {
-            "model_name": "PhaseSheafUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)",
+            "model_name": "CohesiveUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)",
             "params": 554400,
             "selected_epoch": 5,
             "dev_ce_loss": 1.7631163597106934,
@@ -12294,7 +12294,7 @@
             "elapsed_sec": 22.119401125004515
           },
           {
-            "model_name": "PhaseSheafMonadicVCPUModel (AnyGram 2-GRU + PhaseLang vCPU)",
+            "model_name": "CohesiveMonadicVCPUModel (AnyGram 2-GRU + StageCompiler vCPU)",
             "params": 751105,
             "selected_epoch": 6,
             "dev_ce_loss": 1.7601311206817627,
@@ -12314,7 +12314,7 @@
             "elapsed_sec": 30.857304457982536
           },
           {
-            "model_name": "PolyphaseResonantMonadicVCPUModel (Dual-Mirror 2-GRU + PhaseLang vCPU)",
+            "model_name": "PolyphaseResonantMonadicVCPUModel (Dual-Mirror 2-GRU + StageCompiler vCPU)",
             "params": 751105,
             "selected_epoch": 6,
             "dev_ce_loss": 1.7709460258483887,
@@ -12428,7 +12428,7 @@
         },
         "leaderboard": [
           {
-            "model_name": "PhaseSheafMonadicVCPUModel (AnyGram 2-GRU + PhaseLang vCPU)",
+            "model_name": "CohesiveMonadicVCPUModel (AnyGram 2-GRU + StageCompiler vCPU)",
             "params": 751105,
             "selected_epoch": 6,
             "dev_ce_loss": 0.9258968830108643,
@@ -12448,7 +12448,7 @@
             "elapsed_sec": 30.50301808299264
           },
           {
-            "model_name": "PolyphaseResonantMonadicVCPUModel (Dual-Mirror 2-GRU + PhaseLang vCPU)",
+            "model_name": "PolyphaseResonantMonadicVCPUModel (Dual-Mirror 2-GRU + StageCompiler vCPU)",
             "params": 751105,
             "selected_epoch": 6,
             "dev_ce_loss": 0.9885488152503967,
@@ -12488,7 +12488,7 @@
             "elapsed_sec": 26.722146084008273
           },
           {
-            "model_name": "PhaseSheafUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)",
+            "model_name": "CohesiveUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)",
             "params": 554400,
             "selected_epoch": 6,
             "dev_ce_loss": 0.9401553273200989,
@@ -12588,7 +12588,7 @@
             "elapsed_sec": 0.611357040994335
           }
         ],
-        "winner": "PhaseSheafMonadicVCPUModel (AnyGram 2-GRU + PhaseLang vCPU)"
+        "winner": "CohesiveMonadicVCPUModel (AnyGram 2-GRU + StageCompiler vCPU)"
       },
       "lra_dyck4_brackets": {
         "stats": {
@@ -12663,7 +12663,7 @@
             "elapsed_sec": 0.6124599589966238
           },
           {
-            "model_name": "PhaseSheafMonadicVCPUModel (AnyGram 2-GRU + PhaseLang vCPU)",
+            "model_name": "CohesiveMonadicVCPUModel (AnyGram 2-GRU + StageCompiler vCPU)",
             "params": 751105,
             "selected_epoch": 6,
             "dev_ce_loss": 0.9174830913543701,
@@ -12683,7 +12683,7 @@
             "elapsed_sec": 30.424673250003252
           },
           {
-            "model_name": "PhaseSheafUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)",
+            "model_name": "CohesiveUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)",
             "params": 554400,
             "selected_epoch": 6,
             "dev_ce_loss": 0.9033320546150208,
@@ -12723,7 +12723,7 @@
             "elapsed_sec": 24.753667875018436
           },
           {
-            "model_name": "PolyphaseResonantMonadicVCPUModel (Dual-Mirror 2-GRU + PhaseLang vCPU)",
+            "model_name": "PolyphaseResonantMonadicVCPUModel (Dual-Mirror 2-GRU + StageCompiler vCPU)",
             "params": 751105,
             "selected_epoch": 6,
             "dev_ce_loss": 0.9576718807220459,
@@ -12818,7 +12818,7 @@
             "elapsed_sec": 0.6250592500437051
           },
           {
-            "model_name": "PhaseSheafMonadicVCPUModel (AnyGram 2-GRU + PhaseLang vCPU)",
+            "model_name": "CohesiveMonadicVCPUModel (AnyGram 2-GRU + StageCompiler vCPU)",
             "params": 751105,
             "selected_epoch": 4,
             "dev_ce_loss": 0.5280569195747375,
@@ -12838,7 +12838,7 @@
             "elapsed_sec": 28.157294250035193
           },
           {
-            "model_name": "PhaseSheafUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)",
+            "model_name": "CohesiveUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)",
             "params": 554400,
             "selected_epoch": 6,
             "dev_ce_loss": 0.5346621870994568,
@@ -12918,7 +12918,7 @@
             "elapsed_sec": 24.857550957996864
           },
           {
-            "model_name": "PolyphaseResonantMonadicVCPUModel (Dual-Mirror 2-GRU + PhaseLang vCPU)",
+            "model_name": "PolyphaseResonantMonadicVCPUModel (Dual-Mirror 2-GRU + StageCompiler vCPU)",
             "params": 751105,
             "selected_epoch": 6,
             "dev_ce_loss": 0.5376738905906677,
@@ -12990,7 +12990,7 @@
             "elapsed_sec": 0.9542902499670163
           },
           {
-            "model_name": "PhaseSheafUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)",
+            "model_name": "CohesiveUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)",
             "params": 554400,
             "selected_epoch": 6,
             "dev_ce_loss": 2.0379488468170166,
@@ -13010,7 +13010,7 @@
             "elapsed_sec": 21.01510545797646
           },
           {
-            "model_name": "PolyphaseResonantMonadicVCPUModel (Dual-Mirror 2-GRU + PhaseLang vCPU)",
+            "model_name": "PolyphaseResonantMonadicVCPUModel (Dual-Mirror 2-GRU + StageCompiler vCPU)",
             "params": 751105,
             "selected_epoch": 6,
             "dev_ce_loss": 2.0638132095336914,
@@ -13030,7 +13030,7 @@
             "elapsed_sec": 34.21220254100626
           },
           {
-            "model_name": "PhaseSheafMonadicVCPUModel (AnyGram 2-GRU + PhaseLang vCPU)",
+            "model_name": "CohesiveMonadicVCPUModel (AnyGram 2-GRU + StageCompiler vCPU)",
             "params": 751105,
             "selected_epoch": 6,
             "dev_ce_loss": 2.093313694000244,
@@ -13122,7 +13122,7 @@
         },
         "leaderboard": [
           {
-            "model_name": "PhaseSheafMonadicVCPUModel (AnyGram 2-GRU + PhaseLang vCPU)",
+            "model_name": "CohesiveMonadicVCPUModel (AnyGram 2-GRU + StageCompiler vCPU)",
             "params": 751105,
             "selected_epoch": 6,
             "dev_ce_loss": 1.7479490041732788,
@@ -13142,7 +13142,7 @@
             "elapsed_sec": 32.408831208013
           },
           {
-            "model_name": "PhaseSheafUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)",
+            "model_name": "CohesiveUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)",
             "params": 554400,
             "selected_epoch": 6,
             "dev_ce_loss": 1.755211591720581,
@@ -13182,7 +13182,7 @@
             "elapsed_sec": 25.553039250022266
           },
           {
-            "model_name": "PolyphaseResonantMonadicVCPUModel (Dual-Mirror 2-GRU + PhaseLang vCPU)",
+            "model_name": "PolyphaseResonantMonadicVCPUModel (Dual-Mirror 2-GRU + StageCompiler vCPU)",
             "params": 751105,
             "selected_epoch": 6,
             "dev_ce_loss": 1.7421256303787231,
@@ -13282,7 +13282,7 @@
             "elapsed_sec": 0.5955265839584172
           }
         ],
-        "winner": "PhaseSheafMonadicVCPUModel (AnyGram 2-GRU + PhaseLang vCPU)"
+        "winner": "CohesiveMonadicVCPUModel (AnyGram 2-GRU + StageCompiler vCPU)"
       },
       "lexical_scope_binding": {
         "stats": {
@@ -13294,7 +13294,7 @@
         },
         "leaderboard": [
           {
-            "model_name": "PhaseSheafUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)",
+            "model_name": "CohesiveUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)",
             "params": 554400,
             "selected_epoch": 6,
             "dev_ce_loss": 0.21956658363342285,
@@ -13354,7 +13354,7 @@
             "elapsed_sec": 0.9328118339763023
           },
           {
-            "model_name": "PhaseSheafMonadicVCPUModel (AnyGram 2-GRU + PhaseLang vCPU)",
+            "model_name": "CohesiveMonadicVCPUModel (AnyGram 2-GRU + StageCompiler vCPU)",
             "params": 751105,
             "selected_epoch": 5,
             "dev_ce_loss": 0.2355855107307434,
@@ -13374,7 +13374,7 @@
             "elapsed_sec": 29.759894042043015
           },
           {
-            "model_name": "PolyphaseResonantMonadicVCPUModel (Dual-Mirror 2-GRU + PhaseLang vCPU)",
+            "model_name": "PolyphaseResonantMonadicVCPUModel (Dual-Mirror 2-GRU + StageCompiler vCPU)",
             "params": 751105,
             "selected_epoch": 6,
             "dev_ce_loss": 0.22452238202095032,
@@ -13454,7 +13454,7 @@
             "elapsed_sec": 0.6117667089565657
           }
         ],
-        "winner": "PhaseSheafUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)"
+        "winner": "CohesiveUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)"
       }
     },
     "continuous_benchmarks": {
@@ -13471,7 +13471,7 @@
         },
         "leaderboard": [
           {
-            "model_name": "PhaseSheafUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)",
+            "model_name": "CohesiveUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)",
             "params": 554400,
             "selected_epoch": 6,
             "dev_geodesic_dist": 0.1446051150560379,
@@ -13482,7 +13482,7 @@
             "elapsed_sec": 4.995242041011807
           },
           {
-            "model_name": "PhaseSheafMonadicVCPUModel (AnyGram 2-GRU + PhaseLang vCPU)",
+            "model_name": "CohesiveMonadicVCPUModel (AnyGram 2-GRU + StageCompiler vCPU)",
             "params": 751105,
             "selected_epoch": 6,
             "dev_geodesic_dist": 0.15253739058971405,
@@ -13493,7 +13493,7 @@
             "elapsed_sec": 9.544967083027586
           },
           {
-            "model_name": "PolyphaseResonantMonadicVCPUModel (Dual-Mirror 2-GRU + PhaseLang vCPU)",
+            "model_name": "PolyphaseResonantMonadicVCPUModel (Dual-Mirror 2-GRU + StageCompiler vCPU)",
             "params": 751105,
             "selected_epoch": 5,
             "dev_geodesic_dist": 0.15331794321537018,
@@ -13559,7 +13559,7 @@
             "elapsed_sec": 0.30180383299011737
           },
           {
-            "model_name": "1D Fourier Neural Operator (FNO-1D)",
+            "model_name": "1D Spectral Neural Operator (SNO-1D)",
             "params": 135713,
             "selected_epoch": 6,
             "dev_geodesic_dist": 0.8687653541564941,
@@ -13570,7 +13570,7 @@
             "elapsed_sec": 0.6543125840253197
           }
         ],
-        "winner": "PhaseSheafUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)"
+        "winner": "CohesiveUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)"
       },
       "nickel_kiela_cayley_tree": {
         "stats": {
@@ -13585,7 +13585,7 @@
         },
         "leaderboard": [
           {
-            "model_name": "PolyphaseResonantMonadicVCPUModel (Dual-Mirror 2-GRU + PhaseLang vCPU)",
+            "model_name": "PolyphaseResonantMonadicVCPUModel (Dual-Mirror 2-GRU + StageCompiler vCPU)",
             "params": 751105,
             "selected_epoch": 6,
             "dev_geodesic_dist": 0.22294537723064423,
@@ -13596,7 +13596,7 @@
             "elapsed_sec": 9.605671750032343
           },
           {
-            "model_name": "PhaseSheafUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)",
+            "model_name": "CohesiveUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)",
             "params": 554400,
             "selected_epoch": 6,
             "dev_geodesic_dist": 0.21549542248249054,
@@ -13618,7 +13618,7 @@
             "elapsed_sec": 4.990853791998234
           },
           {
-            "model_name": "PhaseSheafMonadicVCPUModel (AnyGram 2-GRU + PhaseLang vCPU)",
+            "model_name": "CohesiveMonadicVCPUModel (AnyGram 2-GRU + StageCompiler vCPU)",
             "params": 751105,
             "selected_epoch": 6,
             "dev_geodesic_dist": 0.2344924658536911,
@@ -13662,7 +13662,7 @@
             "elapsed_sec": 0.3548585409880616
           },
           {
-            "model_name": "1D Fourier Neural Operator (FNO-1D)",
+            "model_name": "1D Spectral Neural Operator (SNO-1D)",
             "params": 135713,
             "selected_epoch": 6,
             "dev_geodesic_dist": 0.40500763058662415,
@@ -13684,11 +13684,11 @@
             "elapsed_sec": 0.1402082089916803
           }
         ],
-        "winner": "PolyphaseResonantMonadicVCPUModel (Dual-Mirror 2-GRU + PhaseLang vCPU)"
+        "winner": "PolyphaseResonantMonadicVCPUModel (Dual-Mirror 2-GRU + StageCompiler vCPU)"
       }
     }
   },
-  "phaselang_compiler_3models": {
+  "stage_compiler_3models": {
     "config": {
       "model_selector": "compiler_no_gru,compiler_outer_gru,compiler_inner_gru",
       "epochs": 6,
@@ -13714,7 +13714,7 @@
         },
         "leaderboard": [
           {
-            "model_name": "PhaseLangCompilerNoGRUModel (Full Compiler + Cavity, No GRU)",
+            "model_name": "StageCompilerNoGRUModel (Full Compiler + Cavity, No GRU)",
             "params": 481976,
             "selected_epoch": 6,
             "dev_ce_loss": 2.817159414291382,
@@ -13762,7 +13762,7 @@
             "elapsed_sec": 31.924396542017348
           },
           {
-            "model_name": "PhaseLangCompilerOuterGRUModel (Outer 2-GRU + Full Compiler + Cavity)",
+            "model_name": "StageCompilerOuterGRUModel (Outer 2-GRU + Full Compiler + Cavity)",
             "params": 692182,
             "selected_epoch": 6,
             "dev_ce_loss": 2.268575668334961,
@@ -13906,7 +13906,7 @@
             "elapsed_sec": 0.9504614159814082
           },
           {
-            "model_name": "PhaseLangCompilerInnerGRUModel (Full Compiler Wrapping Inner 2-GRU Cavity)",
+            "model_name": "StageCompilerInnerGRUModel (Full Compiler Wrapping Inner 2-GRU Cavity)",
             "params": 692182,
             "selected_epoch": 6,
             "dev_ce_loss": 2.279515027999878,
@@ -14050,7 +14050,7 @@
             "elapsed_sec": 0.671947667025961
           }
         ],
-        "winner": "PhaseLangCompilerNoGRUModel (Full Compiler + Cavity, No GRU)"
+        "winner": "StageCompilerNoGRUModel (Full Compiler + Cavity, No GRU)"
       },
       "mamba_associative_recall": {
         "stats": {
@@ -14064,7 +14064,7 @@
         },
         "leaderboard": [
           {
-            "model_name": "PhaseLangCompilerInnerGRUModel (Full Compiler Wrapping Inner 2-GRU Cavity)",
+            "model_name": "StageCompilerInnerGRUModel (Full Compiler Wrapping Inner 2-GRU Cavity)",
             "params": 692182,
             "selected_epoch": 6,
             "dev_ce_loss": 1.033549427986145,
@@ -14112,7 +14112,7 @@
             "elapsed_sec": 33.16694429103518
           },
           {
-            "model_name": "PhaseLangCompilerOuterGRUModel (Outer 2-GRU + Full Compiler + Cavity)",
+            "model_name": "StageCompilerOuterGRUModel (Outer 2-GRU + Full Compiler + Cavity)",
             "params": 692182,
             "selected_epoch": 6,
             "dev_ce_loss": 0.9920304417610168,
@@ -14160,7 +14160,7 @@
             "elapsed_sec": 33.552513624948915
           },
           {
-            "model_name": "PhaseLangCompilerNoGRUModel (Full Compiler + Cavity, No GRU)",
+            "model_name": "StageCompilerNoGRUModel (Full Compiler + Cavity, No GRU)",
             "params": 481976,
             "selected_epoch": 6,
             "dev_ce_loss": 1.5404349565505981,
@@ -14400,7 +14400,7 @@
             "elapsed_sec": 0.6433169159572572
           }
         ],
-        "winner": "PhaseLangCompilerInnerGRUModel (Full Compiler Wrapping Inner 2-GRU Cavity)"
+        "winner": "StageCompilerInnerGRUModel (Full Compiler Wrapping Inner 2-GRU Cavity)"
       },
       "lra_dyck4_brackets": {
         "stats": {
@@ -14559,7 +14559,7 @@
             "elapsed_sec": 0.8936805420089513
           },
           {
-            "model_name": "PhaseLangCompilerNoGRUModel (Full Compiler + Cavity, No GRU)",
+            "model_name": "StageCompilerNoGRUModel (Full Compiler + Cavity, No GRU)",
             "params": 481976,
             "selected_epoch": 6,
             "dev_ce_loss": 1.0405527353286743,
@@ -14607,7 +14607,7 @@
             "elapsed_sec": 31.356896209006663
           },
           {
-            "model_name": "PhaseLangCompilerInnerGRUModel (Full Compiler Wrapping Inner 2-GRU Cavity)",
+            "model_name": "StageCompilerInnerGRUModel (Full Compiler Wrapping Inner 2-GRU Cavity)",
             "params": 692182,
             "selected_epoch": 6,
             "dev_ce_loss": 1.0194220542907715,
@@ -14655,7 +14655,7 @@
             "elapsed_sec": 33.606673125003
           },
           {
-            "model_name": "PhaseLangCompilerOuterGRUModel (Outer 2-GRU + Full Compiler + Cavity)",
+            "model_name": "StageCompilerOuterGRUModel (Outer 2-GRU + Full Compiler + Cavity)",
             "params": 692182,
             "selected_epoch": 6,
             "dev_ce_loss": 0.9532983303070068,
@@ -14958,7 +14958,7 @@
             "elapsed_sec": 0.9145507909706794
           },
           {
-            "model_name": "PhaseLangCompilerOuterGRUModel (Outer 2-GRU + Full Compiler + Cavity)",
+            "model_name": "StageCompilerOuterGRUModel (Outer 2-GRU + Full Compiler + Cavity)",
             "params": 692182,
             "selected_epoch": 6,
             "dev_ce_loss": 0.6138335466384888,
@@ -15006,7 +15006,7 @@
             "elapsed_sec": 31.902283583011013
           },
           {
-            "model_name": "PhaseLangCompilerInnerGRUModel (Full Compiler Wrapping Inner 2-GRU Cavity)",
+            "model_name": "StageCompilerInnerGRUModel (Full Compiler Wrapping Inner 2-GRU Cavity)",
             "params": 692182,
             "selected_epoch": 6,
             "dev_ce_loss": 0.6545307040214539,
@@ -15054,7 +15054,7 @@
             "elapsed_sec": 32.33757308300119
           },
           {
-            "model_name": "PhaseLangCompilerNoGRUModel (Full Compiler + Cavity, No GRU)",
+            "model_name": "StageCompilerNoGRUModel (Full Compiler + Cavity, No GRU)",
             "params": 481976,
             "selected_epoch": 6,
             "dev_ce_loss": 0.745682954788208,
@@ -15210,7 +15210,7 @@
             "elapsed_sec": 0.8633860829868354
           },
           {
-            "model_name": "PhaseLangCompilerInnerGRUModel (Full Compiler Wrapping Inner 2-GRU Cavity)",
+            "model_name": "StageCompilerInnerGRUModel (Full Compiler Wrapping Inner 2-GRU Cavity)",
             "params": 692182,
             "selected_epoch": 6,
             "dev_ce_loss": 2.4358091354370117,
@@ -15258,7 +15258,7 @@
             "elapsed_sec": 33.09768429095857
           },
           {
-            "model_name": "PhaseLangCompilerOuterGRUModel (Outer 2-GRU + Full Compiler + Cavity)",
+            "model_name": "StageCompilerOuterGRUModel (Outer 2-GRU + Full Compiler + Cavity)",
             "params": 692182,
             "selected_epoch": 6,
             "dev_ce_loss": 2.364699602127075,
@@ -15306,7 +15306,7 @@
             "elapsed_sec": 32.50178708398016
           },
           {
-            "model_name": "PhaseLangCompilerNoGRUModel (Full Compiler + Cavity, No GRU)",
+            "model_name": "StageCompilerNoGRUModel (Full Compiler + Cavity, No GRU)",
             "params": 481976,
             "selected_epoch": 6,
             "dev_ce_loss": 2.581355333328247,
@@ -15462,7 +15462,7 @@
         },
         "leaderboard": [
           {
-            "model_name": "PhaseLangCompilerOuterGRUModel (Outer 2-GRU + Full Compiler + Cavity)",
+            "model_name": "StageCompilerOuterGRUModel (Outer 2-GRU + Full Compiler + Cavity)",
             "params": 692182,
             "selected_epoch": 6,
             "dev_ce_loss": 1.9553500413894653,
@@ -15510,7 +15510,7 @@
             "elapsed_sec": 33.69147758302279
           },
           {
-            "model_name": "PhaseLangCompilerNoGRUModel (Full Compiler + Cavity, No GRU)",
+            "model_name": "StageCompilerNoGRUModel (Full Compiler + Cavity, No GRU)",
             "params": 481976,
             "selected_epoch": 6,
             "dev_ce_loss": 2.4019851684570312,
@@ -15606,7 +15606,7 @@
             "elapsed_sec": 1.0010802500182763
           },
           {
-            "model_name": "PhaseLangCompilerInnerGRUModel (Full Compiler Wrapping Inner 2-GRU Cavity)",
+            "model_name": "StageCompilerInnerGRUModel (Full Compiler Wrapping Inner 2-GRU Cavity)",
             "params": 692182,
             "selected_epoch": 6,
             "dev_ce_loss": 1.9787148237228394,
@@ -15798,7 +15798,7 @@
             "elapsed_sec": 0.6408216250129044
           }
         ],
-        "winner": "PhaseLangCompilerOuterGRUModel (Outer 2-GRU + Full Compiler + Cavity)"
+        "winner": "StageCompilerOuterGRUModel (Outer 2-GRU + Full Compiler + Cavity)"
       },
       "lexical_scope_binding": {
         "stats": {
@@ -15858,7 +15858,7 @@
             "elapsed_sec": 0.7061423329869285
           },
           {
-            "model_name": "PhaseLangCompilerInnerGRUModel (Full Compiler Wrapping Inner 2-GRU Cavity)",
+            "model_name": "StageCompilerInnerGRUModel (Full Compiler Wrapping Inner 2-GRU Cavity)",
             "params": 692182,
             "selected_epoch": 6,
             "dev_ce_loss": 0.2228393852710724,
@@ -15906,7 +15906,7 @@
             "elapsed_sec": 33.378161082975566
           },
           {
-            "model_name": "PhaseLangCompilerOuterGRUModel (Outer 2-GRU + Full Compiler + Cavity)",
+            "model_name": "StageCompilerOuterGRUModel (Outer 2-GRU + Full Compiler + Cavity)",
             "params": 692182,
             "selected_epoch": 6,
             "dev_ce_loss": 0.22657765448093414,
@@ -15954,7 +15954,7 @@
             "elapsed_sec": 33.381731667032
           },
           {
-            "model_name": "PhaseLangCompilerNoGRUModel (Full Compiler + Cavity, No GRU)",
+            "model_name": "StageCompilerNoGRUModel (Full Compiler + Cavity, No GRU)",
             "params": 481976,
             "selected_epoch": 6,
             "dev_ce_loss": 0.3212101459503174,
@@ -16174,7 +16174,7 @@
             "elapsed_sec": 0.3665238340036012
           },
           {
-            "model_name": "PhaseLangCompilerInnerGRUModel (Full Compiler Wrapping Inner 2-GRU Cavity)",
+            "model_name": "StageCompilerInnerGRUModel (Full Compiler Wrapping Inner 2-GRU Cavity)",
             "params": 692182,
             "selected_epoch": 6,
             "dev_geodesic_dist": 0.1713120937347412,
@@ -16185,7 +16185,7 @@
             "elapsed_sec": 7.414834957977291
           },
           {
-            "model_name": "PhaseLangCompilerNoGRUModel (Full Compiler + Cavity, No GRU)",
+            "model_name": "StageCompilerNoGRUModel (Full Compiler + Cavity, No GRU)",
             "params": 481976,
             "selected_epoch": 6,
             "dev_geodesic_dist": 0.12924037873744965,
@@ -16196,7 +16196,7 @@
             "elapsed_sec": 6.334950208023656
           },
           {
-            "model_name": "PhaseLangCompilerOuterGRUModel (Outer 2-GRU + Full Compiler + Cavity)",
+            "model_name": "StageCompilerOuterGRUModel (Outer 2-GRU + Full Compiler + Cavity)",
             "params": 692182,
             "selected_epoch": 6,
             "dev_geodesic_dist": 0.16983163356781006,
@@ -16240,7 +16240,7 @@
             "elapsed_sec": 0.29335033299867064
           },
           {
-            "model_name": "1D Fourier Neural Operator (FNO-1D)",
+            "model_name": "1D Spectral Neural Operator (SNO-1D)",
             "params": 135713,
             "selected_epoch": 6,
             "dev_geodesic_dist": 0.8977846503257751,
@@ -16266,7 +16266,7 @@
         },
         "leaderboard": [
           {
-            "model_name": "PhaseLangCompilerNoGRUModel (Full Compiler + Cavity, No GRU)",
+            "model_name": "StageCompilerNoGRUModel (Full Compiler + Cavity, No GRU)",
             "params": 481976,
             "selected_epoch": 5,
             "dev_geodesic_dist": 0.22051334381103516,
@@ -16288,7 +16288,7 @@
             "elapsed_sec": 0.3686650000163354
           },
           {
-            "model_name": "PhaseLangCompilerOuterGRUModel (Outer 2-GRU + Full Compiler + Cavity)",
+            "model_name": "StageCompilerOuterGRUModel (Outer 2-GRU + Full Compiler + Cavity)",
             "params": 692182,
             "selected_epoch": 6,
             "dev_geodesic_dist": 0.2464154213666916,
@@ -16310,7 +16310,7 @@
             "elapsed_sec": 0.2929749999893829
           },
           {
-            "model_name": "PhaseLangCompilerInnerGRUModel (Full Compiler Wrapping Inner 2-GRU Cavity)",
+            "model_name": "StageCompilerInnerGRUModel (Full Compiler Wrapping Inner 2-GRU Cavity)",
             "params": 692182,
             "selected_epoch": 6,
             "dev_geodesic_dist": 0.24020862579345703,
@@ -16332,7 +16332,7 @@
             "elapsed_sec": 0.36123916698852554
           },
           {
-            "model_name": "1D Fourier Neural Operator (FNO-1D)",
+            "model_name": "1D Spectral Neural Operator (SNO-1D)",
             "params": 135713,
             "selected_epoch": 6,
             "dev_geodesic_dist": 0.40445676445961,
@@ -16354,7 +16354,7 @@
             "elapsed_sec": 0.13961320801172405
           }
         ],
-        "winner": "PhaseLangCompilerNoGRUModel (Full Compiler + Cavity, No GRU)"
+        "winner": "StageCompilerNoGRUModel (Full Compiler + Cavity, No GRU)"
       }
     }
   },
@@ -16427,7 +16427,7 @@
             "elapsed_sec": 0.8988149589858949
           },
           {
-            "model_name": "Polyphase Resonant Cavity 2-GRU + PhaseLang vCPU Monadic Cavity",
+            "model_name": "Polyphase Resonant Cavity 2-GRU + StageCompiler vCPU Monadic Cavity",
             "params": 751105,
             "selected_epoch": 6,
             "dev_ce_loss": 2.5100080966949463,
@@ -16447,7 +16447,7 @@
             "elapsed_sec": 34.24810979096219
           },
           {
-            "model_name": "PhaseSheafAnyGram + 2-Layer GRU",
+            "model_name": "CohesiveAnyGram + 2-Layer GRU",
             "params": 398401,
             "selected_epoch": 6,
             "dev_ce_loss": 2.4745497703552246,
@@ -16467,7 +16467,7 @@
             "elapsed_sec": 12.504288583004382
           },
           {
-            "model_name": "PhaseSheafAnyGram 2-GRU + Unified Monadic Cavity (DQAttn+Moyal+SpecGRU)",
+            "model_name": "CohesiveAnyGram 2-GRU + Unified Monadic Cavity (DQAttn+Moyal+SpecGRU)",
             "params": 554400,
             "selected_epoch": 6,
             "dev_ce_loss": 2.466275215148926,
@@ -16487,7 +16487,7 @@
             "elapsed_sec": 21.195225165982265
           },
           {
-            "model_name": "PhaseSheafAnyGram 2-GRU + PhaseLang vCPU Monadic Cavity",
+            "model_name": "CohesiveAnyGram 2-GRU + StageCompiler vCPU Monadic Cavity",
             "params": 751105,
             "selected_epoch": 6,
             "dev_ce_loss": 2.496256113052368,
@@ -16664,7 +16664,7 @@
             "elapsed_sec": 0.6124819160322659
           },
           {
-            "model_name": "PhaseSheafAnyGram + 2-Layer GRU",
+            "model_name": "CohesiveAnyGram + 2-Layer GRU",
             "params": 398401,
             "selected_epoch": 6,
             "dev_ce_loss": 2.3580503463745117,
@@ -16684,7 +16684,7 @@
             "elapsed_sec": 12.204164583003148
           },
           {
-            "model_name": "PhaseSheafAnyGram 2-GRU + PhaseLang vCPU Monadic Cavity",
+            "model_name": "CohesiveAnyGram 2-GRU + StageCompiler vCPU Monadic Cavity",
             "params": 751105,
             "selected_epoch": 6,
             "dev_ce_loss": 2.344327688217163,
@@ -16704,7 +16704,7 @@
             "elapsed_sec": 29.51653033401817
           },
           {
-            "model_name": "PhaseSheafAnyGram 2-GRU + Unified Monadic Cavity (DQAttn+Moyal+SpecGRU)",
+            "model_name": "CohesiveAnyGram 2-GRU + Unified Monadic Cavity (DQAttn+Moyal+SpecGRU)",
             "params": 554400,
             "selected_epoch": 6,
             "dev_ce_loss": 2.336500644683838,
@@ -16724,7 +16724,7 @@
             "elapsed_sec": 20.54387900000438
           },
           {
-            "model_name": "Polyphase Resonant Cavity 2-GRU + PhaseLang vCPU Monadic Cavity",
+            "model_name": "Polyphase Resonant Cavity 2-GRU + StageCompiler vCPU Monadic Cavity",
             "params": 751105,
             "selected_epoch": 6,
             "dev_ce_loss": 2.381269931793213,
@@ -16821,7 +16821,7 @@
         },
         "leaderboard": [
           {
-            "model_name": "Polyphase Resonant Cavity 2-GRU + PhaseLang vCPU Monadic Cavity",
+            "model_name": "Polyphase Resonant Cavity 2-GRU + StageCompiler vCPU Monadic Cavity",
             "params": 751105,
             "selected_epoch": 6,
             "dev_ce_loss": 1.8220136165618896,
@@ -16861,7 +16861,7 @@
             "elapsed_sec": 0.9209825830184855
           },
           {
-            "model_name": "PhaseSheafAnyGram 2-GRU + Unified Monadic Cavity (DQAttn+Moyal+SpecGRU)",
+            "model_name": "CohesiveAnyGram 2-GRU + Unified Monadic Cavity (DQAttn+Moyal+SpecGRU)",
             "params": 554400,
             "selected_epoch": 6,
             "dev_ce_loss": 1.8081427812576294,
@@ -16881,7 +16881,7 @@
             "elapsed_sec": 20.33050312497653
           },
           {
-            "model_name": "PhaseSheafAnyGram 2-GRU + PhaseLang vCPU Monadic Cavity",
+            "model_name": "CohesiveAnyGram 2-GRU + StageCompiler vCPU Monadic Cavity",
             "params": 751105,
             "selected_epoch": 6,
             "dev_ce_loss": 1.8298203945159912,
@@ -16961,7 +16961,7 @@
             "elapsed_sec": 16.440973541000858
           },
           {
-            "model_name": "PhaseSheafAnyGram + 2-Layer GRU",
+            "model_name": "CohesiveAnyGram + 2-Layer GRU",
             "params": 398401,
             "selected_epoch": 6,
             "dev_ce_loss": 1.8375486135482788,
@@ -17021,7 +17021,7 @@
             "elapsed_sec": 0.6357285829726607
           }
         ],
-        "winner": "Polyphase Resonant Cavity 2-GRU + PhaseLang vCPU Monadic Cavity"
+        "winner": "Polyphase Resonant Cavity 2-GRU + StageCompiler vCPU Monadic Cavity"
       },
       "mamba_associative_recall": {
         "stats": {
@@ -17035,7 +17035,7 @@
         },
         "leaderboard": [
           {
-            "model_name": "PhaseSheafAnyGram 2-GRU + PhaseLang vCPU Monadic Cavity",
+            "model_name": "CohesiveAnyGram 2-GRU + StageCompiler vCPU Monadic Cavity",
             "params": 751105,
             "selected_epoch": 6,
             "dev_ce_loss": 0.9289498925209045,
@@ -17055,7 +17055,7 @@
             "elapsed_sec": 29.341868459014222
           },
           {
-            "model_name": "Polyphase Resonant Cavity 2-GRU + PhaseLang vCPU Monadic Cavity",
+            "model_name": "Polyphase Resonant Cavity 2-GRU + StageCompiler vCPU Monadic Cavity",
             "params": 751105,
             "selected_epoch": 6,
             "dev_ce_loss": 0.9925816655158997,
@@ -17095,7 +17095,7 @@
             "elapsed_sec": 24.891167791967746
           },
           {
-            "model_name": "PhaseSheafAnyGram 2-GRU + Unified Monadic Cavity (DQAttn+Moyal+SpecGRU)",
+            "model_name": "CohesiveAnyGram 2-GRU + Unified Monadic Cavity (DQAttn+Moyal+SpecGRU)",
             "params": 554400,
             "selected_epoch": 6,
             "dev_ce_loss": 0.9290282726287842,
@@ -17115,7 +17115,7 @@
             "elapsed_sec": 21.615147207980044
           },
           {
-            "model_name": "PhaseSheafAnyGram + 2-Layer GRU",
+            "model_name": "CohesiveAnyGram + 2-Layer GRU",
             "params": 398401,
             "selected_epoch": 6,
             "dev_ce_loss": 0.981047511100769,
@@ -17235,7 +17235,7 @@
             "elapsed_sec": 0.613331249973271
           }
         ],
-        "winner": "PhaseSheafAnyGram 2-GRU + PhaseLang vCPU Monadic Cavity"
+        "winner": "CohesiveAnyGram 2-GRU + StageCompiler vCPU Monadic Cavity"
       },
       "lra_dyck4_brackets": {
         "stats": {
@@ -17310,7 +17310,7 @@
             "elapsed_sec": 0.9582705409848131
           },
           {
-            "model_name": "PhaseSheafAnyGram 2-GRU + PhaseLang vCPU Monadic Cavity",
+            "model_name": "CohesiveAnyGram 2-GRU + StageCompiler vCPU Monadic Cavity",
             "params": 751105,
             "selected_epoch": 6,
             "dev_ce_loss": 0.9144501090049744,
@@ -17330,7 +17330,7 @@
             "elapsed_sec": 29.02352020802209
           },
           {
-            "model_name": "PhaseSheafAnyGram 2-GRU + Unified Monadic Cavity (DQAttn+Moyal+SpecGRU)",
+            "model_name": "CohesiveAnyGram 2-GRU + Unified Monadic Cavity (DQAttn+Moyal+SpecGRU)",
             "params": 554400,
             "selected_epoch": 6,
             "dev_ce_loss": 0.9025484919548035,
@@ -17370,7 +17370,7 @@
             "elapsed_sec": 24.17729750002036
           },
           {
-            "model_name": "Polyphase Resonant Cavity 2-GRU + PhaseLang vCPU Monadic Cavity",
+            "model_name": "Polyphase Resonant Cavity 2-GRU + StageCompiler vCPU Monadic Cavity",
             "params": 751105,
             "selected_epoch": 6,
             "dev_ce_loss": 0.9524418711662292,
@@ -17430,7 +17430,7 @@
             "elapsed_sec": 0.6185489580384456
           },
           {
-            "model_name": "PhaseSheafAnyGram + 2-Layer GRU",
+            "model_name": "CohesiveAnyGram + 2-Layer GRU",
             "params": 398401,
             "selected_epoch": 6,
             "dev_ce_loss": 0.9805737733840942,
@@ -17525,7 +17525,7 @@
             "elapsed_sec": 0.9283418750273995
           },
           {
-            "model_name": "PhaseSheafAnyGram 2-GRU + PhaseLang vCPU Monadic Cavity",
+            "model_name": "CohesiveAnyGram 2-GRU + StageCompiler vCPU Monadic Cavity",
             "params": 751105,
             "selected_epoch": 5,
             "dev_ce_loss": 0.5279268026351929,
@@ -17545,7 +17545,7 @@
             "elapsed_sec": 34.7785870420048
           },
           {
-            "model_name": "PhaseSheafAnyGram 2-GRU + Unified Monadic Cavity (DQAttn+Moyal+SpecGRU)",
+            "model_name": "CohesiveAnyGram 2-GRU + Unified Monadic Cavity (DQAttn+Moyal+SpecGRU)",
             "params": 554400,
             "selected_epoch": 6,
             "dev_ce_loss": 0.5323579907417297,
@@ -17605,7 +17605,7 @@
             "elapsed_sec": 24.69097374996636
           },
           {
-            "model_name": "Polyphase Resonant Cavity 2-GRU + PhaseLang vCPU Monadic Cavity",
+            "model_name": "Polyphase Resonant Cavity 2-GRU + StageCompiler vCPU Monadic Cavity",
             "params": 751105,
             "selected_epoch": 6,
             "dev_ce_loss": 0.539169430732727,
@@ -17625,7 +17625,7 @@
             "elapsed_sec": 33.39415850001387
           },
           {
-            "model_name": "PhaseSheafAnyGram + 2-Layer GRU",
+            "model_name": "CohesiveAnyGram + 2-Layer GRU",
             "params": 398401,
             "selected_epoch": 6,
             "dev_ce_loss": 0.5422706604003906,
@@ -17682,7 +17682,7 @@
         },
         "leaderboard": [
           {
-            "model_name": "PhaseSheafAnyGram 2-GRU + Unified Monadic Cavity (DQAttn+Moyal+SpecGRU)",
+            "model_name": "CohesiveAnyGram 2-GRU + Unified Monadic Cavity (DQAttn+Moyal+SpecGRU)",
             "params": 554400,
             "selected_epoch": 6,
             "dev_geodesic_dist": 0.1448853462934494,
@@ -17704,7 +17704,7 @@
             "elapsed_sec": 0.35988408303819597
           },
           {
-            "model_name": "PhaseSheafAnyGram 2-GRU + PhaseLang vCPU Monadic Cavity",
+            "model_name": "CohesiveAnyGram 2-GRU + StageCompiler vCPU Monadic Cavity",
             "params": 751105,
             "selected_epoch": 6,
             "dev_geodesic_dist": 0.15453539788722992,
@@ -17715,7 +17715,7 @@
             "elapsed_sec": 8.881398209021427
           },
           {
-            "model_name": "Polyphase Resonant Cavity 2-GRU + PhaseLang vCPU Monadic Cavity",
+            "model_name": "Polyphase Resonant Cavity 2-GRU + StageCompiler vCPU Monadic Cavity",
             "params": 751105,
             "selected_epoch": 6,
             "dev_geodesic_dist": 0.15703308582305908,
@@ -17737,7 +17737,7 @@
             "elapsed_sec": 4.549906332977116
           },
           {
-            "model_name": "PhaseSheafAnyGram + 2-Layer GRU",
+            "model_name": "CohesiveAnyGram + 2-Layer GRU",
             "params": 398401,
             "selected_epoch": 5,
             "dev_geodesic_dist": 0.16681921482086182,
@@ -17792,7 +17792,7 @@
             "elapsed_sec": 0.13510708400281146
           },
           {
-            "model_name": "1D Fourier Neural Operator (FNO-1D)",
+            "model_name": "1D Spectral Neural Operator (SNO-1D)",
             "params": 135713,
             "selected_epoch": 6,
             "dev_geodesic_dist": 0.8544155955314636,
@@ -17803,7 +17803,7 @@
             "elapsed_sec": 0.6323917920235544
           }
         ],
-        "winner": "PhaseSheafAnyGram 2-GRU + Unified Monadic Cavity (DQAttn+Moyal+SpecGRU)"
+        "winner": "CohesiveAnyGram 2-GRU + Unified Monadic Cavity (DQAttn+Moyal+SpecGRU)"
       },
       "lorenz63_kuramoto_chaos": {
         "stats": {
@@ -17840,7 +17840,7 @@
             "elapsed_sec": 0.36303337500430644
           },
           {
-            "model_name": "PhaseSheafAnyGram + 2-Layer GRU",
+            "model_name": "CohesiveAnyGram + 2-Layer GRU",
             "params": 398401,
             "selected_epoch": 5,
             "dev_geodesic_dist": 0.6821638941764832,
@@ -17873,7 +17873,7 @@
             "elapsed_sec": 4.731886124995071
           },
           {
-            "model_name": "PhaseSheafAnyGram 2-GRU + Unified Monadic Cavity (DQAttn+Moyal+SpecGRU)",
+            "model_name": "CohesiveAnyGram 2-GRU + Unified Monadic Cavity (DQAttn+Moyal+SpecGRU)",
             "params": 554400,
             "selected_epoch": 5,
             "dev_geodesic_dist": 0.651881754398346,
@@ -17884,7 +17884,7 @@
             "elapsed_sec": 4.673393875011243
           },
           {
-            "model_name": "PhaseSheafAnyGram 2-GRU + PhaseLang vCPU Monadic Cavity",
+            "model_name": "CohesiveAnyGram 2-GRU + StageCompiler vCPU Monadic Cavity",
             "params": 751105,
             "selected_epoch": 5,
             "dev_geodesic_dist": 0.6361729502677917,
@@ -17895,7 +17895,7 @@
             "elapsed_sec": 8.880912083026487
           },
           {
-            "model_name": "Polyphase Resonant Cavity 2-GRU + PhaseLang vCPU Monadic Cavity",
+            "model_name": "Polyphase Resonant Cavity 2-GRU + StageCompiler vCPU Monadic Cavity",
             "params": 751105,
             "selected_epoch": 5,
             "dev_geodesic_dist": 0.63164883852005,
@@ -17928,7 +17928,7 @@
             "elapsed_sec": 0.14247704204171896
           },
           {
-            "model_name": "1D Fourier Neural Operator (FNO-1D)",
+            "model_name": "1D Spectral Neural Operator (SNO-1D)",
             "params": 135713,
             "selected_epoch": 6,
             "dev_geodesic_dist": 0.9960309863090515,
@@ -17954,7 +17954,7 @@
         },
         "leaderboard": [
           {
-            "model_name": "Polyphase Resonant Cavity 2-GRU + PhaseLang vCPU Monadic Cavity",
+            "model_name": "Polyphase Resonant Cavity 2-GRU + StageCompiler vCPU Monadic Cavity",
             "params": 751105,
             "selected_epoch": 6,
             "dev_geodesic_dist": 0.22334551811218262,
@@ -17965,7 +17965,7 @@
             "elapsed_sec": 8.960143208969384
           },
           {
-            "model_name": "PhaseSheafAnyGram 2-GRU + Unified Monadic Cavity (DQAttn+Moyal+SpecGRU)",
+            "model_name": "CohesiveAnyGram 2-GRU + Unified Monadic Cavity (DQAttn+Moyal+SpecGRU)",
             "params": 554400,
             "selected_epoch": 6,
             "dev_geodesic_dist": 0.21589027345180511,
@@ -18009,7 +18009,7 @@
             "elapsed_sec": 0.6241132079740055
           },
           {
-            "model_name": "PhaseSheafAnyGram 2-GRU + PhaseLang vCPU Monadic Cavity",
+            "model_name": "CohesiveAnyGram 2-GRU + StageCompiler vCPU Monadic Cavity",
             "params": 751105,
             "selected_epoch": 6,
             "dev_geodesic_dist": 0.23497436940670013,
@@ -18020,7 +18020,7 @@
             "elapsed_sec": 8.979636957985349
           },
           {
-            "model_name": "PhaseSheafAnyGram + 2-Layer GRU",
+            "model_name": "CohesiveAnyGram + 2-Layer GRU",
             "params": 398401,
             "selected_epoch": 6,
             "dev_geodesic_dist": 0.23286132514476776,
@@ -18053,7 +18053,7 @@
             "elapsed_sec": 1.703486917016562
           },
           {
-            "model_name": "1D Fourier Neural Operator (FNO-1D)",
+            "model_name": "1D Spectral Neural Operator (SNO-1D)",
             "params": 135713,
             "selected_epoch": 6,
             "dev_geodesic_dist": 0.40681469440460205,
@@ -18075,11 +18075,11 @@
             "elapsed_sec": 0.1434314579819329
           }
         ],
-        "winner": "Polyphase Resonant Cavity 2-GRU + PhaseLang vCPU Monadic Cavity"
+        "winner": "Polyphase Resonant Cavity 2-GRU + StageCompiler vCPU Monadic Cavity"
       }
     }
   },
-  "phaselang_post_sandwich_2models": {
+  "stage_post_sandwich_2models": {
     "config": {
       "model_selector": "compiler_post_gru,compiler_sandwich_gru",
       "epochs": 6,
@@ -18105,7 +18105,7 @@
         },
         "leaderboard": [
           {
-            "model_name": "PhaseLangCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)",
+            "model_name": "StageCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)",
             "params": 643207,
             "selected_epoch": 6,
             "dev_ce_loss": 1.7833764553070068,
@@ -18297,7 +18297,7 @@
             "elapsed_sec": 0.7785090410034172
           },
           {
-            "model_name": "PhaseLangCompilerSandwichGRUModel (Pre 2-GRU -> Full Compiler -> Post 2-GRU)",
+            "model_name": "StageCompilerSandwichGRUModel (Pre 2-GRU -> Full Compiler -> Post 2-GRU)",
             "params": 841607,
             "selected_epoch": 6,
             "dev_ce_loss": 1.904185175895691,
@@ -18393,7 +18393,7 @@
             "elapsed_sec": 0.7213687089970335
           }
         ],
-        "winner": "PhaseLangCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)"
+        "winner": "StageCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)"
       },
       "mamba_associative_recall": {
         "stats": {
@@ -18407,7 +18407,7 @@
         },
         "leaderboard": [
           {
-            "model_name": "PhaseLangCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)",
+            "model_name": "StageCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)",
             "params": 643207,
             "selected_epoch": 6,
             "dev_ce_loss": 0.9383891224861145,
@@ -18455,7 +18455,7 @@
             "elapsed_sec": 36.64627433294663
           },
           {
-            "model_name": "PhaseLangCompilerSandwichGRUModel (Pre 2-GRU -> Full Compiler -> Post 2-GRU)",
+            "model_name": "StageCompilerSandwichGRUModel (Pre 2-GRU -> Full Compiler -> Post 2-GRU)",
             "params": 841607,
             "selected_epoch": 6,
             "dev_ce_loss": 0.9839773178100586,
@@ -18695,7 +18695,7 @@
             "elapsed_sec": 0.7589119999902323
           }
         ],
-        "winner": "PhaseLangCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)"
+        "winner": "StageCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)"
       },
       "lra_dyck4_brackets": {
         "stats": {
@@ -18854,7 +18854,7 @@
             "elapsed_sec": 1.076284290989861
           },
           {
-            "model_name": "PhaseLangCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)",
+            "model_name": "StageCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)",
             "params": 643207,
             "selected_epoch": 6,
             "dev_ce_loss": 0.8828834295272827,
@@ -18902,7 +18902,7 @@
             "elapsed_sec": 36.27017591701588
           },
           {
-            "model_name": "PhaseLangCompilerSandwichGRUModel (Pre 2-GRU -> Full Compiler -> Post 2-GRU)",
+            "model_name": "StageCompilerSandwichGRUModel (Pre 2-GRU -> Full Compiler -> Post 2-GRU)",
             "params": 841607,
             "selected_epoch": 6,
             "dev_ce_loss": 0.8948477506637573,
@@ -19205,7 +19205,7 @@
             "elapsed_sec": 0.6723082499811426
           },
           {
-            "model_name": "PhaseLangCompilerSandwichGRUModel (Pre 2-GRU -> Full Compiler -> Post 2-GRU)",
+            "model_name": "StageCompilerSandwichGRUModel (Pre 2-GRU -> Full Compiler -> Post 2-GRU)",
             "params": 841607,
             "selected_epoch": 4,
             "dev_ce_loss": 0.5258175134658813,
@@ -19253,7 +19253,7 @@
             "elapsed_sec": 37.10999324999284
           },
           {
-            "model_name": "PhaseLangCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)",
+            "model_name": "StageCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)",
             "params": 643207,
             "selected_epoch": 6,
             "dev_ce_loss": 0.5587303638458252,
@@ -19361,7 +19361,7 @@
             "elapsed_sec": 1.0285449580405839
           },
           {
-            "model_name": "PhaseLangCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)",
+            "model_name": "StageCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)",
             "params": 643207,
             "selected_epoch": 6,
             "dev_ce_loss": 2.011901617050171,
@@ -19409,7 +19409,7 @@
             "elapsed_sec": 35.67443425004603
           },
           {
-            "model_name": "PhaseLangCompilerSandwichGRUModel (Pre 2-GRU -> Full Compiler -> Post 2-GRU)",
+            "model_name": "StageCompilerSandwichGRUModel (Pre 2-GRU -> Full Compiler -> Post 2-GRU)",
             "params": 841607,
             "selected_epoch": 6,
             "dev_ce_loss": 2.1067254543304443,
@@ -19613,7 +19613,7 @@
         },
         "leaderboard": [
           {
-            "model_name": "PhaseLangCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)",
+            "model_name": "StageCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)",
             "params": 643207,
             "selected_epoch": 6,
             "dev_ce_loss": 1.7157588005065918,
@@ -19757,7 +19757,7 @@
             "elapsed_sec": 0.8784367080079392
           },
           {
-            "model_name": "PhaseLangCompilerSandwichGRUModel (Pre 2-GRU -> Full Compiler -> Post 2-GRU)",
+            "model_name": "StageCompilerSandwichGRUModel (Pre 2-GRU -> Full Compiler -> Post 2-GRU)",
             "params": 841607,
             "selected_epoch": 6,
             "dev_ce_loss": 1.7580729722976685,
@@ -19901,7 +19901,7 @@
             "elapsed_sec": 0.5787890830542892
           }
         ],
-        "winner": "PhaseLangCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)"
+        "winner": "StageCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)"
       },
       "lexical_scope_binding": {
         "stats": {
@@ -19961,7 +19961,7 @@
             "elapsed_sec": 0.595922792039346
           },
           {
-            "model_name": "PhaseLangCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)",
+            "model_name": "StageCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)",
             "params": 643207,
             "selected_epoch": 6,
             "dev_ce_loss": 0.2127814143896103,
@@ -20009,7 +20009,7 @@
             "elapsed_sec": 27.813736791955307
           },
           {
-            "model_name": "PhaseLangCompilerSandwichGRUModel (Pre 2-GRU -> Full Compiler -> Post 2-GRU)",
+            "model_name": "StageCompilerSandwichGRUModel (Pre 2-GRU -> Full Compiler -> Post 2-GRU)",
             "params": 841607,
             "selected_epoch": 6,
             "dev_ce_loss": 0.22436851263046265,
@@ -20218,7 +20218,7 @@
         },
         "leaderboard": [
           {
-            "model_name": "PhaseLangCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)",
+            "model_name": "StageCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)",
             "params": 643207,
             "selected_epoch": 6,
             "dev_geodesic_dist": 0.15751181542873383,
@@ -20229,7 +20229,7 @@
             "elapsed_sec": 7.0245714579941705
           },
           {
-            "model_name": "PhaseLangCompilerSandwichGRUModel (Pre 2-GRU -> Full Compiler -> Post 2-GRU)",
+            "model_name": "StageCompilerSandwichGRUModel (Pre 2-GRU -> Full Compiler -> Post 2-GRU)",
             "params": 841607,
             "selected_epoch": 6,
             "dev_geodesic_dist": 0.160500168800354,
@@ -20284,7 +20284,7 @@
             "elapsed_sec": 0.29082904203096405
           },
           {
-            "model_name": "1D Fourier Neural Operator (FNO-1D)",
+            "model_name": "1D Spectral Neural Operator (SNO-1D)",
             "params": 135713,
             "selected_epoch": 6,
             "dev_geodesic_dist": 0.8457098007202148,
@@ -20295,7 +20295,7 @@
             "elapsed_sec": 0.6216339579550549
           }
         ],
-        "winner": "PhaseLangCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)"
+        "winner": "StageCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)"
       },
       "nickel_kiela_cayley_tree": {
         "stats": {
@@ -20310,7 +20310,7 @@
         },
         "leaderboard": [
           {
-            "model_name": "PhaseLangCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)",
+            "model_name": "StageCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)",
             "params": 643207,
             "selected_epoch": 6,
             "dev_geodesic_dist": 0.2166677862405777,
@@ -20343,7 +20343,7 @@
             "elapsed_sec": 0.3548690840252675
           },
           {
-            "model_name": "PhaseLangCompilerSandwichGRUModel (Pre 2-GRU -> Full Compiler -> Post 2-GRU)",
+            "model_name": "StageCompilerSandwichGRUModel (Pre 2-GRU -> Full Compiler -> Post 2-GRU)",
             "params": 841607,
             "selected_epoch": 5,
             "dev_geodesic_dist": 0.24882353842258453,
@@ -20376,7 +20376,7 @@
             "elapsed_sec": 0.13607550004962832
           },
           {
-            "model_name": "1D Fourier Neural Operator (FNO-1D)",
+            "model_name": "1D Spectral Neural Operator (SNO-1D)",
             "params": 135713,
             "selected_epoch": 6,
             "dev_geodesic_dist": 0.4043305814266205,
@@ -20387,11 +20387,11 @@
             "elapsed_sec": 0.6235822499729693
           }
         ],
-        "winner": "PhaseLangCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)"
+        "winner": "StageCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)"
       }
     }
   },
-  "phaselang_spectral_5models": {
+  "stage_compiler_spectral_5models": {
     "config": {
       "model_selector": "compiler_outer_spec_gru,compiler_inner_spec_gru,compiler_post_spec_gru,compiler_dual_spec_gru,compiler_post_hybrid_spec_gru",
       "epochs": 6,
@@ -20417,7 +20417,7 @@
         },
         "leaderboard": [
           {
-            "model_name": "PhaseLangCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)",
+            "model_name": "StageCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)",
             "params": 654883,
             "selected_epoch": 6,
             "dev_ce_loss": 1.7983126640319824,
@@ -20609,7 +20609,7 @@
             "elapsed_sec": 0.6330616250052117
           },
           {
-            "model_name": "PhaseLangCompilerPostSpectralGRUModel (Full Compiler + vCPU SpecGRU -> Post 2-SpecGRU)",
+            "model_name": "StageCompilerPostSpectralGRUModel (Full Compiler + vCPU SpecGRU -> Post 2-SpecGRU)",
             "params": 456419,
             "selected_epoch": 6,
             "dev_ce_loss": 1.9224796295166016,
@@ -20657,7 +20657,7 @@
             "elapsed_sec": 31.167416999989655
           },
           {
-            "model_name": "PhaseLangCompilerOuterSpectralGRUModel (Outer 2-SpecGRU + Full Compiler + vCPU SpecGRU)",
+            "model_name": "StageCompilerOuterSpectralGRUModel (Outer 2-SpecGRU + Full Compiler + vCPU SpecGRU)",
             "params": 456419,
             "selected_epoch": 6,
             "dev_ce_loss": 1.9223647117614746,
@@ -20705,7 +20705,7 @@
             "elapsed_sec": 34.27409650001209
           },
           {
-            "model_name": "PhaseLangCompilerInnerSpectralGRUModel (Compiler Wrapping Inner 2-SpecGRU + vCPU SpecGRU)",
+            "model_name": "StageCompilerInnerSpectralGRUModel (Compiler Wrapping Inner 2-SpecGRU + vCPU SpecGRU)",
             "params": 456419,
             "selected_epoch": 6,
             "dev_ce_loss": 1.948873519897461,
@@ -20753,7 +20753,7 @@
             "elapsed_sec": 31.95049941696925
           },
           {
-            "model_name": "PhaseLangCompilerDualSpectralGRUModel (Outer SpecGRU -> Compiler + vCPU SpecGRU -> Post SpecGRU)",
+            "model_name": "StageCompilerDualSpectralGRUModel (Outer SpecGRU -> Compiler + vCPU SpecGRU -> Post SpecGRU)",
             "params": 468095,
             "selected_epoch": 6,
             "dev_ce_loss": 2.0091331005096436,
@@ -20849,7 +20849,7 @@
             "elapsed_sec": 0.644535708008334
           }
         ],
-        "winner": "PhaseLangCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)"
+        "winner": "StageCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)"
       },
       "mamba_associative_recall": {
         "stats": {
@@ -20863,7 +20863,7 @@
         },
         "leaderboard": [
           {
-            "model_name": "PhaseLangCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)",
+            "model_name": "StageCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)",
             "params": 654883,
             "selected_epoch": 6,
             "dev_ce_loss": 0.9108784198760986,
@@ -20911,7 +20911,7 @@
             "elapsed_sec": 31.098342457960825
           },
           {
-            "model_name": "PhaseLangCompilerOuterSpectralGRUModel (Outer 2-SpecGRU + Full Compiler + vCPU SpecGRU)",
+            "model_name": "StageCompilerOuterSpectralGRUModel (Outer 2-SpecGRU + Full Compiler + vCPU SpecGRU)",
             "params": 456419,
             "selected_epoch": 6,
             "dev_ce_loss": 0.9918772578239441,
@@ -20959,7 +20959,7 @@
             "elapsed_sec": 29.73127899999963
           },
           {
-            "model_name": "PhaseLangCompilerInnerSpectralGRUModel (Compiler Wrapping Inner 2-SpecGRU + vCPU SpecGRU)",
+            "model_name": "StageCompilerInnerSpectralGRUModel (Compiler Wrapping Inner 2-SpecGRU + vCPU SpecGRU)",
             "params": 456419,
             "selected_epoch": 6,
             "dev_ce_loss": 0.9815477728843689,
@@ -21007,7 +21007,7 @@
             "elapsed_sec": 33.40420716704102
           },
           {
-            "model_name": "PhaseLangCompilerPostSpectralGRUModel (Full Compiler + vCPU SpecGRU -> Post 2-SpecGRU)",
+            "model_name": "StageCompilerPostSpectralGRUModel (Full Compiler + vCPU SpecGRU -> Post 2-SpecGRU)",
             "params": 456419,
             "selected_epoch": 6,
             "dev_ce_loss": 1.0319730043411255,
@@ -21055,7 +21055,7 @@
             "elapsed_sec": 29.819594166998286
           },
           {
-            "model_name": "PhaseLangCompilerDualSpectralGRUModel (Outer SpecGRU -> Compiler + vCPU SpecGRU -> Post SpecGRU)",
+            "model_name": "StageCompilerDualSpectralGRUModel (Outer SpecGRU -> Compiler + vCPU SpecGRU -> Post SpecGRU)",
             "params": 468095,
             "selected_epoch": 6,
             "dev_ce_loss": 1.0512101650238037,
@@ -21295,7 +21295,7 @@
             "elapsed_sec": 0.6108719159965403
           }
         ],
-        "winner": "PhaseLangCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)"
+        "winner": "StageCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)"
       },
       "lra_dyck4_brackets": {
         "stats": {
@@ -21454,7 +21454,7 @@
             "elapsed_sec": 0.6339819169952534
           },
           {
-            "model_name": "PhaseLangCompilerInnerSpectralGRUModel (Compiler Wrapping Inner 2-SpecGRU + vCPU SpecGRU)",
+            "model_name": "StageCompilerInnerSpectralGRUModel (Compiler Wrapping Inner 2-SpecGRU + vCPU SpecGRU)",
             "params": 456419,
             "selected_epoch": 6,
             "dev_ce_loss": 0.869676947593689,
@@ -21502,7 +21502,7 @@
             "elapsed_sec": 29.818798707972746
           },
           {
-            "model_name": "PhaseLangCompilerOuterSpectralGRUModel (Outer 2-SpecGRU + Full Compiler + vCPU SpecGRU)",
+            "model_name": "StageCompilerOuterSpectralGRUModel (Outer 2-SpecGRU + Full Compiler + vCPU SpecGRU)",
             "params": 456419,
             "selected_epoch": 6,
             "dev_ce_loss": 0.8580604195594788,
@@ -21550,7 +21550,7 @@
             "elapsed_sec": 29.88865762500791
           },
           {
-            "model_name": "PhaseLangCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)",
+            "model_name": "StageCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)",
             "params": 654883,
             "selected_epoch": 6,
             "dev_ce_loss": 0.89948570728302,
@@ -21598,7 +21598,7 @@
             "elapsed_sec": 31.355657624953892
           },
           {
-            "model_name": "PhaseLangCompilerDualSpectralGRUModel (Outer SpecGRU -> Compiler + vCPU SpecGRU -> Post SpecGRU)",
+            "model_name": "StageCompilerDualSpectralGRUModel (Outer SpecGRU -> Compiler + vCPU SpecGRU -> Post SpecGRU)",
             "params": 468095,
             "selected_epoch": 6,
             "dev_ce_loss": 0.9010725021362305,
@@ -21646,7 +21646,7 @@
             "elapsed_sec": 35.059546916978434
           },
           {
-            "model_name": "PhaseLangCompilerPostSpectralGRUModel (Full Compiler + vCPU SpecGRU -> Post 2-SpecGRU)",
+            "model_name": "StageCompilerPostSpectralGRUModel (Full Compiler + vCPU SpecGRU -> Post 2-SpecGRU)",
             "params": 456419,
             "selected_epoch": 6,
             "dev_ce_loss": 0.9354579448699951,
@@ -21949,7 +21949,7 @@
             "elapsed_sec": 0.9109574579633772
           },
           {
-            "model_name": "PhaseLangCompilerInnerSpectralGRUModel (Compiler Wrapping Inner 2-SpecGRU + vCPU SpecGRU)",
+            "model_name": "StageCompilerInnerSpectralGRUModel (Compiler Wrapping Inner 2-SpecGRU + vCPU SpecGRU)",
             "params": 456419,
             "selected_epoch": 4,
             "dev_ce_loss": 0.545917809009552,
@@ -21997,7 +21997,7 @@
             "elapsed_sec": 34.72650470799999
           },
           {
-            "model_name": "PhaseLangCompilerOuterSpectralGRUModel (Outer 2-SpecGRU + Full Compiler + vCPU SpecGRU)",
+            "model_name": "StageCompilerOuterSpectralGRUModel (Outer 2-SpecGRU + Full Compiler + vCPU SpecGRU)",
             "params": 456419,
             "selected_epoch": 4,
             "dev_ce_loss": 0.5493748784065247,
@@ -22045,7 +22045,7 @@
             "elapsed_sec": 32.82804258301621
           },
           {
-            "model_name": "PhaseLangCompilerDualSpectralGRUModel (Outer SpecGRU -> Compiler + vCPU SpecGRU -> Post SpecGRU)",
+            "model_name": "StageCompilerDualSpectralGRUModel (Outer SpecGRU -> Compiler + vCPU SpecGRU -> Post SpecGRU)",
             "params": 468095,
             "selected_epoch": 6,
             "dev_ce_loss": 0.5495479702949524,
@@ -22093,7 +22093,7 @@
             "elapsed_sec": 30.701362708001398
           },
           {
-            "model_name": "PhaseLangCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)",
+            "model_name": "StageCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)",
             "params": 654883,
             "selected_epoch": 5,
             "dev_ce_loss": 0.5635376572608948,
@@ -22141,7 +22141,7 @@
             "elapsed_sec": 30.43092016701121
           },
           {
-            "model_name": "PhaseLangCompilerPostSpectralGRUModel (Full Compiler + vCPU SpecGRU -> Post 2-SpecGRU)",
+            "model_name": "StageCompilerPostSpectralGRUModel (Full Compiler + vCPU SpecGRU -> Post 2-SpecGRU)",
             "params": 456419,
             "selected_epoch": 6,
             "dev_ce_loss": 0.5653518438339233,
@@ -22297,7 +22297,7 @@
             "elapsed_sec": 0.937359582982026
           },
           {
-            "model_name": "PhaseLangCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)",
+            "model_name": "StageCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)",
             "params": 654883,
             "selected_epoch": 6,
             "dev_ce_loss": 2.048271417617798,
@@ -22393,7 +22393,7 @@
             "elapsed_sec": 0.614057041995693
           },
           {
-            "model_name": "PhaseLangCompilerPostSpectralGRUModel (Full Compiler + vCPU SpecGRU -> Post 2-SpecGRU)",
+            "model_name": "StageCompilerPostSpectralGRUModel (Full Compiler + vCPU SpecGRU -> Post 2-SpecGRU)",
             "params": 456419,
             "selected_epoch": 6,
             "dev_ce_loss": 2.1631929874420166,
@@ -22441,7 +22441,7 @@
             "elapsed_sec": 29.40256837499328
           },
           {
-            "model_name": "PhaseLangCompilerInnerSpectralGRUModel (Compiler Wrapping Inner 2-SpecGRU + vCPU SpecGRU)",
+            "model_name": "StageCompilerInnerSpectralGRUModel (Compiler Wrapping Inner 2-SpecGRU + vCPU SpecGRU)",
             "params": 456419,
             "selected_epoch": 5,
             "dev_ce_loss": 2.1913485527038574,
@@ -22489,7 +22489,7 @@
             "elapsed_sec": 29.43817408301402
           },
           {
-            "model_name": "PhaseLangCompilerOuterSpectralGRUModel (Outer 2-SpecGRU + Full Compiler + vCPU SpecGRU)",
+            "model_name": "StageCompilerOuterSpectralGRUModel (Outer 2-SpecGRU + Full Compiler + vCPU SpecGRU)",
             "params": 456419,
             "selected_epoch": 6,
             "dev_ce_loss": 2.200002908706665,
@@ -22537,7 +22537,7 @@
             "elapsed_sec": 29.857834541995544
           },
           {
-            "model_name": "PhaseLangCompilerDualSpectralGRUModel (Outer SpecGRU -> Compiler + vCPU SpecGRU -> Post SpecGRU)",
+            "model_name": "StageCompilerDualSpectralGRUModel (Outer SpecGRU -> Compiler + vCPU SpecGRU -> Post SpecGRU)",
             "params": 468095,
             "selected_epoch": 6,
             "dev_ce_loss": 2.2193970680236816,
@@ -22645,7 +22645,7 @@
         },
         "leaderboard": [
           {
-            "model_name": "PhaseLangCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)",
+            "model_name": "StageCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)",
             "params": 654883,
             "selected_epoch": 6,
             "dev_ce_loss": 1.7399330139160156,
@@ -22837,7 +22837,7 @@
             "elapsed_sec": 0.8731984589830972
           },
           {
-            "model_name": "PhaseLangCompilerInnerSpectralGRUModel (Compiler Wrapping Inner 2-SpecGRU + vCPU SpecGRU)",
+            "model_name": "StageCompilerInnerSpectralGRUModel (Compiler Wrapping Inner 2-SpecGRU + vCPU SpecGRU)",
             "params": 456419,
             "selected_epoch": 6,
             "dev_ce_loss": 1.85289466381073,
@@ -22885,7 +22885,7 @@
             "elapsed_sec": 32.180166415986605
           },
           {
-            "model_name": "PhaseLangCompilerOuterSpectralGRUModel (Outer 2-SpecGRU + Full Compiler + vCPU SpecGRU)",
+            "model_name": "StageCompilerOuterSpectralGRUModel (Outer 2-SpecGRU + Full Compiler + vCPU SpecGRU)",
             "params": 456419,
             "selected_epoch": 6,
             "dev_ce_loss": 1.848511815071106,
@@ -22933,7 +22933,7 @@
             "elapsed_sec": 30.965521667036228
           },
           {
-            "model_name": "PhaseLangCompilerPostSpectralGRUModel (Full Compiler + vCPU SpecGRU -> Post 2-SpecGRU)",
+            "model_name": "StageCompilerPostSpectralGRUModel (Full Compiler + vCPU SpecGRU -> Post 2-SpecGRU)",
             "params": 456419,
             "selected_epoch": 6,
             "dev_ce_loss": 1.9001342058181763,
@@ -22981,7 +22981,7 @@
             "elapsed_sec": 30.457030834048055
           },
           {
-            "model_name": "PhaseLangCompilerDualSpectralGRUModel (Outer SpecGRU -> Compiler + vCPU SpecGRU -> Post SpecGRU)",
+            "model_name": "StageCompilerDualSpectralGRUModel (Outer SpecGRU -> Compiler + vCPU SpecGRU -> Post SpecGRU)",
             "params": 468095,
             "selected_epoch": 6,
             "dev_ce_loss": 1.899446964263916,
@@ -23077,7 +23077,7 @@
             "elapsed_sec": 0.7161122920224443
           }
         ],
-        "winner": "PhaseLangCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)"
+        "winner": "StageCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)"
       },
       "lexical_scope_binding": {
         "stats": {
@@ -23137,7 +23137,7 @@
             "elapsed_sec": 0.605739833030384
           },
           {
-            "model_name": "PhaseLangCompilerOuterSpectralGRUModel (Outer 2-SpecGRU + Full Compiler + vCPU SpecGRU)",
+            "model_name": "StageCompilerOuterSpectralGRUModel (Outer 2-SpecGRU + Full Compiler + vCPU SpecGRU)",
             "params": 456419,
             "selected_epoch": 6,
             "dev_ce_loss": 0.22097592055797577,
@@ -23185,7 +23185,7 @@
             "elapsed_sec": 30.59521408303408
           },
           {
-            "model_name": "PhaseLangCompilerDualSpectralGRUModel (Outer SpecGRU -> Compiler + vCPU SpecGRU -> Post SpecGRU)",
+            "model_name": "StageCompilerDualSpectralGRUModel (Outer SpecGRU -> Compiler + vCPU SpecGRU -> Post SpecGRU)",
             "params": 468095,
             "selected_epoch": 6,
             "dev_ce_loss": 0.2250879555940628,
@@ -23233,7 +23233,7 @@
             "elapsed_sec": 30.043382917006966
           },
           {
-            "model_name": "PhaseLangCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)",
+            "model_name": "StageCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)",
             "params": 654883,
             "selected_epoch": 6,
             "dev_ce_loss": 0.21691276133060455,
@@ -23329,7 +23329,7 @@
             "elapsed_sec": 0.9387423750013113
           },
           {
-            "model_name": "PhaseLangCompilerInnerSpectralGRUModel (Compiler Wrapping Inner 2-SpecGRU + vCPU SpecGRU)",
+            "model_name": "StageCompilerInnerSpectralGRUModel (Compiler Wrapping Inner 2-SpecGRU + vCPU SpecGRU)",
             "params": 456419,
             "selected_epoch": 6,
             "dev_ce_loss": 0.22536049783229828,
@@ -23425,7 +23425,7 @@
             "elapsed_sec": 0.8777950419462286
           },
           {
-            "model_name": "PhaseLangCompilerPostSpectralGRUModel (Full Compiler + vCPU SpecGRU -> Post 2-SpecGRU)",
+            "model_name": "StageCompilerPostSpectralGRUModel (Full Compiler + vCPU SpecGRU -> Post 2-SpecGRU)",
             "params": 456419,
             "selected_epoch": 6,
             "dev_ce_loss": 0.22723256051540375,
@@ -23538,7 +23538,7 @@
         },
         "leaderboard": [
           {
-            "model_name": "PhaseLangCompilerInnerSpectralGRUModel (Compiler Wrapping Inner 2-SpecGRU + vCPU SpecGRU)",
+            "model_name": "StageCompilerInnerSpectralGRUModel (Compiler Wrapping Inner 2-SpecGRU + vCPU SpecGRU)",
             "params": 456419,
             "selected_epoch": 6,
             "dev_geodesic_dist": 0.14160864055156708,
@@ -23560,7 +23560,7 @@
             "elapsed_sec": 0.37774925003759563
           },
           {
-            "model_name": "PhaseLangCompilerPostSpectralGRUModel (Full Compiler + vCPU SpecGRU -> Post 2-SpecGRU)",
+            "model_name": "StageCompilerPostSpectralGRUModel (Full Compiler + vCPU SpecGRU -> Post 2-SpecGRU)",
             "params": 456419,
             "selected_epoch": 6,
             "dev_geodesic_dist": 0.1467188149690628,
@@ -23571,7 +23571,7 @@
             "elapsed_sec": 7.698319416027516
           },
           {
-            "model_name": "PhaseLangCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)",
+            "model_name": "StageCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)",
             "params": 654883,
             "selected_epoch": 6,
             "dev_geodesic_dist": 0.15071511268615723,
@@ -23582,7 +23582,7 @@
             "elapsed_sec": 8.176847250026185
           },
           {
-            "model_name": "PhaseLangCompilerOuterSpectralGRUModel (Outer 2-SpecGRU + Full Compiler + vCPU SpecGRU)",
+            "model_name": "StageCompilerOuterSpectralGRUModel (Outer 2-SpecGRU + Full Compiler + vCPU SpecGRU)",
             "params": 456419,
             "selected_epoch": 6,
             "dev_geodesic_dist": 0.1622675508260727,
@@ -23593,7 +23593,7 @@
             "elapsed_sec": 7.852973834029399
           },
           {
-            "model_name": "PhaseLangCompilerDualSpectralGRUModel (Outer SpecGRU -> Compiler + vCPU SpecGRU -> Post SpecGRU)",
+            "model_name": "StageCompilerDualSpectralGRUModel (Outer SpecGRU -> Compiler + vCPU SpecGRU -> Post SpecGRU)",
             "params": 468095,
             "selected_epoch": 6,
             "dev_geodesic_dist": 0.1632343977689743,
@@ -23637,7 +23637,7 @@
             "elapsed_sec": 0.29581870802212507
           },
           {
-            "model_name": "1D Fourier Neural Operator (FNO-1D)",
+            "model_name": "1D Spectral Neural Operator (SNO-1D)",
             "params": 135713,
             "selected_epoch": 6,
             "dev_geodesic_dist": 0.8658066391944885,
@@ -23648,7 +23648,7 @@
             "elapsed_sec": 0.624356042011641
           }
         ],
-        "winner": "PhaseLangCompilerInnerSpectralGRUModel (Compiler Wrapping Inner 2-SpecGRU + vCPU SpecGRU)"
+        "winner": "StageCompilerInnerSpectralGRUModel (Compiler Wrapping Inner 2-SpecGRU + vCPU SpecGRU)"
       },
       "nickel_kiela_cayley_tree": {
         "stats": {
@@ -23663,7 +23663,7 @@
         },
         "leaderboard": [
           {
-            "model_name": "PhaseLangCompilerPostSpectralGRUModel (Full Compiler + vCPU SpecGRU -> Post 2-SpecGRU)",
+            "model_name": "StageCompilerPostSpectralGRUModel (Full Compiler + vCPU SpecGRU -> Post 2-SpecGRU)",
             "params": 456419,
             "selected_epoch": 6,
             "dev_geodesic_dist": 0.2265695184469223,
@@ -23685,7 +23685,7 @@
             "elapsed_sec": 0.37527695804601535
           },
           {
-            "model_name": "PhaseLangCompilerInnerSpectralGRUModel (Compiler Wrapping Inner 2-SpecGRU + vCPU SpecGRU)",
+            "model_name": "StageCompilerInnerSpectralGRUModel (Compiler Wrapping Inner 2-SpecGRU + vCPU SpecGRU)",
             "params": 456419,
             "selected_epoch": 6,
             "dev_geodesic_dist": 0.22768151760101318,
@@ -23696,7 +23696,7 @@
             "elapsed_sec": 7.876868958002888
           },
           {
-            "model_name": "PhaseLangCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)",
+            "model_name": "StageCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)",
             "params": 654883,
             "selected_epoch": 6,
             "dev_geodesic_dist": 0.23158465325832367,
@@ -23707,7 +23707,7 @@
             "elapsed_sec": 8.160391040961258
           },
           {
-            "model_name": "PhaseLangCompilerOuterSpectralGRUModel (Outer 2-SpecGRU + Full Compiler + vCPU SpecGRU)",
+            "model_name": "StageCompilerOuterSpectralGRUModel (Outer 2-SpecGRU + Full Compiler + vCPU SpecGRU)",
             "params": 456419,
             "selected_epoch": 6,
             "dev_geodesic_dist": 0.24403341114521027,
@@ -23729,7 +23729,7 @@
             "elapsed_sec": 0.293194041994866
           },
           {
-            "model_name": "PhaseLangCompilerDualSpectralGRUModel (Outer SpecGRU -> Compiler + vCPU SpecGRU -> Post SpecGRU)",
+            "model_name": "StageCompilerDualSpectralGRUModel (Outer SpecGRU -> Compiler + vCPU SpecGRU -> Post SpecGRU)",
             "params": 468095,
             "selected_epoch": 6,
             "dev_geodesic_dist": 0.2517298758029938,
@@ -23751,7 +23751,7 @@
             "elapsed_sec": 0.3547202500049025
           },
           {
-            "model_name": "1D Fourier Neural Operator (FNO-1D)",
+            "model_name": "1D Spectral Neural Operator (SNO-1D)",
             "params": 135713,
             "selected_epoch": 6,
             "dev_geodesic_dist": 0.4073134660720825,
@@ -23773,7 +23773,7 @@
             "elapsed_sec": 0.14380787505069748
           }
         ],
-        "winner": "PhaseLangCompilerPostSpectralGRUModel (Full Compiler + vCPU SpecGRU -> Post 2-SpecGRU)"
+        "winner": "StageCompilerPostSpectralGRUModel (Full Compiler + vCPU SpecGRU -> Post 2-SpecGRU)"
       }
     }
   }
