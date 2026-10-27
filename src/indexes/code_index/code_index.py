@@ -1029,6 +1029,13 @@ class CodeCorpusIndex(Datasource):
             if self.ledger_path is not None:
                 self.persist_ledger(self.ledger_path)
 
+            if (
+                self._external_client is None
+                and self.qdrant_path is not None
+                and self.repo_path == Path("/Users/jarek/IdeaProjects/neural_networks")
+            ):
+                self.sync_to_unified_staging()
+
             return {
                 "status": "synced",
                 "total_files": len(files),
@@ -1041,6 +1048,45 @@ class CodeCorpusIndex(Datasource):
                 "graph_edges_count": len(list(self._index.range_index("GRAPH_EDGES"))),
                 "elapsed_ms": round((time.perf_counter() - t0) * 1000.0, 2),
             }
+
+    def sync_to_unified_staging(
+        self,
+        staging_root: str | Path | None = None,
+    ) -> dict[str, Any]:
+        """
+        Synchronizes this `CodeCorpusIndex` Qdrant collection into the unified central
+        Qdrant staging directory (`/Users/jarek/IdeaProjects/qdrant_staging/storage`)
+        using the official `UnifiedQdrantStagingManager`.
+        """
+        try:
+            from indexes.informational_index import (
+                DEFAULT_STAGING_ROOT,
+                UnifiedQdrantStagingManager,
+            )
+
+            target_staging = Path(staging_root) if staging_root is not None else DEFAULT_STAGING_ROOT
+            mgr = UnifiedQdrantStagingManager(staging_root=target_staging)
+            if self.qdrant_path is not None:
+                src_sqlite = self.qdrant_path / "collection" / self.collection_name / "storage.sqlite"
+                dst_sqlite = mgr.storage_dir / "collection" / self.collection_name / "storage.sqlite"
+                if src_sqlite.is_file() and src_sqlite.resolve() != dst_sqlite.resolve():
+                    meta = mgr._load_meta_json(mgr.storage_dir)
+                    meta["collections"][self.collection_name] = mgr._default_collection_config(size=384)
+                    mgr._save_meta_json(mgr.storage_dir, meta)
+                    stats = mgr._merge_sqlite_points(src_sqlite, dst_sqlite)
+                    return {
+                        "status": "synced_to_staging",
+                        "collection_name": self.collection_name,
+                        "staging_storage_dir": str(mgr.storage_dir),
+                        **stats,
+                    }
+            return {
+                "status": "noop",
+                "collection_name": self.collection_name,
+                "staging_storage_dir": str(mgr.storage_dir),
+            }
+        except Exception as exc:
+            return {"status": "skipped", "reason": str(exc)}
 
     def compute_corpus_digest(self) -> str:
         """Computes a canonical aggregate SHA-256 digest over all indexed `(rel_path, sha256)` pairs."""

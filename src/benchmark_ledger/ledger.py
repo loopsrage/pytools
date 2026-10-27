@@ -39,6 +39,9 @@ CANONICAL_MODEL_ALIASES: dict[str, str] = {
     "Polyphase Resonant Cavity 2-GRU + Unified Monadic Cavity (DQAttn+Moyal+SpecGRU)": (
         "PolyphaseResonantUnifiedMonadicCavityModel (Dual-Mirror 2-GRU + Unified Cavity)"
     ),
+    "PhaseLangISACascadedUnifiedModel (ISA Spectral/AST Gate + Phase-Sheaf Wave Cascade)": (
+        "PhaseLangSheafCompilerCascadeModel (Stage-1 Compiler + ISA Spectral-AST Gate + Phase-Sheaf Wave Cascade)"
+    ),
 }
 
 MODEL_FAMILY_METADATA: dict[str, dict[str, Any]] = {
@@ -377,6 +380,29 @@ MODEL_FAMILY_METADATA: dict[str, dict[str, Any]] = {
         "related_modules": ["benchmark_ledger", "llm_Fine_Tuning", "thread_safe"],
         "related_kis": [
             "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history",
+        ],
+    },
+    "PhaseLangSheafCompilerCascadeModel (Stage-1 Compiler + ISA Spectral-AST Gate + Phase-Sheaf Wave Cascade)": {
+        "class_name": "PhaseLangSheafCompilerCascadeModel",
+        "base_class_name": "UnifiedPhaseLangCompilerModel",
+        "family": "Promoted PhaseLang Sheaf Compiler Cascade",
+        "is_polyphonic": True,
+        "summary": (
+            "Promoted flagship PhaseLang Compiler architecture (src/models/phaselang_compiler/phaselang_compiler_model.py, "
+            "gru_mode='isa_cascaded_unified', 766,151 params) combining the 6-subsystem PhaseLang Stage-1 Compiler, "
+            "ISASpectralAnomalyASTGate 3-branch internal specialist router, 5-opcode Phase-Rotor Monadic Cavity, "
+            "dedicated pre-cavity (spine_spec_gru) and post-compiler (post_spec_gru + gru) recurrent sheaves, and "
+            "cascade_join_phase_sheaf_waves on B^D_{c_D}."
+        ),
+        "architectural_highlights": [
+            "All-Time Rank #1 Winner on Canonical ast.parse() Scope-Bracketed AST Node Stream Prediction (1.3491 Test CE / 1.9463 BPB / 3.85 PPL / 63.72% Acc)",
+            "All-Time Rank #1 Winner on PDEBench-1D KdV & Nonlinear Dispersive Soliton Wave Operator (0.1122 Geodesic / 0.0686 RelL2 / 0.0270 Spectral / 99.79% Cosine)",
+            "All-Time Rank #1 Winner on Lorenz-63 Strange Attractor & Coupled Phase Forecasting (0.7867 Geodesic) and #1 Token Accuracy on Python Stdlib Source LM (57.12% Acc) & Lexical Scope Binding (91.49% Acc)",
+        ],
+        "related_modules": ["benchmark_ledger", "llm_Fine_Tuning", "thread_safe"],
+        "related_kis": [
+            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history",
+            "ki_query_torch_model_torch_local",
         ],
     },
     "PhaseLangISACascadedUnifiedModel (ISA Spectral/AST Gate + Phase-Sheaf Wave Cascade)": {
@@ -724,8 +750,9 @@ KNOWN_MODEL_PARAMS: dict[str, int] = {
     "PhaseLangCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)": 654883,
     "PhaseLangCascadedSpectralGRUModel (Phase-Sheaf Cascaded Hyperbolic/Spectral GRU Waves)": 468419,
     "PhaseLangCascadedHybridGRUModel (Phase-Sheaf Cascaded Euclidean + Spectral GRU Waves)": 655143,
-    "PhaseLangISAASTGatedModel (AST Logic & ISA Spectral Anomaly Gated Internal Router)": 754215,
-    "PhaseLangISACascadedUnifiedModel (ISA Spectral/AST Gate + Phase-Sheaf Wave Cascade)": 754475,
+    "PhaseLangISAASTGatedModel (AST Logic & ISA Spectral Anomaly Gated Internal Router)": 765891,
+    "PhaseLangISACascadedUnifiedModel (ISA Spectral/AST Gate + Phase-Sheaf Wave Cascade)": 766151,
+    "PhaseLangSheafCompilerCascadeModel (Stage-1 Compiler + ISA Spectral-AST Gate + Phase-Sheaf Wave Cascade)": 766151,
     "PhaseSheafAnyGram + 2-Layer GRU": 398401,
     "Polyphase Resonant Cavity 2-Layer GRU (Dual-Mirror AnyGram)": 398401,
     "2-Layer GRU (nn.GRU)": 332680,
@@ -1186,6 +1213,7 @@ def _build_canonical_worktree_suite(repo_path: Path, bundle: dict[str, Any]) -> 
     """
     bm_disk_path = repo_path / "src" / "polyphonic_model" / "benchmarks" / "results" / "benchmark_leaderboard.json"
     mc_disk_path = repo_path / "src" / "models" / "monadic_cavity" / "results" / "monadic_cavity_leaderboard.json"
+    plc_disk_path = repo_path / "src" / "models" / "phaselang_compiler" / "results" / "phaselang_compiler_leaderboard.json"
     stream_disk_path = repo_path / "src" / "models" / "monadic_cavity" / "results" / "realtime_qdrant_stream.json"
 
     bm_raw = (
@@ -1196,6 +1224,11 @@ def _build_canonical_worktree_suite(repo_path: Path, bundle: dict[str, Any]) -> 
     mc_disk_raw = (
         json.loads(mc_disk_path.read_text(encoding="utf-8"))
         if mc_disk_path.exists()
+        else {}
+    )
+    plc_disk_raw = (
+        json.loads(plc_disk_path.read_text(encoding="utf-8"))
+        if plc_disk_path.exists()
         else {}
     )
     stream_disk_raw = (
@@ -1242,18 +1275,19 @@ def _build_canonical_worktree_suite(repo_path: Path, bundle: dict[str, Any]) -> 
         comp_sec = mc_comp_raw.get(sec_key, {}) if isinstance(mc_comp_raw, dict) else {}
         post_sand_sec = mc_post_sand_raw.get(sec_key, {}) if isinstance(mc_post_sand_raw, dict) else {}
         disk_sec = mc_disk_raw.get(sec_key, {}) if isinstance(mc_disk_raw, dict) else {}
+        plc_sec = plc_disk_raw.get(sec_key, {}) if isinstance(plc_disk_raw, dict) else {}
         stream_sec = stream_disk_raw.get(sec_key, {}) if isinstance(stream_disk_raw, dict) else {}
         live_sec = live_log_raw.get(sec_key, {}) if isinstance(live_log_raw, dict) else {}
 
         ordered_keys: list[str] = []
-        for src_sec in (mc4_sec, disk_sec, stream_sec, bm_sec):
+        for src_sec in (mc4_sec, disk_sec, plc_sec, stream_sec, bm_sec):
             for k in src_sec.keys():
                 if k not in ordered_keys:
                     ordered_keys.append(k)
         extra_sources = (
-            (post_sand_sec, disk_sec, stream_sec, live_sec)
+            (post_sand_sec, disk_sec, plc_sec, stream_sec, live_sec)
             if disk_sec
-            else (comp_sec, post_sand_sec, disk_sec, stream_sec, live_sec)
+            else (comp_sec, post_sand_sec, disk_sec, plc_sec, stream_sec, live_sec)
         )
         for k in ordered_keys:
             base_task = mc4_sec.get(k) or disk_sec.get(k) or bm_sec.get(k)
@@ -1948,6 +1982,12 @@ class BenchmarkLedger:
                     src_info["method_names"] = combined_methods
                 else:
                     src_info = dict(base_info)
+                    if target_class_name and target_class_name != base_class_name:
+                        src_info["source_code"] = (
+                            f"class {target_class_name}({base_class_name}):\n"
+                            f'    """{m_name} configured on {base_class_name}."""\n\n'
+                            f"{base_info.get('source_code', '')}"
+                        )
 
             raw_profiles.append(
                 ModelArchitectureProfile(
@@ -2016,10 +2056,10 @@ class BenchmarkLedger:
             key=lambda p: (
                 0 if p.is_promoted else 1,
                 0 if p.benchmarks_evaluated >= total_tasks_count else 1,
-                p.mean_rank,
                 -p.composite_score,
-                -p.top3_count,
+                p.mean_rank,
                 -p.wins_count,
+                -p.top3_count,
                 p.model_name,
             )
         )
@@ -2372,6 +2412,7 @@ class BenchmarkLedger:
         watched = [
             self.repo_path / "promoted" / "promoted_manifest.json",
             self.repo_path / "promoted" / "harness.py",
+            self.repo_path / "src" / "models" / "phaselang_compiler" / "results" / "phaselang_compiler_leaderboard.json",
             self.repo_path / "src" / "models" / "monadic_cavity" / "results" / "monadic_cavity_leaderboard.json",
             self.repo_path / "src" / "models" / "monadic_cavity" / "results" / "benchmark_timeseries.jsonl",
             self.repo_path / "src" / "models" / "monadic_cavity" / "results" / "realtime_qdrant_stream.json",
@@ -2421,6 +2462,10 @@ class BenchmarkLedger:
         overview = self.scrape_and_build(include_git_history=include_git_history)
         docs = self.build_qdrant_documents()
 
+        from indexes.informational_index import (
+            DEFAULT_STAGING_ROOT,
+            UnifiedQdrantStagingManager,
+        )
         from qdrant_client import QdrantClient
         from qdrant_client.models import (
             Distance,
@@ -2431,46 +2476,58 @@ class BenchmarkLedger:
             VectorParams,
         )
 
+        staging_mgr = UnifiedQdrantStagingManager(staging_root=DEFAULT_STAGING_ROOT)
+        default_staging_storage = staging_mgr.storage_dir
+        target_qdrant_path = (
+            Path(qdrant_path).resolve()
+            if qdrant_path is not None
+            else default_staging_storage
+        )
+
         owns_client = False
         client = qdrant_client
         if client is None:
-            owns_client = True
-            target_qdrant_path = (
-                Path(qdrant_path)
-                if qdrant_path is not None
-                else Path("/Users/jarek/IdeaProjects/portfolio/portfolio/.qdrant_data")
-            )
             target_qdrant_path.mkdir(parents=True, exist_ok=True)
-            client = QdrantClient(path=str(target_qdrant_path))
+            try:
+                client = QdrantClient(path=str(target_qdrant_path))
+                owns_client = True
+            except Exception:
+                client = None
 
         try:
             vector_dim = 384
-            collection_exists = client.collection_exists(collection_name)
             existing_doc_hashes: dict[str, str] = {}
 
-            if collection_exists and force_recreate:
-                client.delete_collection(collection_name)
-                collection_exists = False
+            if client is not None:
+                collection_exists = client.collection_exists(collection_name)
+                if collection_exists and force_recreate:
+                    client.delete_collection(collection_name)
+                    collection_exists = False
 
-            if not collection_exists:
-                client.create_collection(
-                    collection_name=collection_name,
-                    vectors_config=VectorParams(size=vector_dim, distance=Distance.COSINE),
-                )
-            else:
-                try:
-                    scrolled, _ = client.scroll(
+                if not collection_exists:
+                    client.create_collection(
                         collection_name=collection_name,
-                        limit=2000,
-                        with_payload=True,
-                        with_vectors=False,
+                        vectors_config=VectorParams(size=vector_dim, distance=Distance.COSINE),
                     )
-                    for pt in scrolled:
-                        pl = pt.payload or {}
-                        if int(pl.get("chunk_index", -1)) == 0 and pl.get("doc_id") and pl.get("text_sha256"):
-                            existing_doc_hashes[str(pl["doc_id"])] = str(pl["text_sha256"])
-                except Exception:
-                    existing_doc_hashes = {}
+                else:
+                    try:
+                        scrolled, _ = client.scroll(
+                            collection_name=collection_name,
+                            limit=2000,
+                            with_payload=True,
+                            with_vectors=False,
+                        )
+                        for pt in scrolled:
+                            pl = pt.payload or {}
+                            if int(pl.get("chunk_index", -1)) == 0 and pl.get("doc_id") and pl.get("text_sha256"):
+                                existing_doc_hashes[str(pl["doc_id"])] = str(pl["text_sha256"])
+                    except Exception:
+                        existing_doc_hashes = {}
+            elif not force_recreate:
+                for pt in staging_mgr.read_points_lockfree(target_qdrant_path, collection_name):
+                    pl = pt.payload or {}
+                    if int(pl.get("chunk_index", -1)) == 0 and pl.get("doc_id") and pl.get("text_sha256"):
+                        existing_doc_hashes[str(pl["doc_id"])] = str(pl["text_sha256"])
 
             def _default_chunk_text(text: str, c_size: int, c_overlap: int) -> list[dict[str, Any]]:
                 cleaned = text.strip()
@@ -2590,7 +2647,7 @@ class BenchmarkLedger:
                             f"{doc.title} | {doc.subtitle} | {doc.category}\n{c['text']}"
                         )
 
-            if changed_doc_ids and existing_doc_hashes:
+            if changed_doc_ids and existing_doc_hashes and client is not None:
                 for d_id in changed_doc_ids:
                     if d_id in existing_doc_hashes:
                         try:
@@ -2603,6 +2660,7 @@ class BenchmarkLedger:
                         except Exception:
                             pass
 
+            points: list[PointStruct] = []
             if changed_chunk_records:
                 vectors = active_encode_fn(embed_inputs, embedding_model)
                 points = [
@@ -2614,7 +2672,37 @@ class BenchmarkLedger:
                     for rec, vec in zip(changed_chunk_records, vectors)
                 ]
                 if points:
-                    client.upsert(collection_name=collection_name, points=points)
+                    if client is not None:
+                        client.upsert(collection_name=collection_name, points=points)
+                    else:
+                        staging_mgr.upsert_points_lockfree(
+                            storage_path=target_qdrant_path,
+                            collection_name=collection_name,
+                            points=points,
+                            vector_size=vector_dim,
+                            recreate=force_recreate,
+                        )
+
+            # Mirror to unified central Qdrant staging (`/Users/jarek/IdeaProjects/qdrant_staging/storage`)
+            # when qdrant_client was not a mock/custom client or when syncing default collection
+            if qdrant_client is None and points and not collection_name.startswith("test_"):
+                if target_qdrant_path != default_staging_storage and default_staging_storage.parent.is_dir():
+                    staging_mgr.upsert_points_lockfree(
+                        storage_path=default_staging_storage,
+                        collection_name=collection_name,
+                        points=points,
+                        vector_size=vector_dim,
+                        recreate=force_recreate,
+                    )
+                portfolio_qdrant = Path("/Users/jarek/IdeaProjects/portfolio/portfolio/.qdrant_data")
+                if target_qdrant_path != portfolio_qdrant and portfolio_qdrant.is_dir():
+                    staging_mgr.upsert_points_lockfree(
+                        storage_path=portfolio_qdrant,
+                        collection_name=collection_name,
+                        points=points,
+                        vector_size=vector_dim,
+                        recreate=False,
+                    )
 
             elapsed_ms = round((time.perf_counter() - t0) * 1000.0, 2)
             return {
@@ -2659,7 +2747,7 @@ def scrape_neural_networks_benchmarks(
 def sync_neural_networks_benchmarks_to_qdrant(
     repo_path: str | Path = "/Users/jarek/IdeaProjects/neural_networks",
     ledger_path: str | Path | None = "/Users/jarek/IdeaProjects/portfolio/portfolio/benchmark_history_ledger.json",
-    qdrant_path: str | Path | None = "/Users/jarek/IdeaProjects/portfolio/portfolio/.qdrant_data",
+    qdrant_path: str | Path | None = "/Users/jarek/IdeaProjects/qdrant_staging/storage",
     collection_name: str = "portfolio_neural_benchmarks",
     force_recreate: bool = False,
 ) -> dict[str, Any]:

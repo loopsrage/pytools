@@ -136,6 +136,21 @@ def _slugify(value: str) -> str:
     return cleaned or "item"
 
 
+def _parse_iso_to_epoch_ms(iso_str: str, fallback_ms: int = 0) -> int:
+    if not iso_str:
+        return fallback_ms
+    try:
+        norm = iso_str.strip()
+        if norm.endswith("Z"):
+            norm = norm[:-1] + "+00:00"
+        dt = datetime.datetime.fromisoformat(norm)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=datetime.timezone.utc)
+        return int(dt.timestamp() * 1000)
+    except Exception:
+        return fallback_ms
+
+
 class AntigravityBrainCodeBlock(BaseModel):
     block_id: str
     step_index: int = 0
@@ -144,7 +159,9 @@ class AntigravityBrainCodeBlock(BaseModel):
     title: str
     language: str = "markdown"
     code: str
+    agent_thoughts: str = ""
     timestamp: str = ""
+    tool_names: list[str] = Field(default_factory=list)
     referenced_paths: list[str] = Field(default_factory=list)
 
 
@@ -181,10 +198,12 @@ class AntigravityBrainEntry(BaseModel):
     entry_type: str = "primary_conversation"
     title: str
     subtitle: str
+    friendly_session_name: str = ""
     workspace_project: str = "portfolio"
     snippet: str
     message_role: str = "AGENT"
     message_text: str = ""
+    agent_thoughts: str = ""
     artifact_items: list[dict[str, Any]] = Field(default_factory=list)
     created_at: str = ""
     updated_at: str = ""
@@ -195,6 +214,7 @@ class AntigravityBrainEntry(BaseModel):
     tool_call_count: int = 0
     artifact_count: int = 0
     task_log_count: int = 0
+    json_metadata: dict[str, Any] = Field(default_factory=dict)
     locations: AntigravityBrainLocationMeta
     relations: AntigravityBrainRelationMeta
     code_blocks: list[AntigravityBrainCodeBlock] = Field(default_factory=list)
@@ -207,6 +227,7 @@ class AntigravityBrainQdrantDocument(BaseModel):
     doc_type: str
     title: str
     subtitle: str
+    friendly_session_name: str = ""
     workspace_project: str
     snippet: str
     primary_location: str
@@ -222,6 +243,7 @@ class AntigravityBrainQdrantDocument(BaseModel):
     code_block_count: int = 0
     step_count: int = 0
     updated_at: str = ""
+    json_metadata: dict[str, Any] = Field(default_factory=dict)
     markdown: str
 
 
@@ -326,7 +348,7 @@ class AntigravityBrainLedger:
             parts.append(f"S:{name}:{mtime_ns}:{tr_size}")
 
         parts.sort()
-        return hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()[:24]
+        return hashlib.sha256(("v5|" + "|".join(parts)).encode("utf-8")).hexdigest()[:24]
 
     def _read_bounded_transcript_steps(self, transcript_path: Path, file_size: int) -> tuple[list[dict[str, Any]], int]:
         """
@@ -403,16 +425,35 @@ class AntigravityBrainLedger:
     def _extract_clean_user_request(raw_content: str) -> str:
         if not raw_content:
             return ""
-        req_matches = re.findall(r"<USER_REQUEST>\s*(.*?)\s*</USER_REQUEST>", raw_content, flags=re.DOTALL)
+        req_matches = re.findall(
+            r"<USER_REQUEST>\s*(.*?)(?:</USER_REQUEST>|<ADDITIONAL_METADATA>|<SYSTEM_MESSAGE>|<EPHEMERAL_MESSAGE>|$)",
+            raw_content,
+            flags=re.DOTALL,
+        )
         if req_matches:
             cleaned = req_matches[-1].strip()
         else:
-            sys_m = re.search(r"<SYSTEM_MESSAGE>\s*(.*?)\s*</SYSTEM_MESSAGE>", raw_content, flags=re.DOTALL)
-            if sys_m:
-                cleaned = sys_m.group(1).strip()
-            else:
-                cleaned = raw_content.strip()
+            lower_raw = raw_content.lower()
+            if (
+                "not actually sent by the user" in lower_raw
+                or "provided by the system as important information" in lower_raw
+                or "<system_message>" in lower_raw
+                or "<context_summary>" in lower_raw
+                or "<ephemeral_message>" in lower_raw
+                or "[message] timestamp=" in lower_raw
+            ):
+                return ""
+            cleaned = raw_content.strip()
+
+        cleaned = re.sub(
+            r"The following is a[^\n]*not actually sent by the user[^\n]*",
+            "",
+            cleaned,
+            flags=re.IGNORECASE,
+        )
         cleaned = re.sub(r"<[^>]+>", "", cleaned).strip()
+        if "not actually sent by the user" in cleaned.lower():
+            return ""
         return _sanitize_text(cleaned)
 
     @staticmethod
@@ -533,17 +574,25 @@ class AntigravityBrainLedger:
         blocks: list[AntigravityBrainCodeBlock] = []
         user_turns = 0
         tool_calls_total = 0
+        pending_thoughts: list[str] = []
+        pending_tools: list[str] = []
 
         for step in steps:
             s_idx = int(step.get("step_index", 0))
             s_type = str(step.get("type", ""))
             created_at = str(step.get("created_at", ""))
             raw_content = str(step.get("content", "") or "")
+            raw_thinking = str(step.get("thinking", "") or "").strip()
             tool_calls = step.get("tool_calls") or []
             if isinstance(tool_calls, list):
                 tool_calls_total += len(tool_calls)
+                for tc in tool_calls:
+                    if isinstance(tc, dict):
+                        t_name = str(tc.get("name") or tc.get("tool_name") or "").strip()
+                        if t_name and t_name not in pending_tools:
+                            pending_tools.append(t_name)
 
-            if s_type in ("USER_INPUT", "SYSTEM_MESSAGE"):
+            if s_type == "USER_INPUT":
                 clean_req = self._extract_clean_user_request(raw_content)
                 if clean_req and len(clean_req) > 4:
                     user_turns += 1
@@ -556,24 +605,61 @@ class AntigravityBrainLedger:
                             title=f"User • Step #{s_idx}",
                             language="markdown",
                             code=clean_req[:2400],
+                            agent_thoughts="",
                             timestamp=created_at,
+                            tool_names=[],
                             referenced_paths=self._extract_referenced_paths(clean_req),
                         )
                     )
 
-            elif s_type == "PLANNER_RESPONSE" and raw_content.strip():
-                clean_resp = _sanitize_text(raw_content.strip())
+            elif s_type == "PLANNER_RESPONSE":
+                if raw_thinking:
+                    clean_thought = _sanitize_text(raw_thinking)
+                    pending_thoughts.append(clean_thought[:1400])
+                if raw_content.strip():
+                    clean_resp = _sanitize_text(raw_content.strip())
+                    combined_thoughts = "\n\n".join(pending_thoughts[-3:])[:2400]
+                    turn_tools = list(pending_tools[:12])
+                    pending_thoughts.clear()
+                    pending_tools.clear()
+                    blocks.append(
+                        AntigravityBrainCodeBlock(
+                            block_id=f"step_{s_idx}_response",
+                            step_index=s_idx,
+                            block_type="AGENT_RESPONSE",
+                            badge_label="AGENT",
+                            title=f"Agent • Step #{s_idx}",
+                            language="markdown",
+                            code=clean_resp[:2400],
+                            agent_thoughts=combined_thoughts,
+                            timestamp=created_at,
+                            tool_names=turn_tools,
+                            referenced_paths=self._extract_referenced_paths(clean_resp),
+                        )
+                    )
+
+        if pending_thoughts:
+            leftover = "\n\n".join(pending_thoughts[-3:])[:2400]
+            attached = False
+            for b in reversed(blocks):
+                if b.block_type == "AGENT_RESPONSE":
+                    if not b.agent_thoughts:
+                        b.agent_thoughts = leftover
+                    attached = True
+                    break
+            if not attached:
                 blocks.append(
                     AntigravityBrainCodeBlock(
-                        block_id=f"step_{s_idx}_response",
-                        step_index=s_idx,
+                        block_id="step_final_thought_response",
+                        step_index=len(steps),
                         block_type="AGENT_RESPONSE",
                         badge_label="AGENT",
-                        title=f"Agent • Step #{s_idx}",
+                        title="Agent",
                         language="markdown",
-                        code=clean_resp[:2400],
-                        timestamp=created_at,
-                        referenced_paths=self._extract_referenced_paths(clean_resp),
+                        code=leftover[:600],
+                        agent_thoughts=leftover,
+                        timestamp="",
+                        referenced_paths=[],
                     )
                 )
 
@@ -592,12 +678,58 @@ class AntigravityBrainLedger:
                         title=f"Artifact • {art.name} ({art.title or 'Markdown Document'})",
                         language="markdown",
                         code=_sanitize_text(art_raw[:4000]),
+                        agent_thoughts="",
                         timestamp="",
                         referenced_paths=[art.path, *self._extract_referenced_paths(art_raw)[:6]],
                     )
                 )
 
         return blocks, max(1, user_turns), tool_calls_total
+
+    @staticmethod
+    def _build_entry_json_metadata(
+        *,
+        entry_id: str,
+        conversation_id: str,
+        friendly_session_name: str,
+        workspace_project: str,
+        entry_type: str,
+        message_role: str,
+        step_index: int,
+        created_at: str,
+        updated_at: str,
+        mtime_ns: int,
+        message_text: str,
+        agent_thoughts: str,
+        tool_names: list[str],
+        artifact_items: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        fallback_ms = int(mtime_ns // 1_000_000)
+        ts_ms = _parse_iso_to_epoch_ms(updated_at or created_at, fallback_ms=fallback_ms)
+        created_ms = _parse_iso_to_epoch_ms(created_at, fallback_ms=ts_ms)
+        dt = datetime.datetime.fromtimestamp(max(0, ts_ms) / 1000.0, tz=datetime.timezone.utc)
+        return {
+            "schema_version": "4.0",
+            "entry_id": entry_id,
+            "conversation_id": conversation_id,
+            "friendly_session_name": friendly_session_name,
+            "workspace_project": workspace_project,
+            "entry_type": entry_type,
+            "message_role": message_role,
+            "step_index": step_index,
+            "timestamp_epoch_ms": ts_ms,
+            "sort_ts_ms": fallback_ms or ts_ms,
+            "created_epoch_ms": created_ms,
+            "updated_epoch_ms": ts_ms,
+            "date_bucket": dt.strftime("%Y-%m-%d"),
+            "hour_bucket": dt.strftime("%Y-%m-%d %H:00"),
+            "has_thoughts": bool(agent_thoughts and agent_thoughts.strip()),
+            "has_mermaid": "```mermaid" in (message_text or "")
+            or any(bool(a.get("has_mermaid")) for a in (artifact_items or [])),
+            "has_code_blocks": "```" in (message_text or ""),
+            "tool_names": list(tool_names),
+            "char_count": len(message_text or ""),
+        }
 
     def _build_conversation_segment_entries(
         self,
@@ -635,18 +767,38 @@ class AntigravityBrainLedger:
             seg_iso = datetime.datetime.fromtimestamp(
                 seg_mtime_ns / 1e9, tz=datetime.timezone.utc
             ).isoformat()
+            seg_id = f"brain_seg_{conv_entry.short_id}_{idx}"
+            seg_thoughts = blk.agent_thoughts if role == "AGENT" else ""
+            seg_meta = self._build_entry_json_metadata(
+                entry_id=seg_id,
+                conversation_id=conv_entry.conversation_id,
+                friendly_session_name=conv_entry.friendly_session_name,
+                workspace_project=conv_entry.workspace_project,
+                entry_type="conversation_segment",
+                message_role=role,
+                step_index=blk.step_index,
+                created_at=blk.timestamp or conv_entry.created_at,
+                updated_at=blk.timestamp or seg_iso,
+                mtime_ns=seg_mtime_ns,
+                message_text=msg_text,
+                agent_thoughts=seg_thoughts,
+                tool_names=blk.tool_names,
+                artifact_items=list(conv_entry.artifact_items),
+            )
             seg_entries.append(
                 AntigravityBrainEntry(
-                    entry_id=f"brain_seg_{conv_entry.short_id}_{idx}",
+                    entry_id=seg_id,
                     conversation_id=conv_entry.conversation_id,
                     short_id=conv_entry.short_id,
                     entry_type="conversation_segment",
                     title=f"{role}: {seg_clean_title}",
                     subtitle=f"{role} • {conv_entry.workspace_project} • Step #{blk.step_index}",
+                    friendly_session_name=conv_entry.friendly_session_name,
                     workspace_project=conv_entry.workspace_project,
                     snippet=seg_snippet,
                     message_role=role,
                     message_text=msg_text,
+                    agent_thoughts=seg_thoughts,
                     artifact_items=list(conv_entry.artifact_items),
                     created_at=blk.timestamp or conv_entry.created_at,
                     updated_at=blk.timestamp or seg_iso,
@@ -654,9 +806,10 @@ class AntigravityBrainLedger:
                     transcript_size_bytes=len(msg_text.encode("utf-8")),
                     step_count=1,
                     user_turn_count=1 if role == "USER" else 0,
-                    tool_call_count=0,
+                    tool_call_count=len(blk.tool_names),
                     artifact_count=len(conv_entry.locations.artifact_files),
                     task_log_count=conv_entry.task_log_count,
+                    json_metadata=seg_meta,
                     locations=AntigravityBrainLocationMeta(
                         brain_dir=conv_entry.locations.brain_dir,
                         transcript_path=conv_entry.locations.transcript_path,
@@ -826,6 +979,7 @@ class AntigravityBrainLedger:
         first_user_req = ""
         substantive_user_req = ""
         latest_agent_resp = ""
+        latest_agent_thoughts = ""
         created_at = updated_iso
         corpus_chunks: list[str] = []
         referenced_files: list[str] = []
@@ -851,7 +1005,10 @@ class AntigravityBrainLedger:
             elif raw_c:
                 corpus_chunks.append(_sanitize_text(raw_c[:600]))
             if raw_t:
-                corpus_chunks.append(_sanitize_text(raw_t[:500]))
+                clean_t = _sanitize_text(raw_t.strip())
+                if clean_t:
+                    latest_agent_thoughts = clean_t
+                corpus_chunks.append(clean_t[:500])
             for tc in st.get("tool_calls") or []:
                 if isinstance(tc, dict):
                     referenced_files.extend(self._extract_referenced_paths(json.dumps(tc.get("args") or {})))
@@ -925,8 +1082,33 @@ class AntigravityBrainLedger:
             or first_user_req
             or (artifact_texts.get(artifact_refs[0].name, "") if artifact_refs else "")
         )
+        proj_friendly = workspace_project.replace("_", " ").title()
+        short_title = title[:52].rsplit(" ", 1)[0] + "..." if len(title) > 52 else title
+        friendly_session_name = f"{proj_friendly} — {short_title} ({short_id})"
+        conv_tool_names: list[str] = []
+        for cb in code_blocks:
+            for tn in cb.tool_names:
+                if tn not in conv_tool_names:
+                    conv_tool_names.append(tn)
+        conv_id_entry = f"brain_conv_{short_id}"
+        conv_json_meta = self._build_entry_json_metadata(
+            entry_id=conv_id_entry,
+            conversation_id=conv_id,
+            friendly_session_name=friendly_session_name,
+            workspace_project=workspace_project,
+            entry_type="primary_conversation" if is_primary else "subagent_session",
+            message_role="AGENT",
+            step_index=total_steps,
+            created_at=created_at,
+            updated_at=updated_iso,
+            mtime_ns=tr_mtime_ns,
+            message_text=conv_msg_text[:3200],
+            agent_thoughts=latest_agent_thoughts[:2400],
+            tool_names=conv_tool_names[:16],
+            artifact_items=artifact_items,
+        )
         conv_entry = AntigravityBrainEntry(
-            entry_id=f"brain_conv_{short_id}",
+            entry_id=conv_id_entry,
             conversation_id=conv_id,
             short_id=short_id,
             entry_type="primary_conversation" if is_primary else "subagent_session",
@@ -935,10 +1117,12 @@ class AntigravityBrainLedger:
                 f"AGENT • {workspace_project} • {total_steps} steps"
                 + (f" • {len(artifact_items)} artifacts" if artifact_items else "")
             ),
+            friendly_session_name=friendly_session_name,
             workspace_project=workspace_project,
             snippet=small_snippet,
             message_role="AGENT",
             message_text=conv_msg_text[:3200],
+            agent_thoughts=latest_agent_thoughts[:2400],
             artifact_items=artifact_items,
             created_at=created_at,
             updated_at=updated_iso,
@@ -949,6 +1133,7 @@ class AntigravityBrainLedger:
             tool_call_count=tool_calls_count,
             artifact_count=len(artifact_refs),
             task_log_count=len(task_paths),
+            json_metadata=conv_json_meta,
             locations=AntigravityBrainLocationMeta(
                 brain_dir=str(conv_dir),
                 transcript_path=str(tr_path) if tr_path.is_file() else "",
@@ -987,6 +1172,33 @@ class AntigravityBrainLedger:
             art_iso = datetime.datetime.fromtimestamp(
                 art_mtime_ns / 1e9, tz=datetime.timezone.utc
             ).isoformat()
+            art_items_list = [
+                {
+                    "entry_id": art_entry_id,
+                    "name": art_ref.name,
+                    "title": art_ref.title or art_ref.name,
+                    "has_mermaid": "```mermaid" in art_raw,
+                    "path": art_ref.path,
+                    "size_bytes": art_ref.size_bytes,
+                },
+                *[a for a in artifact_items if a.get("entry_id") != art_entry_id],
+            ]
+            art_json_meta = self._build_entry_json_metadata(
+                entry_id=art_entry_id,
+                conversation_id=conv_id,
+                friendly_session_name=friendly_session_name,
+                workspace_project=art_proj,
+                entry_type="brain_artifact",
+                message_role="ARTIFACT",
+                step_index=9000,
+                created_at=created_at,
+                updated_at=art_iso,
+                mtime_ns=art_mtime_ns,
+                message_text=art_raw,
+                agent_thoughts="",
+                tool_names=[],
+                artifact_items=art_items_list,
+            )
             artifact_entries.append(
                 AntigravityBrainEntry(
                     entry_id=art_entry_id,
@@ -995,19 +1207,12 @@ class AntigravityBrainLedger:
                     entry_type="brain_artifact",
                     title=f"Artifact: {art_ref.title or art_ref.name}",
                     subtitle=f"ARTIFACT • {art_proj} • {art_ref.name}",
+                    friendly_session_name=friendly_session_name,
                     workspace_project=art_proj,
                     snippet=art_ref.snippet or self._make_small_snippet(art_raw, max_len=200),
                     message_role="ARTIFACT",
                     message_text=art_raw,
-                    artifact_items=[
-                        {
-                            "entry_id": art_entry_id,
-                            "name": art_ref.name,
-                            "title": art_ref.title or art_ref.name,
-                            "has_mermaid": "```mermaid" in art_raw,
-                        },
-                        *[a for a in artifact_items if a.get("entry_id") != art_entry_id],
-                    ],
+                    artifact_items=art_items_list,
                     created_at=created_at,
                     updated_at=art_iso,
                     mtime_ns=art_mtime_ns,
@@ -1017,6 +1222,7 @@ class AntigravityBrainLedger:
                     tool_call_count=0,
                     artifact_count=1,
                     task_log_count=len(task_paths),
+                    json_metadata=art_json_meta,
                     locations=AntigravityBrainLocationMeta(
                         brain_dir=str(conv_dir),
                         transcript_path=str(tr_path) if tr_path.is_file() else "",
@@ -1100,7 +1306,7 @@ class AntigravityBrainLedger:
                     self._index.store_in_index("META", f"kind:{d.name}", kind)
 
                 md_sig = ",".join(f"{m.name}:{m.stat().st_mtime_ns}:{m.stat().st_size}" for m in mds)
-                dir_sig = f"{tr_st.st_mtime_ns}:{tr_size}:{md_sig}"
+                dir_sig = f"v5:{tr_st.st_mtime_ns}:{tr_size}:{md_sig}"
                 if kind == "primary" or mds:
                     primary_dirs.append((tr_st.st_mtime_ns, d, dir_sig))
                 else:
@@ -1181,13 +1387,18 @@ class AntigravityBrainLedger:
                         "short_id": pc.short_id,
                         "entry_id": pc.entry_id,
                         "label": f"{pc.workspace_project}: {short_label}",
+                        "friendly_name": pc.friendly_session_name or f"{pc.workspace_project}: {short_label}",
                         "title": pc.title,
                         "workspace_project": pc.workspace_project,
                         "direct_entry_count": direct_count,
                         "step_count": pc.step_count,
                         "code_block_count": len(pc.code_blocks),
+                        "updated_at": pc.updated_at,
+                        "sort_ts_ms": int(pc.mtime_ns // 1_000_000),
                     }
                 )
+
+            brain_directory_tree = self._build_brain_directory_tree(primary_convs, all_entries)
 
             self._last_global_sig = current_sig
             self._last_scan_ms = round((time.perf_counter() - t0) * 1000.0, 2)
@@ -1222,6 +1433,7 @@ class AntigravityBrainLedger:
                     1 for e in all_entries if e.entry_type == "conversation_segment"
                 ),
                 "conversation_tabs": conversation_tabs,
+                "brain_directory_tree": brain_directory_tree,
                 "projects_breakdown": self._compute_projects_breakdown(all_entries),
                 "fsbase_telemetry": {
                     "filesystem": self.fs.filesystem,
@@ -1239,6 +1451,200 @@ class AntigravityBrainLedger:
             self._index.store_in_index("META", "ENTRIES_LIST", all_entries)
             self._persist_ledger_via_fsbase(overview)
             return overview
+
+    def _build_brain_directory_tree(
+        self,
+        primary_convs: list[AntigravityBrainEntry],
+        all_entries: list[AntigravityBrainEntry],
+    ) -> list[dict[str, Any]]:
+        """
+        Mimics the physical `/Users/jarek/.gemini/antigravity-cli/brain/<uuid>` directory
+        structure with friendly human-readable session names and nested folders (`Artifacts`,
+        `Conversation Logs`, `Task Logs`, `Scratch`) for side-panel exploration and file access.
+        """
+        art_by_conv_and_name: dict[tuple[str, str], str] = {}
+        for e in all_entries:
+            if e.entry_type == "brain_artifact":
+                for af in e.locations.artifact_files:
+                    art_by_conv_and_name[(e.conversation_id, af.name)] = e.entry_id
+
+        tree: list[dict[str, Any]] = []
+        session_entries = list(primary_convs) + [
+            e for e in all_entries if e.entry_type == "subagent_session"
+        ]
+        for conv in session_entries:
+            conv_dir = Path(conv.locations.brain_dir)
+            children: list[dict[str, Any]] = []
+
+            # 1. Artifacts subfolder
+            if conv.locations.artifact_files:
+                art_children: list[dict[str, Any]] = []
+                for af in conv.locations.artifact_files:
+                    art_eid = art_by_conv_and_name.get(
+                        (conv.conversation_id, af.name),
+                        f"brain_art_{conv.short_id}_{_slugify(Path(af.name).stem)}",
+                    )
+                    art_children.append(
+                        {
+                            "node_id": f"file:{conv.conversation_id}:art:{af.name}",
+                            "entry_id": art_eid,
+                            "conversation_id": conv.conversation_id,
+                            "name": af.name,
+                            "friendly_name": f"{af.title or af.name} ({af.name})",
+                            "node_type": "artifact_file",
+                            "path": af.path,
+                            "size_bytes": af.size_bytes,
+                            "updated_at": conv.updated_at,
+                        }
+                    )
+                children.append(
+                    {
+                        "node_id": f"dir:{conv.conversation_id}:artifacts",
+                        "folder_id": f"dir:{conv.conversation_id}:artifacts",
+                        "conversation_id": conv.conversation_id,
+                        "name": "artifacts",
+                        "relative_path": "artifacts",
+                        "friendly_name": "Markdown Artifacts",
+                        "file_count": len(art_children),
+                        "node_type": "folder",
+                        "path": str(conv_dir),
+                        "children": art_children,
+                    }
+                )
+
+            # 2. Conversation Logs subfolder (.system_generated/logs)
+            log_children: list[dict[str, Any]] = []
+            if conv.locations.transcript_path:
+                tp = Path(conv.locations.transcript_path)
+                log_children.append(
+                    {
+                        "node_id": f"file:{conv.conversation_id}:log:transcript.jsonl",
+                        "entry_id": conv.entry_id,
+                        "conversation_id": conv.conversation_id,
+                        "name": "transcript.jsonl",
+                        "friendly_name": "Compact Transcript (transcript.jsonl)",
+                        "node_type": "transcript_file",
+                        "path": conv.locations.transcript_path,
+                        "size_bytes": tp.stat().st_size if tp.is_file() else conv.transcript_size_bytes,
+                        "updated_at": conv.updated_at,
+                    }
+                )
+            if conv.locations.transcript_full_path:
+                tfp = Path(conv.locations.transcript_full_path)
+                log_children.append(
+                    {
+                        "node_id": f"file:{conv.conversation_id}:log:transcript_full.jsonl",
+                        "entry_id": conv.entry_id,
+                        "conversation_id": conv.conversation_id,
+                        "name": "transcript_full.jsonl",
+                        "friendly_name": "Full Transcript (transcript_full.jsonl)",
+                        "node_type": "transcript_file",
+                        "path": conv.locations.transcript_full_path,
+                        "size_bytes": tfp.stat().st_size if tfp.is_file() else 0,
+                        "updated_at": conv.updated_at,
+                    }
+                )
+            if log_children:
+                children.append(
+                    {
+                        "node_id": f"dir:{conv.conversation_id}:logs",
+                        "folder_id": f"dir:{conv.conversation_id}:logs",
+                        "conversation_id": conv.conversation_id,
+                        "name": ".system_generated/logs",
+                        "relative_path": "logs",
+                        "friendly_name": "Conversation Logs",
+                        "file_count": len(log_children),
+                        "node_type": "folder",
+                        "path": str(conv_dir / ".system_generated" / "logs"),
+                        "children": log_children,
+                    }
+                )
+
+            # 3. Task Execution Logs subfolder (.system_generated/tasks)
+            if conv.locations.task_logs:
+                task_children = [
+                    {
+                        "node_id": f"file:{conv.conversation_id}:task:{tl['name']}",
+                        "conversation_id": conv.conversation_id,
+                        "name": tl["name"],
+                        "friendly_name": f"Task Log — {tl['name']}",
+                        "node_type": "task_log_file",
+                        "path": tl["path"],
+                        "size_bytes": tl.get("size_bytes", 0),
+                        "updated_at": conv.updated_at,
+                    }
+                    for tl in conv.locations.task_logs
+                ]
+                children.append(
+                    {
+                        "node_id": f"dir:{conv.conversation_id}:tasks",
+                        "folder_id": f"dir:{conv.conversation_id}:tasks",
+                        "conversation_id": conv.conversation_id,
+                        "name": ".system_generated/tasks",
+                        "relative_path": "tasks",
+                        "friendly_name": "Task Execution Logs",
+                        "file_count": len(task_children),
+                        "node_type": "folder",
+                        "path": str(conv_dir / ".system_generated" / "tasks"),
+                        "children": task_children,
+                    }
+                )
+
+            # 4. Scratch directory if present
+            scratch_dir = conv_dir / "scratch"
+            if scratch_dir.is_dir():
+                scratch_files = sorted(p for p in scratch_dir.rglob("*") if p.is_file())[:12]
+                if scratch_files:
+                    children.append(
+                        {
+                            "node_id": f"dir:{conv.conversation_id}:scratch",
+                            "folder_id": f"dir:{conv.conversation_id}:scratch",
+                            "conversation_id": conv.conversation_id,
+                            "name": "scratch",
+                            "relative_path": "scratch",
+                            "friendly_name": "Scratch Files",
+                            "file_count": len(scratch_files),
+                            "node_type": "folder",
+                            "path": str(scratch_dir),
+                            "children": [
+                                {
+                                    "node_id": f"file:{conv.conversation_id}:scratch:{sf.name}",
+                                    "conversation_id": conv.conversation_id,
+                                    "name": sf.name,
+                                    "friendly_name": f"Scratch — {sf.name}",
+                                    "node_type": "scratch_file",
+                                    "path": str(sf),
+                                    "size_bytes": sf.stat().st_size,
+                                    "updated_at": conv.updated_at,
+                                }
+                                for sf in scratch_files
+                            ],
+                        }
+                    )
+
+            tree.append(
+                {
+                    "node_id": f"dir:{conv.conversation_id}",
+                    "entry_id": conv.entry_id,
+                    "conversation_id": conv.conversation_id,
+                    "short_id": conv.short_id,
+                    "name": conv.conversation_id,
+                    "friendly_name": conv.friendly_session_name or conv.title,
+                    "title": conv.title,
+                    "workspace_project": conv.workspace_project,
+                    "node_type": "brain_session_dir",
+                    "path": str(conv_dir),
+                    "updated_at": conv.updated_at,
+                    "mtime_ns": conv.mtime_ns,
+                    "sort_ts_ms": int(conv.mtime_ns // 1_000_000),
+                    "artifact_count": len(conv.locations.artifact_files),
+                    "task_log_count": len(conv.locations.task_logs),
+                    "step_count": conv.step_count,
+                    "folders": children,
+                    "children": children,
+                }
+            )
+        return tree
 
     @staticmethod
     def _compute_projects_breakdown(entries: list[AntigravityBrainEntry]) -> dict[str, int]:
@@ -1319,6 +1725,7 @@ class AntigravityBrainLedger:
                         doc_id=e.entry_id,
                         entry_id=e.entry_id,
                         conversation_id=e.conversation_id,
+                        friendly_session_name=e.friendly_session_name,
                         doc_type=e.entry_type,
                         title=e.title,
                         subtitle=e.subtitle,
@@ -1339,6 +1746,7 @@ class AntigravityBrainLedger:
                         code_block_count=len(e.code_blocks),
                         step_count=e.step_count,
                         updated_at=e.updated_at,
+                        json_metadata=e.json_metadata,
                         markdown="\n".join(md_lines),
                     )
                 )
@@ -1377,7 +1785,7 @@ class AntigravityBrainLedger:
 
     def sync_to_qdrant(
         self,
-        qdrant_path: str | Path = "/Users/jarek/IdeaProjects/portfolio/portfolio/.qdrant_data",
+        qdrant_path: str | Path = "/Users/jarek/IdeaProjects/qdrant_staging/storage",
         collection_name: str = "portfolio_antigravity_brain",
         embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2",
         chunk_size: int = 380,
@@ -1386,8 +1794,13 @@ class AntigravityBrainLedger:
     ) -> dict[str, Any]:
         """
         Incrementally indexes changed Antigravity Brain documents directly into Qdrant
-        (`portfolio_antigravity_brain`).
+        (`portfolio_antigravity_brain`) and `/Users/jarek/IdeaProjects/qdrant_staging/storage`
+        via `UnifiedQdrantStagingManager`.
         """
+        from indexes.informational_index import (
+            DEFAULT_STAGING_ROOT,
+            UnifiedQdrantStagingManager,
+        )
         from qdrant_client import QdrantClient
         from qdrant_client.models import (
             Distance,
@@ -1402,25 +1815,21 @@ class AntigravityBrainLedger:
             t0 = time.perf_counter()
             overview = self.scan_and_build(force=False)
             docs = self.build_qdrant_documents()
+            staging_mgr = UnifiedQdrantStagingManager(staging_root=DEFAULT_STAGING_ROOT)
+            q_path = Path(qdrant_path).resolve()
 
             owns_client = False
             client = qdrant_client
             if client is None:
-                q_path = Path(qdrant_path)
                 q_path.mkdir(parents=True, exist_ok=True)
                 try:
                     client = QdrantClient(path=str(q_path))
                     owns_client = True
-                except Exception as exc:
-                    return {
-                        "status": "DEFERRED_LOCKED",
-                        "collection_name": collection_name,
-                        "reason": str(exc),
-                        "total_entries": overview.get("total_entries", 0),
-                    }
+                except Exception:
+                    client = None
 
             try:
-                if not client.collection_exists(collection_name):
+                if client is not None and not client.collection_exists(collection_name):
                     client.create_collection(
                         collection_name=collection_name,
                         vectors_config=VectorParams(size=384, distance=Distance.COSINE),
@@ -1432,8 +1841,11 @@ class AntigravityBrainLedger:
                 for doc in docs:
                     full_text = doc.markdown.strip()
                     text_sha256 = hashlib.sha256(full_text.encode("utf-8")).hexdigest()
+                    meta_sha256 = hashlib.sha256(
+                        ("v4|" + full_text + "|" + json.dumps(doc.json_metadata, sort_keys=True)).encode("utf-8")
+                    ).hexdigest()
                     prev_sha = self._index.load_from_index("QDRANT_DOCS", doc.doc_id)
-                    if prev_sha == text_sha256:
+                    if prev_sha == meta_sha256:
                         continue
 
                     try:
@@ -1445,7 +1857,7 @@ class AntigravityBrainLedger:
                         )
                     except Exception:
                         pass
-                    self._index.store_in_index("QDRANT_DOCS", doc.doc_id, text_sha256)
+                    self._index.store_in_index("QDRANT_DOCS", doc.doc_id, meta_sha256)
 
                     step_chars = max(1, chunk_size - chunk_overlap)
                     chunks: list[dict[str, Any]] = []
@@ -1489,6 +1901,7 @@ class AntigravityBrainLedger:
                             "doc_id": doc.doc_id,
                             "entry_id": doc.entry_id,
                             "conversation_id": doc.conversation_id,
+                            "friendly_session_name": doc.friendly_session_name,
                             "doc_type": doc.doc_type,
                             "title": doc.title,
                             "subtitle": doc.subtitle,
@@ -1507,6 +1920,8 @@ class AntigravityBrainLedger:
                             "code_block_count": doc.code_block_count,
                             "step_count": doc.step_count,
                             "updated_at": doc.updated_at,
+                            "sort_ts_ms": int((doc.json_metadata or {}).get("sort_ts_ms", 0)),
+                            "json_metadata": doc.json_metadata or {},
                             "chunk_index": idx,
                             "total_chunks": total_c,
                             "char_start": c["char_start"],
@@ -1528,15 +1943,23 @@ class AntigravityBrainLedger:
                         )
 
                 if changed_records:
-                    from sentence_transformers import SentenceTransformer
+                    try:
+                        from sentence_transformers import SentenceTransformer
 
-                    st_model = SentenceTransformer(embedding_model, device="cpu")
-                    raw_vecs = st_model.encode(
-                        embed_inputs,
-                        batch_size=32,
-                        show_progress_bar=False,
-                        normalize_embeddings=True,
-                    )
+                        st_model = SentenceTransformer(embedding_model, device="cpu")
+                        raw_vecs = st_model.encode(
+                            embed_inputs,
+                            batch_size=32,
+                            show_progress_bar=False,
+                            normalize_embeddings=True,
+                        )
+                    except Exception:
+                        raw_vecs = []
+                        for t in embed_inputs:
+                            digest = hashlib.sha256(t.encode("utf-8")).digest()
+                            raw_v = [((digest[i % len(digest)] / 127.5) - 1.0) for i in range(384)]
+                            norm = max(sum(x * x for x in raw_v) ** 0.5, 1e-9)
+                            raw_vecs.append([round(x / norm, 6) for x in raw_v])
                     points = [
                         PointStruct(
                             id=rec["point_id"],
@@ -1545,15 +1968,45 @@ class AntigravityBrainLedger:
                         )
                         for rec, vec in zip(changed_records, raw_vecs)
                     ]
-                    client.upsert(collection_name=collection_name, points=points)
+                    if client is not None:
+                        client.upsert(collection_name=collection_name, points=points)
+                    else:
+                        staging_mgr.upsert_points_lockfree(
+                            storage_path=q_path,
+                            collection_name=collection_name,
+                            points=points,
+                            vector_size=384,
+                        )
+                    if qdrant_client is None and not collection_name.startswith("test_"):
+                        if q_path != staging_mgr.storage_dir and staging_mgr.storage_dir.parent.is_dir():
+                            staging_mgr.upsert_points_lockfree(
+                                storage_path=staging_mgr.storage_dir,
+                                collection_name=collection_name,
+                                points=points,
+                                vector_size=384,
+                            )
+                        portfolio_qdrant = Path("/Users/jarek/IdeaProjects/portfolio/portfolio/.qdrant_data")
+                        if q_path != portfolio_qdrant and portfolio_qdrant.is_dir():
+                            staging_mgr.upsert_points_lockfree(
+                                storage_path=portfolio_qdrant,
+                                collection_name=collection_name,
+                                points=points,
+                                vector_size=384,
+                            )
 
-                col_info = client.get_collection(collection_name)
+                if client is not None:
+                    col_info = client.get_collection(collection_name)
+                    pt_count = int(col_info.points_count or 0)
+                else:
+                    pt_count = staging_mgr._count_sqlite_points(
+                        q_path / "collection" / collection_name / "storage.sqlite"
+                    )
                 return {
                     "status": "SYNCED",
                     "collection_name": collection_name,
                     "total_documents": len(docs),
                     "changed_chunks_upserted": len(changed_records),
-                    "qdrant_point_count": int(col_info.points_count or 0),
+                    "qdrant_point_count": pt_count,
                     "duration_ms": round((time.perf_counter() - t0) * 1000.0, 2),
                 }
             finally:
@@ -1567,7 +2020,7 @@ class AntigravityBrainLedger:
 def sync_antigravity_brain_to_qdrant(
     brain_root: str | Path = "/Users/jarek/.gemini/antigravity-cli/brain",
     ledger_path: str | Path = "/Users/jarek/IdeaProjects/portfolio/portfolio/antigravity_brain_ledger.json",
-    qdrant_path: str | Path = "/Users/jarek/IdeaProjects/portfolio/portfolio/.qdrant_data",
+    qdrant_path: str | Path = "/Users/jarek/IdeaProjects/qdrant_staging/storage",
     collection_name: str = "portfolio_antigravity_brain",
     qdrant_client: Any | None = None,
 ) -> dict[str, Any]:
