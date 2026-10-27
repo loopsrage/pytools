@@ -1358,6 +1358,7 @@ class CodeCorpusIndex(Datasource):
             "target_node": target_rel,
             "path_nodes": path_nodes,
             "hop_count": len(hops),
+            "num_hops": len(hops),
             "hops": hops,
             "total_geodesic_distance": total_geo,
             "direct_geodesic_distance": direct_geo,

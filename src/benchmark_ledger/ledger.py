@@ -605,6 +605,7 @@ class ModelArchitectureProfile(BaseModel):
     family: str
     is_polyphonic: bool
     is_overall_best: bool = False
+    is_promoted: bool = False
     in_latest_suite: bool = True
     overall_rank: int
     composite_score: float
@@ -625,6 +626,7 @@ class ModelArchitectureProfile(BaseModel):
     method_names: list[str] = Field(default_factory=list)
     benchmark_entries: list[ModelBenchmarkEntry] = Field(default_factory=list)
     historical_ranks: list[dict[str, Any]] = Field(default_factory=list)
+    promoted_metadata: dict[str, Any] = Field(default_factory=dict)
     markdown_overview: str = ""
     related_modules: list[str] = Field(default_factory=list)
     related_kis: list[str] = Field(default_factory=list)
@@ -672,6 +674,7 @@ class BenchmarkQdrantDocument(BaseModel):
     code_snippet: str = ""
     source_file: str = ""
     is_overall_best: bool = False
+    is_promoted: bool = False
     overall_rank: int = 999
     composite_score: float = 0.0
     wins_count: int = 0
@@ -1425,12 +1428,34 @@ def _format_task_markdown_table(task: BenchmarkTaskRecord) -> str:
     return "\n".join(lines)
 
 
+def _load_promoted_manifest(repo_path: Path, fs: FSBase) -> dict[str, Any]:
+    """Load `promoted/promoted_manifest.json` and harness metadata via FSBase if present."""
+    manifest_path = repo_path / "promoted" / "promoted_manifest.json"
+    if not manifest_path.exists():
+        return {}
+    try:
+        buf = io.BytesIO()
+        fs.read(str(manifest_path), buf)
+        manifest = json.loads(buf.getvalue().decode("utf-8"))
+        if not isinstance(manifest, dict):
+            return {}
+        promoted_model_py = repo_path / "promoted" / "promoted_model.py"
+        harness_py = repo_path / "promoted" / "harness.py"
+        manifest = dict(manifest)
+        manifest["promoted_model_file"] = "promoted/promoted_model.py" if promoted_model_py.exists() else ""
+        manifest["harness_file"] = "promoted/harness.py" if harness_py.exists() else ""
+        return manifest
+    except Exception:
+        return {}
+
+
 def _format_model_markdown(profile: ModelArchitectureProfile) -> str:
-    best_badge = (
-        "🏆 **OVERALL #1 BEST ARCHITECTURE**"
-        if profile.is_overall_best
-        else f"Overall Rank **#{profile.overall_rank}**"
-    )
+    if profile.is_promoted:
+        best_badge = "🏆 **PROMOTED GAUNTLET WINNER (`promoted/`) — OVERALL #1 PINNED ARCHITECTURE**"
+    elif profile.is_overall_best:
+        best_badge = "🏆 **OVERALL #1 BEST ARCHITECTURE**"
+    else:
+        best_badge = f"Overall Rank **#{profile.overall_rank}**"
     lines = [
         f"## {profile.model_name} — {best_badge}",
         "",
@@ -1440,7 +1465,7 @@ def _format_model_markdown(profile: ModelArchitectureProfile) -> str:
         "",
         "| Metric | Value |",
         "| :--- | :--- |",
-        f"| **Overall Rank** | `#{profile.overall_rank}` |",
+        f"| **Overall Rank** | `#{profile.overall_rank}` {'(Pinned Promoted Gauntlet Winner)' if profile.is_promoted else ''} |",
         f"| **Composite Score** | `{profile.composite_score:.2f} / 100.0` |",
         f"| **Rank #1 Benchmark Wins** | `{profile.wins_count} / {profile.benchmarks_evaluated}` |",
         f"| **Top-3 Podium Finishes** | `{profile.top3_count} / {profile.benchmarks_evaluated}` |",
@@ -1449,10 +1474,25 @@ def _format_model_markdown(profile: ModelArchitectureProfile) -> str:
         f"| **PyTorch Class** | `{profile.class_name}` (`{profile.source_file}:{profile.source_line_start}-{profile.source_line_end}`) |",
         f"| **Average Parameter Budget** | `{profile.avg_num_params:,}` params |",
         f"| **Average Execution Latency** | `{profile.avg_elapsed_sec:.2f}s` / benchmark |",
-        "",
-        "### Architectural Highlights",
-        "",
     ]
+    if profile.is_promoted and profile.promoted_metadata:
+        pm = profile.promoted_metadata
+        q_ver = pm.get("qdrant_code_verification") or {}
+        geo_tr = pm.get("geodesic_code_trace") or {}
+        lines.extend(
+            [
+                f"| **Promoted Package** | `promoted/promoted_model.py` & `promoted/harness.py` (`PromotedModelHarness`) |",
+                f"| **Qdrant Code Verification** | `unchanged={q_ver.get('unchanged', True)}` (`{q_ver.get('verified_files_count', 0)}` verified files, digest `{str(q_ver.get('corpus_digest', ''))[:16]}...`) |",
+                f"| **Poincare Geodesic Code Trace** | `{geo_tr.get('hop_count', geo_tr.get('num_hops', 0))}` hops (`total_geodesic_distance={geo_tr.get('total_geodesic_distance', 0.0)}`) |",
+            ]
+        )
+    lines.extend(
+        [
+            "",
+            "### Architectural Highlights",
+            "",
+        ]
+    )
     for item in profile.architectural_highlights:
         lines.append(f"- {item}")
 
@@ -1507,6 +1547,7 @@ class BenchmarkLedger:
         self._tasks: list[BenchmarkTaskRecord] = []
         self._runs: list[BenchmarkRunSnapshot] = []
         self._timeseries: list[dict[str, Any]] = []
+        self._promoted_manifest: dict[str, Any] = {}
         self._last_scraped_at: str = ""
 
         if self.ledger_path is not None and self.ledger_path.exists():
@@ -1952,8 +1993,28 @@ class BenchmarkLedger:
                 )
             )
 
+        promoted_manifest = _load_promoted_manifest(self.repo_path, self._fs)
+        self._promoted_manifest = promoted_manifest
+        promoted_model_id = str(promoted_manifest.get("model_id", "")).strip()
+        promoted_model_name = str(promoted_manifest.get("model_name", "")).strip()
+        promoted_class_name = str(promoted_manifest.get("class_name", "")).strip()
+
+        for profile in raw_profiles:
+            is_match = bool(
+                promoted_manifest
+                and (
+                    (promoted_model_id and profile.model_id == promoted_model_id)
+                    or (promoted_model_name and profile.model_name == promoted_model_name)
+                    or (promoted_class_name and profile.class_name == promoted_class_name)
+                )
+            )
+            if is_match:
+                profile.is_promoted = True
+                profile.promoted_metadata = promoted_manifest
+
         raw_profiles.sort(
             key=lambda p: (
+                0 if p.is_promoted else 1,
                 0 if p.benchmarks_evaluated >= total_tasks_count else 1,
                 p.mean_rank,
                 -p.composite_score,
@@ -2002,6 +2063,12 @@ class BenchmarkLedger:
             "last_scraped_at": self._last_scraped_at,
             "repo_path": str(self.repo_path),
             "best_model": self._models[0].model_dump() if self._models else None,
+            "promoted_model": (
+                self._models[0].model_dump()
+                if (self._models and self._models[0].is_promoted)
+                else None
+            ),
+            "promoted_manifest": self._promoted_manifest,
             "models": [m.model_dump() for m in self._models],
             "tasks": [t.model_dump() for t in self._tasks],
             "runs": [r.model_dump() for r in self._runs],
@@ -2121,6 +2188,11 @@ class BenchmarkLedger:
         if not self._models or not self._tasks:
             self.scrape_and_build()
         best_model = self._models[0].model_dump() if self._models else None
+        promoted_model = (
+            self._models[0].model_dump()
+            if (self._models and self._models[0].is_promoted)
+            else None
+        )
         return {
             "repo_path": str(self.repo_path),
             "last_scraped_at": self._last_scraped_at,
@@ -2131,6 +2203,8 @@ class BenchmarkLedger:
             "language_benchmarks_count": sum(1 for t in self._tasks if t.category == "language"),
             "continuous_benchmarks_count": sum(1 for t in self._tasks if t.category == "continuous"),
             "best_model": best_model,
+            "promoted_model": promoted_model,
+            "promoted_manifest": self._promoted_manifest,
             "models": [m.model_dump() for m in self._models],
             "tasks": [t.model_dump() for t in self._tasks],
             "runs": [r.model_dump() for r in self._runs],
@@ -2183,13 +2257,17 @@ class BenchmarkLedger:
                     doc_id=model.model_id,
                     doc_type="benchmark_model",
                     title=model.model_name,
-                    subtitle=f"Rank #{model.overall_rank} • {model.family} • Top-3: {model.top3_count}/{model.benchmarks_evaluated} • Mean Rank {model.mean_rank:.2f}",
+                    subtitle=(
+                        f"{'PROMOTED GAUNTLET WINNER • ' if model.is_promoted else ''}Rank #{model.overall_rank} • "
+                        f"{model.family} • Top-3: {model.top3_count}/{model.benchmarks_evaluated} • Mean Rank {model.mean_rank:.2f}"
+                    ),
                     category="Polyphonic Architectures" if model.is_polyphonic else "Baseline Architectures",
                     summary=model.summary,
                     markdown=model.markdown_overview,
                     code_snippet=model.source_code,
                     source_file=model.source_file,
                     is_overall_best=model.is_overall_best,
+                    is_promoted=model.is_promoted,
                     overall_rank=model.overall_rank,
                     composite_score=model.composite_score,
                     wins_count=model.wins_count,
@@ -2292,6 +2370,8 @@ class BenchmarkLedger:
         so callers can detect real-time updates without re-scraping when unchanged.
         """
         watched = [
+            self.repo_path / "promoted" / "promoted_manifest.json",
+            self.repo_path / "promoted" / "harness.py",
             self.repo_path / "src" / "models" / "monadic_cavity" / "results" / "monadic_cavity_leaderboard.json",
             self.repo_path / "src" / "models" / "monadic_cavity" / "results" / "benchmark_timeseries.jsonl",
             self.repo_path / "src" / "models" / "monadic_cavity" / "results" / "realtime_qdrant_stream.json",
@@ -2484,6 +2564,7 @@ class BenchmarkLedger:
                         "summary": doc.summary,
                         "source_file": doc.source_file,
                         "is_overall_best": doc.is_overall_best,
+                        "is_promoted": doc.is_promoted,
                         "overall_rank": doc.overall_rank,
                         "composite_score": doc.composite_score,
                         "wins_count": doc.wins_count,
