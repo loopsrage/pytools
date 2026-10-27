@@ -1079,8 +1079,7 @@ class CodeCorpusIndex(Datasource):
                     indexed_rec = self._index.load_from_index("FILES", rel_p)
                     in_qdrant = (
                         disk_sha in head_sha_map.get(rel_p, set())
-                        if head_sha_map
-                        else self.has_sha256_in_qdrant(
+                        or self.has_sha256_in_qdrant(
                             sha256_hash=disk_sha,
                             rel_path=rel_p,
                             only_head=True,
@@ -1525,7 +1524,11 @@ class CodeCorpusIndex(Datasource):
                     rp = str(f_rec["rel_path"])
                     self._index.store_in_index("FILES", rp, f_rec)
                     if f_rec.get("sha256"):
-                        self._index.store_in_index("SHA256_MAP", str(f_rec["sha256"]), [f_rec])
+                        sha = str(f_rec["sha256"])
+                        entries = list(self._index.load_from_index("SHA256_MAP", sha) or [])
+                        entries = [e for e in entries if e.get("rel_path") != rp]
+                        entries.append(f_rec)
+                        self._index.store_in_index("SHA256_MAP", sha, entries)
             for m in data.get("indexed_models", []):
                 if isinstance(m, dict) and m.get("model_id"):
                     self._index.store_in_index("MODELS", str(m["model_id"]), m)
