@@ -938,6 +938,39 @@ class CodeCorpusIndex(Datasource):
                         discovered.append(p)
         return discovered
 
+    def _fetch_qdrant_head_sha_map(self, client: Any | None) -> dict[str, set[str]]:
+        """Fetches all active `is_head=True` `(rel_path -> set[sha256])` pairs from Qdrant in a single scroll."""
+        from qdrant_client.models import FieldCondition, Filter, MatchValue
+
+        out: dict[str, set[str]] = {}
+        if client is None:
+            return out
+        try:
+            self._ensure_collection_and_sha256_index(client)
+            offset = None
+            while True:
+                scrolled, offset = client.scroll(
+                    collection_name=self.collection_name,
+                    scroll_filter=Filter(
+                        must=[FieldCondition(key="is_head", match=MatchValue(value=True))]
+                    ),
+                    limit=1000,
+                    offset=offset,
+                    with_payload=["rel_path", "sha256"],
+                    with_vectors=False,
+                )
+                for pt in scrolled:
+                    pl = pt.payload or {}
+                    rp = str(pl.get("rel_path", ""))
+                    sh = str(pl.get("sha256", ""))
+                    if rp and sh:
+                        out.setdefault(rp, set()).add(sh)
+                if offset is None:
+                    break
+        except Exception:
+            pass
+        return out
+
     def sync_corpus(
         self,
         subdirs: list[str] | None = None,
@@ -957,10 +990,19 @@ class CodeCorpusIndex(Datasource):
             changed_paths: list[str] = []
 
             try:
-                if client is not None:
-                    self._ensure_collection_and_sha256_index(client)
+                head_sha_map = self._fetch_qdrant_head_sha_map(client)
                 for abs_p in files:
                     rel_p = abs_p.relative_to(self.repo_path).as_posix()
+                    existing_rec = self._index.load_from_index("FILES", rel_p)
+                    if existing_rec is not None:
+                        content = self._read_text_via_fsbase(abs_p)
+                        disk_sha = hashlib.sha256(content.encode("utf-8")).hexdigest()
+                        if (
+                            existing_rec.get("sha256") == disk_sha
+                            and disk_sha in head_sha_map.get(rel_p, set())
+                        ):
+                            unchanged_count += 1
+                            continue
                     res = self.upsert_file(
                         rel_path=rel_p,
                         client=client,
@@ -1028,17 +1070,22 @@ class CodeCorpusIndex(Datasource):
             verified_files: int = 0
 
             try:
+                head_sha_map = self._fetch_qdrant_head_sha_map(client)
                 for abs_p in files:
                     rel_p = abs_p.relative_to(self.repo_path).as_posix()
                     content = self._read_text_via_fsbase(abs_p)
                     disk_sha = hashlib.sha256(content.encode("utf-8")).hexdigest()
 
                     indexed_rec = self._index.load_from_index("FILES", rel_p)
-                    in_qdrant = self.has_sha256_in_qdrant(
-                        sha256_hash=disk_sha,
-                        rel_path=rel_p,
-                        only_head=True,
-                        client=client,
+                    in_qdrant = (
+                        disk_sha in head_sha_map.get(rel_p, set())
+                        if head_sha_map
+                        else self.has_sha256_in_qdrant(
+                            sha256_hash=disk_sha,
+                            rel_path=rel_p,
+                            only_head=True,
+                            client=client,
+                        )
                     )
                     if indexed_rec is None and not in_qdrant:
                         unindexed_files.append(rel_p)
@@ -1331,6 +1378,8 @@ class CodeCorpusIndex(Datasource):
         metrics: dict[str, Any] | None = None,
         weight_signature_sha256: str = "",
         is_promoted: bool = False,
+        client: Any | None = None,
+        head_sha_map: dict[str, set[str]] | None = None,
     ) -> dict[str, Any]:
         """
         Indexes a neural model architecture + parameter/source SHA-256 fingerprint into Qdrant
@@ -1342,7 +1391,7 @@ class CodeCorpusIndex(Datasource):
             norm_src = source_file.strip("/").replace("\\", "/")
             file_rec = self._index.load_from_index("FILES", norm_src)
             if file_rec is None and (self.repo_path / norm_src).is_file():
-                self.upsert_file(norm_src, rebuild_graph=False)
+                self.upsert_file(norm_src, client=client, rebuild_graph=False)
                 file_rec = self._index.load_from_index("FILES", norm_src)
 
             code_sha = str((file_rec or {}).get("sha256", ""))
@@ -1352,14 +1401,23 @@ class CodeCorpusIndex(Datasource):
                 )
             ).hexdigest()
 
-            client, owns = self._open_qdrant_client()
+            owns = False
+            active_client = client
+            if active_client is None:
+                active_client, owns = self._open_qdrant_client()
             try:
-                if self.has_sha256_in_qdrant(
-                    sha256_hash=combined_sha,
-                    rel_path=f"model://{model_id}",
-                    only_head=True,
-                    client=client,
-                ):
+                rel_key = f"model://{model_id}"
+                in_qdrant = (
+                    combined_sha in head_sha_map.get(rel_key, set())
+                    if head_sha_map is not None
+                    else self.has_sha256_in_qdrant(
+                        sha256_hash=combined_sha,
+                        rel_path=rel_key,
+                        only_head=True,
+                        client=active_client,
+                    )
+                )
+                if in_qdrant:
                     existing_m = self._index.load_from_index("MODELS", model_id)
                     if existing_m is not None:
                         return {
@@ -1389,7 +1447,7 @@ class CodeCorpusIndex(Datasource):
                     "point_id": point_id,
                     "doc_id": f"model_artifact_{model_id}",
                     "doc_type": "indexed_model",
-                    "rel_path": f"model://{model_id}",
+                    "rel_path": rel_key,
                     "model_id": model_id,
                     "model_name": model_name,
                     "class_name": class_name,
@@ -1404,9 +1462,9 @@ class CodeCorpusIndex(Datasource):
                     "poincare_coords": poincare_coords,
                     "recorded_at": recorded_at,
                 }
-                if client is not None:
-                    self._ensure_collection_and_sha256_index(client)
-                    client.upsert(
+                if active_client is not None:
+                    self._ensure_collection_and_sha256_index(active_client)
+                    active_client.upsert(
                         collection_name=self.collection_name,
                         points=[PointStruct(id=point_id, vector=vec, payload=payload)],
                     )
@@ -1420,9 +1478,9 @@ class CodeCorpusIndex(Datasource):
                     "code_sha256": code_sha,
                 }
             finally:
-                if owns and client is not None and hasattr(client, "close"):
+                if owns and active_client is not None and hasattr(active_client, "close"):
                     try:
-                        client.close()
+                        active_client.close()
                     except Exception:
                         pass
 
@@ -1462,11 +1520,18 @@ class CodeCorpusIndex(Datasource):
             data = json.loads(text)
             self._baseline_corpus_digest = str(data.get("baseline_corpus_digest", ""))
             self._last_synced_at = str(data.get("last_synced_at", ""))
+            for f_rec in data.get("files", []):
+                if isinstance(f_rec, dict) and f_rec.get("rel_path"):
+                    rp = str(f_rec["rel_path"])
+                    self._index.store_in_index("FILES", rp, f_rec)
+                    if f_rec.get("sha256"):
+                        self._index.store_in_index("SHA256_MAP", str(f_rec["sha256"]), [f_rec])
             for m in data.get("indexed_models", []):
                 if isinstance(m, dict) and m.get("model_id"):
                     self._index.store_in_index("MODELS", str(m["model_id"]), m)
                     if m.get("sha256"):
                         self._index.store_in_index("SHA256_MAP", str(m["sha256"]), [m])
+            self._rebuild_code_graph()
         except Exception:
             return
 
