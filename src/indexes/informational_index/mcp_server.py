@@ -16,6 +16,7 @@ import traceback
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from indexes.informational_index.fs_crud_service import FSBaseCrudService
 from indexes.informational_index.informational_index import (
     DEFAULT_IDEA_PROJECTS_ROOT,
     DEFAULT_KNOWLEDGE_ROOT,
@@ -55,12 +56,22 @@ class QdrantGeodesicLifecycleMCPServer:
         lazy_init: bool = True,
     ) -> None:
         self._index = index
+        self._fs_crud: Optional[FSBaseCrudService] = None
         self.staging_root = Path(staging_root).resolve()
         self.idea_projects_root = Path(idea_projects_root).resolve()
         self.skill_md_path = Path(skill_md_path).resolve()
         self.knowledge_root = Path(knowledge_root).resolve()
         if not lazy_init and self._index is None:
             self._ensure_index()
+
+    def _ensure_fs_crud(self) -> FSBaseCrudService:
+        if self._fs_crud is None:
+            self._fs_crud = FSBaseCrudService(
+                promoted_root=self.idea_projects_root / "neural_networks" / "promoted",
+                staging_root=self.staging_root,
+                idea_projects_root=self.idea_projects_root,
+            )
+        return self._fs_crud
 
     def _ensure_index(self) -> AgentInformationalGraphIndex:
         if self._index is None:
@@ -269,6 +280,70 @@ class QdrantGeodesicLifecycleMCPServer:
                     },
                 },
             },
+            {
+                "name": "fs_crud",
+                "description": (
+                    "Perform FSBase-backed File System CRUD ('list', 'read', 'create', 'update', "
+                    "'upload', 'delete', 'mkdir', 'sync') on the Promoted Model & Staging Qdrant workspace "
+                    "(/Users/jarek/IdeaProjects/neural_networks/promoted and "
+                    "/Users/jarek/IdeaProjects/qdrant_staging/promoted_workspace), supporting text, code, "
+                    "markdown, and bidirectional multimedia (base64 images, audio, video, PDF) backed up via "
+                    "FSBase and indexed in staging Qdrant ('promoted_model_artifacts')."
+                ),
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "action": {
+                            "type": "string",
+                            "enum": [
+                                "list",
+                                "tree",
+                                "read",
+                                "create",
+                                "update",
+                                "write",
+                                "upload",
+                                "delete",
+                                "mkdir",
+                                "sync",
+                            ],
+                            "description": "CRUD operation to perform on the FSBase workspace.",
+                        },
+                        "path": {
+                            "type": "string",
+                            "description": "Target relative or absolute file path inside promoted or staging workspace.",
+                        },
+                        "root_id": {
+                            "type": "string",
+                            "enum": ["promoted_repo", "promoted_staging"],
+                            "description": "Target FSBase root ('promoted_repo' or 'promoted_staging'). Defaults to 'promoted_repo'.",
+                            "default": "promoted_repo",
+                        },
+                        "folder": {
+                            "type": "string",
+                            "description": "Default subfolder when creating/uploading ('artifacts' or 'multimedia').",
+                            "default": "artifacts",
+                        },
+                        "content": {
+                            "type": "string",
+                            "description": "UTF-8 text/markdown/code content for create/update.",
+                        },
+                        "content_base64": {
+                            "type": "string",
+                            "description": "Base64 or data:...;base64,... payload for binary/multimedia uploads.",
+                        },
+                        "media_type": {
+                            "type": "string",
+                            "description": "Optional MIME type (e.g. 'image/png', 'audio/wav', 'video/mp4', 'text/markdown').",
+                        },
+                        "query": {
+                            "type": "string",
+                            "description": "Optional filter query when action='list'.",
+                        },
+                    },
+                    "required": ["action"],
+                },
+            },
         ]
 
     @staticmethod
@@ -367,6 +442,19 @@ class QdrantGeodesicLifecycleMCPServer:
                 target_query=str(args.get("target_query", "")),
                 system_id=args.get("system_id"),
                 include_source_excerpts=bool(args.get("include_source_excerpts", True)),
+            )
+
+        if name == "fs_crud":
+            fs_svc = self._ensure_fs_crud()
+            return fs_svc.execute_crud(
+                action=str(args.get("action", "list")),
+                path=args.get("path") or args.get("file_path") or args.get("name"),
+                root_id=args.get("root_id") or "promoted_repo",
+                folder=args.get("folder") or "artifacts",
+                content=args.get("content"),
+                content_base64=args.get("content_base64"),
+                media_type=args.get("media_type"),
+                query=args.get("query") or "",
             )
 
         raise ValueError(f"Unknown MCP tool: {name!r}")

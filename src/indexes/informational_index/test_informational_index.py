@@ -205,6 +205,7 @@ def test_qdrant_geodesic_lifecycle_mcp_server() -> None:
         "manage_system_lifecycle",
         "get_design_compiler_code_juxtaposition",
         "trace_full_geodesic_code_path",
+        "fs_crud",
     }.issubset(tool_names)
 
     # 2. `list_systems` tool call
@@ -374,7 +375,7 @@ def test_qdrant_geodesic_lifecycle_mcp_server() -> None:
         assert r1["id"] == 101
         assert r1["result"]["serverInfo"]["name"] == "qdrant-geodesic-lifecycle"
         assert r2["id"] == 102
-        assert len(r2["result"]["tools"]) == 5
+        assert len(r2["result"]["tools"]) == 6
     finally:
         if proc.poll() is None:
             proc.kill()
@@ -973,18 +974,25 @@ def test_wiki_filesystem_and_line_level_geodesic_split_converge_trace() -> None:
     assert trace["converged_columns_count"] >= 2
     assert trace["total_sidebar_elements"] >= trace["total_columns"]
 
-    # Column 0 is origin (1 panel), Column 1 splits into 3 parallel Tri-Layer panels (Design, Compiler, Code),
-    # and the final column converges into 1 terminal panel (`ui:components:AsyncChatWindow`).
+    # Column 0 is origin (1 panel), Column 1 splits into 2 parallel variable control-flow branches,
+    # Column 2 reconverges at the control-flow join, and the final column converges into 1 terminal panel (`ui:components:AsyncChatWindow`).
     cols = trace["stage_columns"]
     assert cols[0]["split_mode"] == "origin"
     assert len(cols[0]["panels"]) == 1
     assert cols[1]["split_mode"] == "split"
-    assert len(cols[1]["panels"]) == 3
-    assert {p["layer"] for p in cols[1]["panels"]} == {"design", "compiler", "code"}
+    assert len(cols[1]["panels"]) == 2
     for p in cols[1]["panels"]:
         assert p["incoming_from_panel_ids"] == ["col-0-panel-0"]
         assert len(p["code_lines"]) >= 1
         assert p["focal_line_number"] >= 1
+
+    # Verify Mermaid code and Qdrant-persisted flow_graph
+    assert "flowchart LR" in trace["mermaid_code"]
+    assert trace["qdrant_collection"] == "code_flow_graphs"
+    assert trace["qdrant_graph_id"].startswith("code_flow:")
+    assert len(trace["flow_graph"]["nodes"]) >= 4
+    assert len(trace["flow_graph"]["edges"]) >= 4
+    assert all("from_line" in e and "to_line" in e for e in trace["flow_graph"]["edges"])
 
     # Verify convergence: at least one downstream column has 1 panel with multiple `incoming_from_panel_ids`
     converged_downstream = [
@@ -995,6 +1003,62 @@ def test_wiki_filesystem_and_line_level_geodesic_split_converge_trace() -> None:
     assert len(converged_downstream) >= 1
     assert cols[-1]["panels"][-1]["node_id"] == "ui:components:AsyncChatWindow"
     assert trace["sidebar_elements"][-1]["node_id"] == "ui:components:AsyncChatWindow"
+
+    # 4. Verify `fs_crud` MCP tool and `FSBaseCrudService` bidirectional multimedia & text CRUD backed by FSBase + Qdrant
+    mcp = QdrantGeodesicLifecycleMCPServer(lazy_init=False)
+    create_resp = mcp.handle_jsonrpc_message(
+        {
+            "jsonrpc": "2.0",
+            "id": 91,
+            "method": "tools/call",
+            "params": {
+                "name": "fs_crud",
+                "arguments": {
+                    "action": "create",
+                    "path": "artifacts/mcp_test_artifact.md",
+                    "content": "# MCP FSBase Test\nVerified in staging Qdrant.\n",
+                    "scope": "workspace",
+                },
+            },
+        }
+    )["result"]["structuredContent"]
+    assert create_resp["status"] == "saved"
+    assert Path(create_resp["path"]).is_file()
+
+    read_resp = mcp.handle_jsonrpc_message(
+        {
+            "jsonrpc": "2.0",
+            "id": 92,
+            "method": "tools/call",
+            "params": {
+                "name": "fs_crud",
+                "arguments": {
+                    "action": "read",
+                    "path": "artifacts/mcp_test_artifact.md",
+                    "scope": "workspace",
+                },
+            },
+        }
+    )["result"]["structuredContent"]
+    assert read_resp["status"] == "ok"
+    assert "MCP FSBase Test" in read_resp["content"]
+
+    del_resp = mcp.handle_jsonrpc_message(
+        {
+            "jsonrpc": "2.0",
+            "id": 93,
+            "method": "tools/call",
+            "params": {
+                "name": "fs_crud",
+                "arguments": {
+                    "action": "delete",
+                    "path": "artifacts/mcp_test_artifact.md",
+                    "scope": "workspace",
+                },
+            },
+        }
+    )["result"]["structuredContent"]
+    assert del_resp["status"] == "deleted"
 
 
 

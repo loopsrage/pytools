@@ -788,14 +788,17 @@ class AgentInformationalGraphIndex(Datasource):
         for ki_dir in sorted(self.knowledge_root.iterdir()):
             if not ki_dir.is_dir():
                 continue
+            masked_ki_id = mask_restricted_string(ki_dir.name)
+            if any(existing["ki_id"] == masked_ki_id for existing in ki_by_keyword["all"]):
+                continue
             meta_file = ki_dir / "metadata.json"
-            title = ki_dir.name
+            title = masked_ki_id
             summary = ""
             if meta_file.is_file():
                 try:
                     m = json.loads(meta_file.read_text(encoding="utf-8"))
-                    title = str(m.get("title") or ki_dir.name)
-                    summary = str(m.get("summary") or "")
+                    title = mask_restricted_string(str(m.get("title") or masked_ki_id))
+                    summary = mask_restricted_string(str(m.get("summary") or ""))
                 except Exception:
                     pass
             artifacts_dir = ki_dir / "artifacts"
@@ -805,7 +808,7 @@ class AgentInformationalGraphIndex(Datasource):
                 if mds:
                     first_md = mds[0]
             info = {
-                "ki_id": ki_dir.name,
+                "ki_id": masked_ki_id,
                 "title": title,
                 "summary": summary[:450],
                 "doc_path": str(first_md or meta_file),
@@ -2414,6 +2417,13 @@ class AgentInformationalGraphIndex(Datasource):
                 raw_ki = ki_doc_path.read_text(encoding="utf-8", errors="replace")
                 ki_excerpt = raw_ki[:850]
                 ki_sha = hashlib.sha256(raw_ki.encode("utf-8")).hexdigest()
+                masked_path_str = mask_restricted_string(str(ki_doc_path))
+                if masked_path_str != str(ki_doc_path):
+                    masked_path = Path(masked_path_str)
+                    if not masked_path.is_file():
+                        masked_path.parent.mkdir(parents=True, exist_ok=True)
+                        masked_path.write_text(mask_restricted_string(raw_ki), encoding="utf-8")
+                    ki_doc_path = masked_path
             add_node(
                 JuxtaposedNode(
                     node_id=ki_node_id,
@@ -4237,6 +4247,36 @@ class AgentInformationalGraphIndex(Datasource):
 
         return None, None
 
+    _BRANCH_KEYWORD_RE = re.compile(
+        r"\b(if|elif|else|for|while|try|except|finally|with|match|case|switch|catch|return|yield|raise|await|def|class|stage|Stage|export)\b"
+    )
+
+    def _detect_branch_keyword(self, line_text: str) -> Tuple[bool, Optional[str]]:
+        """
+        Determines whether `line_text` contains a branching / control-flow / dispatch keyword
+        that can expand into a cascading code-flow node. Returns `(is_branch, branch_keyword)`.
+        """
+        stripped = (line_text or "").strip()
+        if not stripped:
+            return False, None
+        if stripped.startswith("##"):
+            return True, "section"
+        if stripped.startswith(("#", "//", "/*", "*")):
+            return False, None
+        if stripped in ('"""', "'''", ")", "}", "]", ");", "},", "};"):
+            return False, None
+        if stripped.startswith(("import ", "from ")) and " import " in f" {stripped} ":
+            return False, None
+
+        m = self._BRANCH_KEYWORD_RE.search(stripped)
+        if m:
+            return True, m.group(1).lower()
+        if "?" in stripped and ":" in stripped:
+            return True, "ternary"
+        if "(" in stripped and ")" in stripped and not stripped.startswith("@"):
+            return True, "call"
+        return False, None
+
     def _extract_line_tokens(self, line_text: str) -> List[str]:
         raw_tokens = re.findall(r"\b[A-Za-z_][A-Za-z0-9_]{2,}\b", line_text or "")
         seen: set[str] = set()
@@ -4254,7 +4294,7 @@ class AgentInformationalGraphIndex(Datasource):
         """
         Reads a physical source/design/compiler file for the Code Wiki Git-like viewer,
         returning numbered lines, extracted variable/symbol tokens per line, git markers,
-        and juxtaposed node metadata.
+        branching keyword metadata (`is_branch`, `branch_keyword`), and juxtaposed node metadata.
         """
         resolved_path, node_obj = self._resolve_node_and_path(file_path)
         if resolved_path is None or not resolved_path.is_file():
@@ -4287,13 +4327,16 @@ class AgentInformationalGraphIndex(Datasource):
                 ("def ", "class ", "async def ", "export ", "interface ", "func ", "stage ", "## ")
             )
             has_exported = any(t in exported_syms for t in tokens)
-            git_marker = "+" if (is_def or has_exported) else ("~" if tokens else " ")
+            is_branch, branch_keyword = self._detect_branch_keyword(text)
+            git_marker = "+" if (is_def or has_exported) else ("~" if is_branch else " ")
             lines_out.append(
                 {
                     "line_number": idx,
                     "text": text,
                     "git_marker": git_marker,
                     "is_anchor": bool(is_def or has_exported),
+                    "is_branch": is_branch,
+                    "branch_keyword": branch_keyword,
                     "tokens": tokens,
                 }
             )
@@ -4353,12 +4396,14 @@ class AgentInformationalGraphIndex(Datasource):
         file_path_str: str,
         search_terms: List[str],
         preferred_line: Optional[int] = None,
-        window_radius: int = 7,
+        window_radius: int = 5,
+        target_lines_count: int = 10,
     ) -> Dict[str, Any]:
         """
         Locates the best matching line for `search_terms` in `file_path_str` (or uses
-        `preferred_line`) and extracts a Git-like code window with highlighted lines
-        and clickable tokens.
+        `preferred_line`) using Qdrant-indexed node excerpts and extracts a 10-line
+        surrounding code window (`target_lines_count=10`) with highlighted lines,
+        branching keyword metadata (`is_branch`, `branch_keyword`), and clickable tokens.
         """
         p_obj = Path(file_path_str) if file_path_str else None
         if p_obj is None or not p_obj.is_file():
@@ -4416,8 +4461,15 @@ class AgentInformationalGraphIndex(Datasource):
         if best_line not in matched_line_nums:
             matched_line_nums.insert(0, best_line)
 
-        start_ln = max(1, best_line - window_radius)
-        end_ln = min(len(raw_lines), best_line + window_radius)
+        if target_lines_count > 0:
+            half_before = (target_lines_count - 1) // 2
+            start_ln = max(1, best_line - half_before)
+            end_ln = min(len(raw_lines), start_ln + target_lines_count - 1)
+            if end_ln - start_ln + 1 < target_lines_count:
+                start_ln = max(1, end_ln - target_lines_count + 1)
+        else:
+            start_ln = max(1, best_line - window_radius)
+            end_ln = min(len(raw_lines), best_line + window_radius)
         highlighted_set = set(matched_line_nums[:24])
         highlighted_set.add(best_line)
 
@@ -4426,13 +4478,16 @@ class AgentInformationalGraphIndex(Datasource):
             txt = raw_lines[ln - 1]
             is_hl = ln in highlighted_set
             is_focal = ln == best_line
+            is_branch, branch_kw = self._detect_branch_keyword(txt)
             code_lines.append(
                 {
                     "line_number": ln,
                     "text": txt,
                     "is_highlighted": is_hl,
                     "is_focal": is_focal,
-                    "git_marker": "+" if is_focal else ("~" if is_hl else " "),
+                    "is_branch": is_branch,
+                    "branch_keyword": branch_kw,
+                    "git_marker": "+" if is_focal else ("~" if (is_hl or is_branch) else " "),
                     "tokens": self._extract_line_tokens(txt),
                 }
             )
@@ -4444,6 +4499,150 @@ class AgentInformationalGraphIndex(Datasource):
             "code_lines": code_lines,
         }
 
+    def _analyze_variable_control_flow_in_file(
+        self,
+        file_path_str: str,
+        clamped_line: int,
+        focal_symbol: str,
+    ) -> Dict[str, Any]:
+        """
+        Analyzes the AST and line-level control flow for `focal_symbol` starting from
+        `clamped_line` in `file_path_str`. Identifies:
+        - `guard_line`: The conditional guard (`if`, `try`, `match`, `while`, `for`, or assignment)
+          where `focal_symbol` is evaluated or prepared before branching.
+        - `true_branch_line` & `true_branch_label`: First control-flow direction (`if` / `try` / primary branch).
+        - `false_branch_line` & `false_branch_label`: Second control-flow direction (`else` / `elif` / `except` / alternate branch).
+        - `join_line` & `join_label`: The post-branch convergence / return line where the two control-flow paths join.
+        """
+        p_obj = Path(file_path_str) if file_path_str else None
+        raw_lines: List[str] = []
+        if p_obj is not None and p_obj.is_file():
+            raw_lines = mask_restricted_string(
+                p_obj.read_text(encoding="utf-8", errors="replace")
+            ).splitlines()
+        total_lines = max(1, len(raw_lines))
+        sym_low = (focal_symbol or "").lower()
+
+        # Attempt Python AST control-flow extraction first when file is .py
+        if p_obj is not None and p_obj.suffix.lower() == ".py" and raw_lines:
+            try:
+                tree = ast.parse("\n".join(raw_lines))
+                branch_candidates: List[Tuple[int, int, int, int, int, str, str]] = []
+                for node in ast.walk(tree):
+                    if isinstance(node, ast.If):
+                        cond_ln = int(getattr(node, "lineno", clamped_line))
+                        true_ln = int(getattr(node.body[0], "lineno", cond_ln + 1)) if node.body else min(total_lines, cond_ln + 1)
+                        if node.orelse:
+                            false_ln = int(getattr(node.orelse[0], "lineno", true_ln + 1))
+                            false_lbl = f"else branch (L{false_ln})"
+                        else:
+                            end_if = int(getattr(node, "end_lineno", true_ln + 1))
+                            false_ln = min(total_lines, end_if + 1)
+                            false_lbl = f"fallthrough branch (L{false_ln})"
+                        end_ln = int(getattr(node, "end_lineno", max(true_ln, false_ln)))
+                        join_ln = min(total_lines, end_ln + 1)
+                        src_seg = "\n".join(raw_lines[max(0, cond_ln - 1) : min(total_lines, end_ln)]).lower()
+                        score = 0
+                        if sym_low and sym_low in src_seg:
+                            score += 50
+                        if node.orelse:
+                            score += 25
+                        dist = abs(cond_ln - clamped_line)
+                        score -= min(40, dist // 2)
+                        branch_candidates.append(
+                            (
+                                score,
+                                cond_ln,
+                                true_ln,
+                                false_ln,
+                                join_ln,
+                                f"if branch (L{true_ln})",
+                                false_lbl,
+                            )
+                        )
+                    elif isinstance(node, ast.Try):
+                        cond_ln = int(getattr(node, "lineno", clamped_line))
+                        true_ln = int(getattr(node.body[0], "lineno", cond_ln + 1)) if node.body else min(total_lines, cond_ln + 1)
+                        false_ln = (
+                            int(getattr(node.handlers[0], "lineno", true_ln + 1))
+                            if node.handlers
+                            else min(total_lines, true_ln + 2)
+                        )
+                        end_ln = int(getattr(node, "end_lineno", max(true_ln, false_ln)))
+                        join_ln = min(total_lines, end_ln + 1)
+                        src_seg = "\n".join(raw_lines[max(0, cond_ln - 1) : min(total_lines, end_ln)]).lower()
+                        score = 15 + (45 if (sym_low and sym_low in src_seg) else 0) - min(40, abs(cond_ln - clamped_line) // 2)
+                        branch_candidates.append(
+                            (
+                                score,
+                                cond_ln,
+                                true_ln,
+                                false_ln,
+                                join_ln,
+                                f"try branch (L{true_ln})",
+                                f"except branch (L{false_ln})",
+                            )
+                        )
+                if branch_candidates:
+                    branch_candidates.sort(key=lambda item: (-item[0], abs(item[1] - clamped_line)))
+                    _, cond_ln, true_ln, false_ln, join_ln, true_lbl, false_lbl = branch_candidates[0]
+                    if false_ln == true_ln:
+                        false_ln = min(total_lines, true_ln + 1)
+                    if join_ln <= max(true_ln, false_ln):
+                        join_ln = min(total_lines, max(true_ln, false_ln) + 1)
+                    return {
+                        "guard_line": cond_ln,
+                        "true_branch_line": true_ln,
+                        "false_branch_line": false_ln,
+                        "join_line": join_ln,
+                        "true_branch_label": true_lbl,
+                        "false_branch_label": false_lbl,
+                        "join_label": f"converge join (L{join_ln})",
+                    }
+            except Exception:
+                pass
+
+        # Line-level control-flow scanner for TypeScript/TSX, .sig, Markdown, or fallback Python
+        guard_line = min(total_lines, clamped_line + 1) if clamped_line < total_lines else clamped_line
+        true_line = min(total_lines, guard_line + 1)
+        false_line = min(total_lines, true_line + 2)
+        join_line = min(total_lines, false_line + 2)
+        true_label = f"if / true branch (L{true_line})"
+        false_label = f"else / alt branch (L{false_line})"
+
+        branch_re = re.compile(r"^\s*(if\b|elif\b|else\b|try\b|except\b|case\b|switch\b|match\b|return\b|.*\?.*:)")
+        for idx in range(max(1, clamped_line), min(total_lines + 1, clamped_line + 60)):
+            txt = raw_lines[idx - 1]
+            if branch_re.search(txt):
+                guard_line = idx
+                true_line = min(total_lines, idx + 1)
+                # Find matching else/except/second branch nearby
+                found_alt = False
+                for j in range(true_line + 1, min(total_lines + 1, idx + 35)):
+                    j_txt = raw_lines[j - 1].strip()
+                    if j_txt.startswith(("else", "elif ", "except", "case ", "catch", "default:")):
+                        false_line = min(total_lines, j + 1 if j < total_lines else j)
+                        false_label = f"else / alternate branch (L{false_line})"
+                        join_line = min(total_lines, false_line + 3)
+                        found_alt = True
+                        break
+                if not found_alt:
+                    false_line = min(total_lines, true_line + 2)
+                    false_label = f"fallthrough branch (L{false_line})"
+                    join_line = min(total_lines, false_line + 2)
+                true_label = f"if / true branch (L{true_line})"
+                break
+
+        return {
+            "guard_line": guard_line,
+            "true_branch_line": true_line,
+            "false_branch_line": false_line,
+            "join_line": join_line,
+            "true_branch_label": true_label,
+            "false_branch_label": false_label,
+            "join_label": f"converge join (L{join_line})",
+        }
+
     def trace_geodesic_from_file_line(
         self,
         file_path: str,
@@ -4452,17 +4651,18 @@ class AgentInformationalGraphIndex(Datasource):
         target_query: str = "ui:components:AsyncChatWindow",
     ) -> Dict[str, Any]:
         """
-        Traces the full Geodesic Code Path starting from a clicked file, line number,
+        Traces the Control-Flow & Geodesic Code Path starting from a clicked file, line number,
         and variable/symbol in the Code Wiki:
         1. Identifies the variable/symbol on the clicked line and highlights all participating
            lines in the active file.
-        2. Uses `get_design_compiler_code_juxtaposition` and `trace_full_geodesic_code_path`
-           to build:
-           - `sidebar_elements`: A scrollable sidebar list following every hop from the clicked
-             variable/line through to the terminal component.
-           - `stage_columns`: A side-to-side horizontal track where panels split into parallel
-             juxtaposed/branch panels (`1 -> N` divergence) and converge (`N -> 1` convergence)
-             along the geodesic code path.
+        2. Only splits into two parallel branches when the variable enters a two-direction
+           control-flow branch (`if/else`, `try/except`, conditional guard), and reconverges
+           into a single join node before flowing through downstream geodesic hops.
+        3. Generates a Mermaid `flowchart LR` graph (`mermaid_code`), draggable node coordinates
+           (`flow_graph.nodes`), and line-to-line cubic Bezier spline edges (`flow_graph.edges`).
+        4. Stores/upserts the traced graph into staging Qdrant (`code_flow_graphs` collection in
+           `/Users/jarek/IdeaProjects/qdrant_staging/storage`) so the code flow is graphed in
+           Qdrant and displayed as an interactive spline graph in the UI.
         """
         file_info = self.get_wiki_file_content(file_path, max_lines=500)
         lines = file_info.get("lines", [])
@@ -4484,13 +4684,12 @@ class AgentInformationalGraphIndex(Datasource):
         if not focal_symbol:
             focal_symbol = str(file_info.get("idiomatic_name") or Path(file_info["path"]).stem)
 
-        # Compute highlighted lines in the active file where `focal_symbol` or line tokens participate
         search_terms_primary = [focal_symbol] + [t for t in line_tokens if t != focal_symbol][:3]
         origin_window = self._build_panel_code_window(
             file_info["path"],
             search_terms=search_terms_primary,
             preferred_line=clamped_line,
-            window_radius=8,
+            window_radius=6,
         )
         active_highlighted_lines = origin_window["highlighted_lines"]
 
@@ -4504,224 +4703,307 @@ class AgentInformationalGraphIndex(Datasource):
             target_query=target_query or "ui:components:AsyncChatWindow",
             include_source_excerpts=True,
         )
-
         hops = list(geodesic_trace.get("hops") or [])
 
-        # Build Split-and-Converge Stage Columns:
-        # Column 0: Origin Clicked File & Line (Single Panel)
-        # Column 1: Tri-Layer Juxtaposition Divergence (Splits into 3 parallel panels: Design, Compiler, Code)
-        # Column 2..K: Geodesic Execution Hops (Splits into parallel phase panels when multiple hops share a stage_phase,
-        #              and converges into downstream execution hops, ending at the converged terminal component).
-        raw_columns: List[Dict[str, Any]] = []
+        # Analyze actual control-flow branching for `focal_symbol` in `file_info["path"]`
+        cf_info = self._analyze_variable_control_flow_in_file(
+            file_info["path"],
+            clamped_line=clamped_line,
+            focal_symbol=focal_symbol,
+        )
+        guard_line = int(cf_info["guard_line"])
+        true_line = int(cf_info["true_branch_line"])
+        false_line = int(cf_info["false_branch_line"])
+        join_line = int(cf_info["join_line"])
 
-        # --- Column 0: Origin Panel ---
-        raw_columns.append(
+        guard_win = self._build_panel_code_window(
+            file_info["path"],
+            search_terms=[focal_symbol],
+            preferred_line=guard_line,
+            window_radius=5,
+        )
+        true_win = self._build_panel_code_window(
+            file_info["path"],
+            search_terms=[focal_symbol],
+            preferred_line=true_line,
+            window_radius=5,
+        )
+        false_win = self._build_panel_code_window(
+            file_info["path"],
+            search_terms=[focal_symbol],
+            preferred_line=false_line,
+            window_radius=5,
+        )
+        join_win = self._build_panel_code_window(
+            file_info["path"],
+            search_terms=[focal_symbol],
+            preferred_line=join_line,
+            window_radius=5,
+        )
+
+        # Build control-flow stage columns:
+        # Column 0 is Origin & Guard (1 node),
+        # Column 1 splits into 2 parallel panels where `focal_symbol` branches into two control-flow directions,
+        # Column 2 reconverges into 1 node at the control-flow join line, followed by downstream hops.
+        raw_columns: List[Dict[str, Any]] = [
+            # Column 0: Origin Line & Control-Flow Guard (1 node)
             {
                 "column_index": 0,
                 "stage_id": "stage-0-origin",
-                "stage_label": "0_CLICKED_LINE_ORIGIN",
+                "stage_label": "0_VARIABLE_ORIGIN_AND_GUARD",
                 "split_mode": "origin",
                 "panels": [
                     {
                         "panel_id": "col-0-panel-0",
-                        "branch_label": "ORIGIN LINE & VARIABLE",
+                        "branch_label": f"L{clamped_line}->{guard_line}: {focal_symbol}",
+                        "control_flow_role": "origin",
                         "node_id": start_node_id,
-                        "title": file_info["title"],
+                        "title": f"{file_info['name']}:{clamped_line}",
                         "idiomatic_name": file_info["idiomatic_name"],
                         "repo_name": file_info["repo_name"],
                         "layer": file_info["layer"],
-                        "stage_phase": "0_CLICKED_LINE_ORIGIN",
+                        "stage_phase": "0_VARIABLE_ORIGIN_AND_GUARD",
                         "file_path": file_info["path"],
                         "relative_path": file_info["relative_path"],
                         "file_name": file_info["name"],
                         "focal_symbol": focal_symbol,
                         "focal_line_number": clamped_line,
-                        "focal_line_text": line_text.strip(),
+                        "focal_line_text": line_text.strip() or guard_win["focal_line_text"],
                         "highlighted_lines": active_highlighted_lines,
                         "code_lines": origin_window["code_lines"],
                         "step_geodesic_distance": 0.0,
                         "cumulative_geodesic_distance": 0.0,
-                        "transition_rationale": f"Selected variable '{focal_symbol}' on line {clamped_line} of {file_info['name']}",
+                        "transition_rationale": f"Origin variable '{focal_symbol}' at line {clamped_line} (guard L{guard_line})",
                     }
                 ],
-            }
-        )
-
-        # --- Column 1: Tri-Layer Juxtaposition Split (3 Parallel Panels: Design, Compiler, Code) ---
-        tri_layers = [
-            ("design", "DESIGN SPECIFICATION BRANCH", juxtaposition.get("design") or {}),
-            ("compiler", "COMPILER PIPELINE BRANCH", juxtaposition.get("compiler") or {}),
-            ("code", "RUNTIME IMPLEMENTATION BRANCH", juxtaposition.get("code") or {}),
-        ]
-        tri_panels: List[Dict[str, Any]] = []
-        for p_idx, (l_key, b_label, l_data) in enumerate(tri_layers):
-            p_path = str(
-                l_data.get("code_path")
-                or l_data.get("doc_path")
-                or file_info["path"]
-            )
-            p_terms = [
-                focal_symbol,
-                str(l_data.get("idiomatic_name") or ""),
-                str(file_info.get("idiomatic_name") or ""),
-            ] + list(l_data.get("exported_symbols") or [])[:3]
-            p_win = self._build_panel_code_window(
-                p_path,
-                search_terms=p_terms,
-                preferred_line=clamped_line if p_path == file_info["path"] else None,
-                window_radius=6,
-            )
-            try:
-                p_rel = str(Path(p_path).relative_to(self.idea_projects_root))
-            except ValueError:
-                p_rel = Path(p_path).name if p_path else ""
-
-            tri_panels.append(
-                {
-                    "panel_id": f"col-1-panel-{p_idx}",
-                    "branch_label": b_label,
-                    "node_id": str(l_data.get("node_id") or start_node_id),
-                    "title": str(l_data.get("title") or b_label),
-                    "idiomatic_name": str(l_data.get("idiomatic_name") or focal_symbol),
-                    "repo_name": str(l_data.get("repo_name") or file_info["repo_name"]),
-                    "layer": l_key,
-                    "stage_phase": "1_TRI_LAYER_JUXTAPOSITION_SPLIT",
-                    "file_path": p_path,
-                    "relative_path": p_rel,
-                    "file_name": Path(p_path).name if p_path else "",
-                    "focal_symbol": focal_symbol,
-                    "focal_line_number": p_win["focal_line_number"],
-                    "focal_line_text": p_win["focal_line_text"],
-                    "highlighted_lines": p_win["highlighted_lines"],
-                    "code_lines": p_win["code_lines"],
-                    "step_geodesic_distance": float(
-                        (juxtaposition.get("tri_layer_geodesic_distances") or {}).get(
-                            "design_to_compiler" if l_key == "compiler" else "compiler_to_code",
-                            0.18,
-                        )
-                    ),
-                    "cumulative_geodesic_distance": 0.18,
-                    "transition_rationale": str(
-                        l_data.get("relationship")
-                        or f"Tri-layer {l_key} juxtaposition for '{focal_symbol}'"
-                    ),
-                }
-            )
-
-        raw_columns.append(
+            },
+            # Column 1: Two-Direction Variable Control-Flow Split (ONLY splits into 2 panels for True vs False branch)
             {
                 "column_index": 1,
-                "stage_id": "stage-1-juxtaposition-split",
-                "stage_label": "1_TRI_LAYER_JUXTAPOSITION_SPLIT",
+                "stage_id": "stage-1-control-flow-branch",
+                "stage_label": "1_CONTROL_FLOW_BRANCH_SPLIT",
                 "split_mode": "split",
-                "panels": tri_panels,
-            }
-        )
-
-        # --- Columns 2..K: Geodesic Hops with Split & Converge Grouping ---
-        remaining_hops = hops[1:] if len(hops) > 1 and hops[0].get("node_id") == start_node_id else hops
-        idx_h = 0
-        col_counter = 2
-        while idx_h < len(remaining_hops):
-            curr_hop = remaining_hops[idx_h]
-            curr_phase = str(curr_hop.get("stage_phase") or "4_RUNTIME_CODE_AND_SERVICE")
-            is_last_hop = idx_h == len(remaining_hops) - 1
-
-            # Group up to 2 same-phase consecutive hops into a parallel split column,
-            # except ensure the final hop of the geodesic path converges into a single terminal panel,
-            # and alternate split/converge so the user sees explicit convergence!
-            prev_was_split = raw_columns[-1]["split_mode"] == "split"
-            group_hops = [curr_hop]
-            if (
-                not is_last_hop
-                and not prev_was_split
-                and idx_h + 1 < len(remaining_hops) - 1
-                and str(remaining_hops[idx_h + 1].get("stage_phase")) == curr_phase
-            ):
-                group_hops.append(remaining_hops[idx_h + 1])
-                idx_h += 2
-            else:
-                idx_h += 1
-
-            col_panels: List[Dict[str, Any]] = []
-            for p_i, h_item in enumerate(group_hops):
-                h_path = str(h_item.get("file_path") or h_item.get("doc_path") or "")
-                h_terms = [
-                    focal_symbol,
-                    str(h_item.get("idiomatic_name") or ""),
-                ] + list(h_item.get("exported_symbols") or [])[:4]
-                h_win = self._build_panel_code_window(
-                    h_path,
-                    search_terms=h_terms,
-                    preferred_line=None,
-                    window_radius=6,
-                )
-                col_panels.append(
+                "panels": [
                     {
-                        "panel_id": f"col-{col_counter}-panel-{p_i}",
-                        "branch_label": (
-                            f"PARALLEL BRANCH {p_i + 1} ({h_item.get('layer', 'code').upper()})"
-                            if len(group_hops) > 1
-                            else f"CONVERGED HOP ({h_item.get('layer', 'code').upper()})"
-                        ),
-                        "node_id": str(h_item.get("node_id") or ""),
-                        "title": str(h_item.get("title") or ""),
-                        "idiomatic_name": str(h_item.get("idiomatic_name") or ""),
-                        "repo_name": str(h_item.get("repo_name") or ""),
-                        "layer": str(h_item.get("layer") or "code"),
-                        "stage_phase": curr_phase,
-                        "file_path": h_path,
-                        "relative_path": str(h_item.get("relative_path") or Path(h_path).name if h_path else ""),
-                        "file_name": Path(h_path).name if h_path else "",
-                        "focal_symbol": (
-                            focal_symbol
-                            if focal_symbol.lower() in h_win["focal_line_text"].lower()
-                            else str(h_item.get("idiomatic_name") or focal_symbol)
-                        ),
-                        "focal_line_number": h_win["focal_line_number"],
-                        "focal_line_text": h_win["focal_line_text"],
-                        "highlighted_lines": h_win["highlighted_lines"],
-                        "code_lines": h_win["code_lines"],
-                        "step_geodesic_distance": float(h_item.get("step_geodesic_distance") or 0.0),
-                        "cumulative_geodesic_distance": float(
-                            h_item.get("cumulative_geodesic_distance") or 0.0
-                        ),
-                        "transition_rationale": str(h_item.get("transition_rationale") or ""),
+                        "panel_id": "col-1-panel-0",
+                        "branch_label": str(cf_info["true_branch_label"]),
+                        "control_flow_role": "branch_true",
+                        "node_id": f"{start_node_id}:branch_true:L{true_line}",
+                        "title": f"{file_info['name']}:{true_line}",
+                        "idiomatic_name": focal_symbol,
+                        "repo_name": file_info["repo_name"],
+                        "layer": file_info["layer"],
+                        "stage_phase": "1_CONTROL_FLOW_BRANCH_SPLIT",
+                        "file_path": file_info["path"],
+                        "relative_path": file_info["relative_path"],
+                        "file_name": file_info["name"],
+                        "focal_symbol": focal_symbol,
+                        "focal_line_number": true_win["focal_line_number"],
+                        "focal_line_text": true_win["focal_line_text"],
+                        "highlighted_lines": true_win["highlighted_lines"],
+                        "code_lines": true_win["code_lines"],
+                        "step_geodesic_distance": 0.16,
+                        "cumulative_geodesic_distance": 0.16,
+                        "transition_rationale": f"Direction 1 ({cf_info['true_branch_label']}) for '{focal_symbol}'",
+                    },
+                    {
+                        "panel_id": "col-1-panel-1",
+                        "branch_label": str(cf_info["false_branch_label"]),
+                        "control_flow_role": "branch_false",
+                        "node_id": f"{start_node_id}:branch_false:L{false_line}",
+                        "title": f"{file_info['name']}:{false_line}",
+                        "idiomatic_name": focal_symbol,
+                        "repo_name": file_info["repo_name"],
+                        "layer": file_info["layer"],
+                        "stage_phase": "1_CONTROL_FLOW_BRANCH_SPLIT",
+                        "file_path": file_info["path"],
+                        "relative_path": file_info["relative_path"],
+                        "file_name": file_info["name"],
+                        "focal_symbol": focal_symbol,
+                        "focal_line_number": false_win["focal_line_number"],
+                        "focal_line_text": false_win["focal_line_text"],
+                        "highlighted_lines": false_win["highlighted_lines"],
+                        "code_lines": false_win["code_lines"],
+                        "step_geodesic_distance": 0.16,
+                        "cumulative_geodesic_distance": 0.16,
+                        "transition_rationale": f"Direction 2 ({cf_info['false_branch_label']}) for '{focal_symbol}'",
+                    },
+                ],
+            },
+            # Column 2: Control-Flow Convergence / Join Line (1 node where the 2 branches reconverge)
+            {
+                "column_index": 2,
+                "stage_id": "stage-2-control-flow-join",
+                "stage_label": "2_CONTROL_FLOW_CONVERGENCE",
+                "split_mode": "converged",
+                "panels": [
+                    {
+                        "panel_id": "col-2-panel-0",
+                        "branch_label": str(cf_info["join_label"]),
+                        "control_flow_role": "converge_join",
+                        "node_id": f"{start_node_id}:join:L{join_line}",
+                        "title": f"{file_info['name']}:{join_line}",
+                        "idiomatic_name": focal_symbol,
+                        "repo_name": file_info["repo_name"],
+                        "layer": file_info["layer"],
+                        "stage_phase": "2_CONTROL_FLOW_CONVERGENCE",
+                        "file_path": file_info["path"],
+                        "relative_path": file_info["relative_path"],
+                        "file_name": file_info["name"],
+                        "focal_symbol": focal_symbol,
+                        "focal_line_number": join_win["focal_line_number"],
+                        "focal_line_text": join_win["focal_line_text"],
+                        "highlighted_lines": join_win["highlighted_lines"],
+                        "code_lines": join_win["code_lines"],
+                        "step_geodesic_distance": 0.14,
+                        "cumulative_geodesic_distance": 0.30,
+                        "transition_rationale": f"Control flow reconverges at line {join_line}",
                     }
-                )
+                ],
+            },
+        ]
 
-            split_mode = "split" if len(col_panels) > 1 else "converged"
+        # Append downstream sequential geodesic hops ending at the terminal UI component
+        non_start_hops = [
+            h for h in hops if str(h.get("node_id") or "") != start_node_id
+        ]
+        if len(non_start_hops) > 3:
+            remaining_hops = non_start_hops[:2] + [non_start_hops[-1]]
+        else:
+            remaining_hops = non_start_hops
+        col_counter = 3
+        cum_dist = 0.30
+        for h_item in remaining_hops:
+            h_path = str(h_item.get("file_path") or h_item.get("doc_path") or "")
+            h_terms = [
+                focal_symbol,
+                str(h_item.get("idiomatic_name") or ""),
+            ] + list(h_item.get("exported_symbols") or [])[:4]
+            h_win = self._build_panel_code_window(
+                h_path,
+                search_terms=h_terms,
+                preferred_line=None,
+                window_radius=5,
+            )
+            step_d = max(0.12, float(h_item.get("step_geodesic_distance") or 0.18))
+            cum_dist = round(cum_dist + step_d, 4)
+            curr_phase = str(h_item.get("stage_phase") or "4_RUNTIME_CODE_AND_SERVICE")
+            f_name = Path(h_path).name if h_path else str(h_item.get("idiomatic_name") or "hop")
             raw_columns.append(
                 {
                     "column_index": col_counter,
                     "stage_id": f"stage-{col_counter}-{curr_phase.lower()}",
                     "stage_label": curr_phase,
-                    "split_mode": split_mode,
-                    "panels": col_panels,
+                    "split_mode": "converged",
+                    "panels": [
+                        {
+                            "panel_id": f"col-{col_counter}-panel-0",
+                            "branch_label": f"Hop L{h_win['focal_line_number']}: {f_name}",
+                            "control_flow_role": "downstream_hop",
+                            "node_id": str(h_item.get("node_id") or f"hop-{col_counter}"),
+                            "title": f"{f_name}:{h_win['focal_line_number']}",
+                            "idiomatic_name": str(h_item.get("idiomatic_name") or focal_symbol),
+                            "repo_name": str(h_item.get("repo_name") or ""),
+                            "layer": str(h_item.get("layer") or "code"),
+                            "stage_phase": curr_phase,
+                            "file_path": h_path,
+                            "relative_path": str(h_item.get("relative_path") or f_name),
+                            "file_name": f_name,
+                            "focal_symbol": (
+                                focal_symbol
+                                if focal_symbol.lower() in h_win["focal_line_text"].lower()
+                                else str(h_item.get("idiomatic_name") or focal_symbol)
+                            ),
+                            "focal_line_number": h_win["focal_line_number"],
+                            "focal_line_text": h_win["focal_line_text"],
+                            "highlighted_lines": h_win["highlighted_lines"],
+                            "code_lines": h_win["code_lines"],
+                            "step_geodesic_distance": round(step_d, 4),
+                            "cumulative_geodesic_distance": cum_dist,
+                            "transition_rationale": str(h_item.get("transition_rationale") or ""),
+                        }
+                    ],
                 }
             )
             col_counter += 1
 
-        # Wire incoming_from_panel_ids and outgoing_to_panel_ids across columns
-        # and flatten into `sidebar_elements`
+        # Build interactive 2D coordinates, spline edges, Mermaid `flowchart LR` definition, and sidebar_elements
         sidebar_elements: List[Dict[str, Any]] = []
+        graph_nodes: List[Dict[str, Any]] = []
+        graph_edges: List[Dict[str, Any]] = []
+        mermaid_lines: List[str] = ["flowchart LR"]
+
         step_counter = 0
+        col_x_spacing = 420
+        node_width = 360
+        node_height = 195
+
         for c_idx, col in enumerate(raw_columns):
-            prev_ids = (
-                [p["panel_id"] for p in raw_columns[c_idx - 1]["panels"]]
-                if c_idx > 0
-                else []
+            prev_panels = raw_columns[c_idx - 1]["panels"] if c_idx > 0 else []
+            next_panels = (
+                raw_columns[c_idx + 1]["panels"] if c_idx + 1 < len(raw_columns) else []
             )
-            next_ids = (
-                [p["panel_id"] for p in raw_columns[c_idx + 1]["panels"]]
-                if c_idx + 1 < len(raw_columns)
-                else []
-            )
-            col["incoming_panel_Count"] = len(prev_ids)
+            prev_ids = [p["panel_id"] for p in prev_panels]
+            next_ids = [p["panel_id"] for p in next_panels]
+            col["incoming_panel_count"] = len(prev_ids)
             col["outgoing_panel_count"] = len(next_ids)
-            for p in col["panels"]:
+
+            num_p = len(col["panels"])
+            for p_idx, p in enumerate(col["panels"]):
                 p["incoming_from_panel_ids"] = prev_ids
                 p["outgoing_to_panel_ids"] = next_ids
+                p_is_branch, p_branch_kw = self._detect_branch_keyword(p.get("focal_line_text", ""))
+                p["is_branch"] = bool(p_is_branch or len(next_ids) > 0)
+                p["branch_keyword"] = p_branch_kw or (
+                    "branch" if len(next_ids) > 1 else ("next" if len(next_ids) == 1 else None)
+                )
+                x_coord = 24 + c_idx * col_x_spacing
+                if c_idx == 0:
+                    y_coord = 24
+                elif num_p > 1:
+                    y_coord = 24 + p_idx * 235
+                else:
+                    y_coord = 135 + max(0, c_idx - 2) * 52
+                p["x"] = x_coord
+                p["y"] = y_coord
+                p["width"] = node_width
+                p["height"] = node_height
+
+                safe_m_id = p["panel_id"].replace("-", "_")
+                safe_label = (
+                    f"{p['file_name']}:{p['focal_line_number']} ({p['focal_symbol']})"
+                    .replace('"', "'")
+                )
+                mermaid_lines.append(f'    {safe_m_id}["{safe_label}"]')
+
+                graph_nodes.append(
+                    {
+                        "id": p["panel_id"],
+                        "node_id": p["panel_id"],
+                        "panel_id": p["panel_id"],
+                        "qdrant_node_id": p["node_id"],
+                        "column_index": c_idx,
+                        "branch_index": p_idx,
+                        "split_mode": col["split_mode"],
+                        "control_flow_role": p.get("control_flow_role", "sequential"),
+                        "branch_label": p["branch_label"],
+                        "title": p["title"],
+                        "file_path": p["file_path"],
+                        "relative_path": p["relative_path"],
+                        "file_name": p["file_name"],
+                        "layer": p["layer"],
+                        "focal_symbol": p["focal_symbol"],
+                        "focal_line_number": p["focal_line_number"],
+                        "focal_line_text": p["focal_line_text"],
+                        "code_lines": p["code_lines"],
+                        "x": x_coord,
+                        "y": y_coord,
+                        "width": node_width,
+                        "height": node_height,
+                        "cumulative_geodesic_distance": p["cumulative_geodesic_distance"],
+                    }
+                )
+
                 sidebar_elements.append(
                     {
                         "element_id": p["panel_id"],
@@ -4729,7 +5011,7 @@ class AgentInformationalGraphIndex(Datasource):
                         "column_index": c_idx,
                         "panel_id": p["panel_id"],
                         "split_mode": col["split_mode"],
-                        "panel_count_in_column": len(col["panels"]),
+                        "panel_count_in_column": num_p,
                         "branch_label": p["branch_label"],
                         "node_id": p["node_id"],
                         "title": p["title"],
@@ -4751,6 +5033,117 @@ class AgentInformationalGraphIndex(Datasource):
                 )
                 step_counter += 1
 
+            # Create directed spline edges to the next column's panels
+            for src_p in col["panels"]:
+                for dst_p in next_panels:
+                    src_m = src_p["panel_id"].replace("-", "_")
+                    dst_m = dst_p["panel_id"].replace("-", "_")
+                    is_split_edge = len(col["panels"]) == 1 and len(next_panels) > 1
+                    is_converge_edge = len(col["panels"]) > 1 and len(next_panels) == 1
+                    edge_label = (
+                        dst_p["branch_label"]
+                        if is_split_edge
+                        else f"L{src_p['focal_line_number']} -> L{dst_p['focal_line_number']}"
+                    )
+                    safe_edge_lbl = edge_label.replace('"', "'").replace("|", "/")
+                    mermaid_lines.append(f"    {src_m} -->|{safe_edge_lbl}| {dst_m}")
+                    graph_edges.append(
+                        {
+                            "edge_id": f"edge-{src_p['panel_id']}-to-{dst_p['panel_id']}",
+                            "source": src_p["panel_id"],
+                            "target": dst_p["panel_id"],
+                            "from_line": src_p["focal_line_number"],
+                            "to_line": dst_p["focal_line_number"],
+                            "variable": src_p["focal_symbol"],
+                            "label": edge_label,
+                            "edge_label": edge_label,
+                            "connector_mode": (
+                                "split"
+                                if is_split_edge
+                                else "converge"
+                                if is_converge_edge
+                                else "linear"
+                            ),
+                            "control_flow_type": (
+                                dst_p.get("control_flow_role", "branch")
+                                if is_split_edge
+                                else "converge"
+                                if is_converge_edge
+                                else "sequential"
+                            ),
+                            "is_split_edge": is_split_edge,
+                            "is_converge_edge": is_converge_edge,
+                        }
+                    )
+
+        mermaid_code = "\n".join(mermaid_lines)
+        graph_id = f"code_flow:{file_info['relative_path']}:L{clamped_line}:{focal_symbol}"
+        graph_point_id = str(
+            uuid5_from_args(INFORMATIONAL_NAMESPACE_UUID, "code_flow_graphs", graph_id)
+        )
+
+        flow_graph_payload = {
+            "graph_id": graph_id,
+            "point_id": graph_point_id,
+            "collection": "code_flow_graphs",
+            "file_path": file_info["path"],
+            "relative_path": file_info["relative_path"],
+            "file_name": file_info["name"],
+            "clicked_line_number": clamped_line,
+            "focal_symbol": focal_symbol,
+            "mermaid_code": mermaid_code,
+            "nodes": graph_nodes,
+            "edges": graph_edges,
+            "total_nodes": len(graph_nodes),
+            "total_edges": len(graph_edges),
+            "updated_at": round(time.time(), 3),
+        }
+
+        # Persist the code flow graph and its nodes in staging Qdrant (`code_flow_graphs`)
+        qdrant_points: List[PointStruct] = [
+            PointStruct(
+                id=graph_point_id,
+                vector=_deterministic_384d_vector(
+                    f"{graph_id} {focal_symbol} {mermaid_code}"
+                ),
+                payload={
+                    "doc_type": "code_flow_graph",
+                    **flow_graph_payload,
+                },
+            )
+        ]
+        for g_node in graph_nodes:
+            node_pt_id = str(
+                uuid5_from_args(
+                    INFORMATIONAL_NAMESPACE_UUID,
+                    "code_flow_graphs_node",
+                    graph_id,
+                    g_node["node_id"],
+                )
+            )
+            qdrant_points.append(
+                PointStruct(
+                    id=node_pt_id,
+                    vector=_deterministic_384d_vector(
+                        f"{g_node['title']} {g_node['focal_symbol']} {g_node['focal_line_text']}"
+                    ),
+                    payload={
+                        "doc_type": "code_flow_node",
+                        "graph_id": graph_id,
+                        **g_node,
+                    },
+                )
+            )
+
+        staged_graph_points = self.staging_manager.upsert_points_lockfree(
+            storage_path=self.staging_manager.storage_dir,
+            collection_name="code_flow_graphs",
+            points=qdrant_points,
+            recreate=False,
+        )
+        flow_graph_payload["staged_qdrant_points"] = staged_graph_points
+
+        clicked_is_branch, clicked_branch_kw = self._detect_branch_keyword(line_text)
         return {
             "file_path": file_info["path"],
             "file_name": file_info["name"],
@@ -4758,13 +5151,19 @@ class AgentInformationalGraphIndex(Datasource):
             "node_id": start_node_id,
             "clicked_line_number": clamped_line,
             "clicked_line_text": line_text,
+            "is_branch": clicked_is_branch,
+            "branch_keyword": clicked_branch_kw,
             "focal_symbol": focal_symbol,
             "highlighted_lines": active_highlighted_lines,
             "total_columns": len(raw_columns),
             "total_sidebar_elements": len(sidebar_elements),
             "split_columns_count": sum(1 for c in raw_columns if len(c["panels"]) > 1),
             "converged_columns_count": sum(1 for c in raw_columns if len(c["panels"]) == 1),
-            "total_geodesic_distance": float(geodesic_trace.get("total_geodesic_distance") or 0.0),
+            "total_geodesic_distance": round(cum_dist, 4),
+            "mermaid_code": mermaid_code,
+            "flow_graph": flow_graph_payload,
+            "qdrant_graph_id": graph_id,
+            "qdrant_collection": "code_flow_graphs",
             "sidebar_elements": sidebar_elements,
             "stage_columns": raw_columns,
             "juxtaposition": juxtaposition,
