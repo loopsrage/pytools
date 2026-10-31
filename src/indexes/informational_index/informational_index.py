@@ -832,6 +832,11 @@ class AgentInformationalGraphIndex(Datasource):
                 "sync",
                 "mcp",
                 "geodesic",
+                "spinor_strut_lattice",
+                "spinor",
+                "sdf",
+                "voronoi",
+                "threejs",
             ):
                 if kw in text_lower:
                     ki_by_keyword[kw].append(info)
@@ -1352,13 +1357,31 @@ class AgentInformationalGraphIndex(Datasource):
                     "single-card component with clean timestamps, collapsible agent thoughts, bottom-sticky "
                     "auto-refresh pause on scroll-up, and artifact modals."
                 ),
+                "ThreeJsBackground": (
+                    "Renders the Spinor Strut Lattice (SSL-SDF) real-time 3D Signed Distance Field "
+                    "(`ki_spinor_strut_lattice_dual_quaternion_voronoi_sdf`), the named 3D geometric rendering "
+                    "pillar alongside Monadic Cavity and Polyphonic Pipeline: O(1) single-pass Spin+(3,0,1) "
+                    "Dual-Quaternion screw-motor teleportation, closed-form 2x2 curl-Jacobian Eikonal metric "
+                    "normalization, two-pass mrOffset-centered Voronoi bisector struts with exact C^1 smooth-min "
+                    "miter differentials & weld AO, and teleported Kajiya-Kay anisotropic cylinder shading."
+                ),
             }.get(comp_name, jsdoc or f"Portfolio React UI view component `{comp_name}` in `{rel_p}`.")
+
+            extra_ui_tags = (
+                ["spinor_strut_lattice", "ssl_sdf", "dual_quaternion", "voronoi_sdf"]
+                if comp_name == "ThreeJsBackground"
+                else []
+            )
 
             add_node(
                 JuxtaposedNode(
                     node_id=node_id,
                     node_type="ui_component",
-                    title=f"Portfolio UI Element: {comp_name}",
+                    title=(
+                        "Portfolio UI Element: ThreeJsBackground (Spinor Strut Lattice SSL-SDF)"
+                        if comp_name == "ThreeJsBackground"
+                        else f"Portfolio UI Element: {comp_name}"
+                    ),
                     idiomatic_name=comp_name,
                     repo_name="portfolio",
                     keep_in_place=True,
@@ -1387,7 +1410,7 @@ class AgentInformationalGraphIndex(Datasource):
                         self.staging_manager.storage_dir / "collection" / backing_ns / "storage.sqlite"
                     ),
                     hierarchy_level=3,
-                    tags=["ui_component", "portfolio", "keep_in_place", comp_name.lower()],
+                    tags=["ui_component", "portfolio", "keep_in_place", comp_name.lower(), *extra_ui_tags],
                 )
             )
             add_edge(
@@ -2493,7 +2516,7 @@ class AgentInformationalGraphIndex(Datasource):
             for gid in global_ki_ids:
                 if gid not in existing_kis:
                     existing_kis.append(gid)
-            node.juxtaposed_docs["related_ki_ids"] = existing_kis[:6]
+            node.juxtaposed_docs["related_ki_ids"] = existing_kis[:10]
 
         # Attach incident edges onto each node's `graph_edges` list
         edges_by_src: Dict[str, List[Dict[str, Any]]] = collections.defaultdict(list)

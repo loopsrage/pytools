@@ -65,6 +65,16 @@ export const api = {
       const text = await res.text();
       return { exists: true, path: text };
     }),
+  // Migrated Brain, Benchmarks, Promoted Model & Staging Qdrant helpers
+  getBrainOverview: () => request<any>("/antigravity/overview"),
+  getBrainArtifacts: (query = "", timeRange = "all") =>
+    request<any>(
+      `/antigravity/artifacts?query=${encodeURIComponent(query)}&time_range=${encodeURIComponent(timeRange)}`
+    ),
+  getBenchmarksOverview: () => request<any>("/benchmarks/overview"),
+  getPromotedStatus: () => request<any>("/benchmarks/promoted/status"),
+  getStagingSystems: () => request<any>("/qdrant/staging/systems"),
+  getGeodesicMcpTools: () => request<any>("/mcp/geodesic/tools"),
 };
 
 export type Topic = {

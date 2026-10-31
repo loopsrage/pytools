@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { BrowserRouter, Routes, Route, useNavigate, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { Sidebar } from "@/components/sidebar/Sidebar";
 import { TopicDropdown } from "@/components/dropdown/TopicDropdown";
@@ -7,27 +7,36 @@ import { GridExplorer } from "@/components/grid/GridExplorer";
 import { Button } from "@/components/ui/button";
 import { SettingsEditor } from "@/components/settings/SettingsEditor";
 import { CrawlerControl } from "@/components/crawler/CrawlerControl";
+import { BrainExplorerView } from "@/components/brain/BrainExplorerView";
+import { BrainArtifactsView } from "@/components/brain/BrainArtifactsView";
+import { PromotedModelView } from "@/components/models/PromotedModelView";
+import { BenchmarksView } from "@/components/models/BenchmarksView";
+import { StagingQdrantView } from "@/components/qdrant/StagingQdrantView";
+
+function resolveRouterBasename(): string {
+  if (typeof window !== "undefined" && window.location.pathname.startsWith("/ui")) {
+    return "/ui";
+  }
+  return "/";
+}
 
 function AppRouter() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/settings" element={<SettingsPage />} />
-        <Route path="/crawlers" element={<CrawlersPage />} />
-        <Route path="/theme" element={<ThemePage />} />
-      </Routes>
+    <BrowserRouter basename={resolveRouterBasename()}>
+      <AppShell />
     </BrowserRouter>
   );
 }
 
-function Dashboard() {
+function AppShell() {
   const [topicId, setTopicId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
-  const activeSection = location.pathname === "/" ? "explorer" : location.pathname.slice(1);
+  const rawPath = location.pathname.replace(/^\/+|\/+$/g, "");
+  const activeSection = rawPath === "" ? "explorer" : rawPath;
+  const isExplorer = activeSection === "explorer";
 
   return (
     <div className="flex h-screen flex-col lg:flex-row overflow-hidden bg-background">
@@ -37,7 +46,7 @@ function Dashboard() {
         activeSection={activeSection}
         onSectionChange={(section) => {
           setSidebarOpen(false);
-          navigate(`/${section}`);
+          navigate(section === "explorer" ? "/explorer" : `/${section}`);
         }}
       />
 
@@ -53,7 +62,7 @@ function Dashboard() {
               <div className="w-5 h-0.5 bg-current mt-1"></div>
               <div className="w-5 h-0.5 bg-current mt-1"></div>
             </button>
-            {topicId ? (
+            {isExplorer && topicId ? (
               <button
                 onClick={() => setTopicId(null)}
                 className="flex items-center gap-1.5 text-sm font-medium"
@@ -66,35 +75,51 @@ function Dashboard() {
               <div className="flex items-center gap-2">
                 <span className="text-sm font-semibold">Agent Brain Control Panel</span>
                 <div className="h-5 w-px bg-border" />
+                <span className="text-xs text-muted-foreground capitalize">
+                  {activeSection.replace(/-/g, " ")}
+                </span>
               </div>
             )}
           </div>
 
-          <div className="flex items-center gap-2">
-            {!topicId ? (
-              <TopicDropdown onTopicSelect={setTopicId} className="w-full max-w-sm" />
-            ) : (
-              <Button variant="outline" size="sm" onClick={() => setTopicId(null)}>
-                <ArrowLeft className="h-3 w-3" />
-                Back
-              </Button>
-            )}
-          </div>
+          {isExplorer && (
+            <div className="flex items-center gap-2">
+              {!topicId ? (
+                <TopicDropdown onTopicSelect={setTopicId} className="w-full max-w-sm" />
+              ) : (
+                <Button variant="outline" size="sm" onClick={() => setTopicId(null)}>
+                  <ArrowLeft className="h-3 w-3" />
+                  Back
+                </Button>
+              )}
+            </div>
+          )}
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
-          {topicId ? (
-            <GridExplorer topicId={topicId} />
-          ) : (
-            <TopicsList />
-          )}
+          <Routes>
+            <Route path="/" element={<ExplorerPage topicId={topicId} />} />
+            <Route path="/explorer" element={<ExplorerPage topicId={topicId} />} />
+            <Route path="/brain" element={<BrainExplorerView />} />
+            <Route path="/artifacts" element={<BrainArtifactsView />} />
+            <Route path="/promoted-model" element={<PromotedModelView />} />
+            <Route path="/benchmarks" element={<BenchmarksView />} />
+            <Route path="/staging-qdrant" element={<StagingQdrantView />} />
+            <Route path="/crawlers" element={<CrawlersPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/theme" element={<ThemePage />} />
+            <Route path="*" element={<Navigate to="/explorer" replace />} />
+          </Routes>
         </main>
       </div>
     </div>
   );
 }
 
-function TopicsList() {
+function ExplorerPage({ topicId }: { topicId: string | null }) {
+  if (topicId) {
+    return <GridExplorer topicId={topicId} />;
+  }
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -112,8 +137,8 @@ function TopicsList() {
 
 function SettingsPage() {
   return (
-    <div className="h-full p-6">
-      <h1 className="text-2xl font-bold mb-4">Settings</h1>
+    <div className="space-y-4">
+      <h1 className="text-2xl font-bold">Settings</h1>
       <SettingsEditor />
     </div>
   );
@@ -121,8 +146,8 @@ function SettingsPage() {
 
 function CrawlersPage() {
   return (
-    <div className="h-full p-6">
-      <h1 className="text-2xl font-bold mb-4">Crawler Control</h1>
+    <div className="space-y-4">
+      <h1 className="text-2xl font-bold">Crawler Control</h1>
       <CrawlerControl />
     </div>
   );
@@ -130,9 +155,11 @@ function CrawlersPage() {
 
 function ThemePage() {
   return (
-    <div className="h-full p-6">
-      <h1 className="text-2xl font-bold mb-4">Theme</h1>
-      <p className="text-muted-foreground">Customize the control panel appearance.</p>
+    <div className="space-y-4">
+      <h1 className="text-2xl font-bold">Theme</h1>
+      <p className="text-muted-foreground">
+        Customize the control panel appearance using the sidebar Appearance controls.
+      </p>
     </div>
   );
 }

@@ -43,6 +43,7 @@ from applications.agent_brain.ops.feature_flags import AgentFeatureFlags
 from applications.agent_brain.ops.secrets import AgentSecrets
 from applications.agent_brain.ops.webhook import AgentWebhookQueue
 from applications.agent_brain.core.email import GmailSender, EmailTemplateStore
+from applications.agent_brain.core.brain.options_router import brain_options_router
 
 load()
 
@@ -588,16 +589,26 @@ def fs_jail_mcp_info():
     }
 
 
-# Serve the built React UI (control panel) from /ui
+app.include_router(brain_options_router)
+
+
+# Serve the built React UI (control panel) from /ui and its Vite assets
 UI_DIST = Path(__file__).resolve().parent / "ui" / "dist"
-if UI_DIST.exists():
-    app.mount("/ui", StaticFiles(directory=str(UI_DIST), html=True), name="ui")
+if (UI_DIST / "assets").exists():
+    app.mount("/assets", StaticFiles(directory=str(UI_DIST / "assets")), name="ui_root_assets")
+    app.mount("/ui/assets", StaticFiles(directory=str(UI_DIST / "assets")), name="ui_sub_assets")
 
 
+@app.get("/ui")
+@app.get("/ui/")
 @app.get("/ui/{full_path:path}")
-async def ui_catch_all(full_path: str):
-    """Serve the React app for any client-side route under /ui."""
+async def ui_catch_all(full_path: str = ""):
+    """Serve the React SPA for /ui and any client-side route under /ui/*."""
     from fastapi.responses import FileResponse
+    if full_path:
+        candidate = (UI_DIST / full_path).resolve()
+        if str(candidate).startswith(str(UI_DIST.resolve())) and candidate.is_file():
+            return FileResponse(str(candidate))
     index = UI_DIST / "index.html"
     if index.exists():
         return FileResponse(str(index))

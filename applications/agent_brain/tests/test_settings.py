@@ -7,13 +7,16 @@ def test_settings_load_and_get():
     load()
     assert get("scraper.headless") is True
     assert get("scraper.user_agent") == "agent-brain-bot"
-    assert get("scraper.timeout_seconds") == 30
+    assert get("scraper.timeout_seconds") == 60
     assert get("api.port") == 8127
     assert get("api.host") == "0.0.0.0"
     assert get("brain.base_dir") == "data/brain"
     assert get("etl.chunk_size") == 500
     assert get("doc_pipeline.hybrid_top_k") == 5
     assert get("logging.level") == "INFO"
+    assert get("antigravity.collection") == "portfolio_antigravity_brain"
+    assert get("benchmarks.collection") == "portfolio_neural_benchmarks"
+    assert get("staging_qdrant.collection") == "agent_informational_graph_index"
 
 
 def test_settings_default():
