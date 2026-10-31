@@ -18,6 +18,7 @@ from benchmark_ledger.ledger import (
     BenchmarkTaskRecord,
     ModelArchitectureProfile,
     ModelBenchmarkEntry,
+    derive_friendly_model_title,
     scrape_neural_networks_benchmarks,
     sync_neural_networks_benchmarks_to_qdrant,
 )
@@ -59,6 +60,7 @@ __all__ = [
     "CodeSymbolMetadata",
     "ModelArchitectureProfile",
     "ModelBenchmarkEntry",
+    "derive_friendly_model_title",
     "mask_restricted_string",
     "mask_restricted_vocabulary",
     "poincare_geodesic_distance",

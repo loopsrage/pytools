@@ -47,6 +47,9 @@ CANONICAL_MODEL_ALIASES: dict[str, str] = {
     "PolyphonicStageCompilerCascadeModel (ISA Spectral/AST Gate + Cohesive-Manifold Wave Cascade)": (
         "PolyphonicStageCompilerCascadeModel (Stage-1 Compiler + ISA Spectral-AST Gate + Cohesive-Manifold Wave Cascade)"
     ),
+    "PolyphonicStageCompilerCascadeModel (Stage-1 Compiler + ISA Spectral-AST Gate + Cohesive Wave Cascade)": (
+        "PolyphonicStageCompilerCascadeModel (Stage-1 Compiler + ISA Spectral-AST Gate + Cohesive-Manifold Wave Cascade)"
+    ),
 }
 
 MODEL_FAMILY_METADATA: dict[str, dict[str, Any]] = {
@@ -633,6 +636,7 @@ class ModelArchitectureProfile(BaseModel):
     model_id: str
     model_name: str
     class_name: str
+    friendly_title: str = ""
     family: str
     is_polyphonic: bool
     is_overall_best: bool = False
@@ -680,6 +684,7 @@ class BenchmarkRunSnapshot(BaseModel):
     model_win_counts: dict[str, int] = Field(default_factory=dict)
     model_mean_ranks: dict[str, float] = Field(default_factory=dict)
     task_winners: dict[str, str] = Field(default_factory=dict)
+    tested_models: list[str] = Field(default_factory=list)
     notes: str = ""
 
 
@@ -699,6 +704,7 @@ class BenchmarkQdrantDocument(BaseModel):
     doc_id: str
     doc_type: Literal["benchmark_model", "benchmark_task", "benchmark_run"]
     title: str
+    friendly_title: str = ""
     subtitle: str
     category: str
     summary: str
@@ -729,6 +735,81 @@ def _slugify(value: str) -> str:
 def _canonical_model_name(raw_name: str) -> str:
     name = mask_restricted_string(raw_name.strip())
     return mask_restricted_string(CANONICAL_MODEL_ALIASES.get(name, name))
+
+
+def _derive_friendly_model_title(model_name: str, class_name: str = "") -> str:
+    """Algorithmically humanize a model name or PyTorch class name with zero hardcoded per-model lookup tables."""
+    clean_model = mask_restricted_string((model_name or "").strip())
+    clean_cls = mask_restricted_string((class_name or "").strip())
+    base_prefix = clean_model.split(" (")[0].strip()
+
+    if clean_model and clean_model[0].isdigit():
+        if "(nn." in clean_model:
+            return f"{base_prefix} Baseline"
+        paren_match = re.search(r"\(([^)]+)\)\s*$", clean_model)
+        if paren_match:
+            inner = paren_match.group(1).strip()
+            if re.fullmatch(r"\d+[A-Za-z]+", inner):
+                return f"{base_prefix} ({inner})"
+        return base_prefix
+
+    stem = (clean_cls or base_prefix).strip()
+    if stem.endswith("Model") and len(stem) > 5:
+        stem = stem[:-5]
+    if not stem:
+        return clean_model or clean_cls
+
+    spaced = re.sub(r"([a-z])([A-Z0-9])", r"\1 \2", stem)
+    spaced = re.sub(r"([0-9])([A-Za-z])", r"\1 \2", spaced)
+    spaced = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1 \2", spaced)
+    raw_tokens = [tok for tok in spaced.split() if tok]
+    if not raw_tokens:
+        return clean_model or clean_cls
+
+    out: list[str] = []
+    i = 0
+    while i < len(raw_tokens):
+        tok = raw_tokens[i]
+        nxt = raw_tokens[i + 1] if i + 1 < len(raw_tokens) else ""
+        if tok == "Stage" and nxt == "Compiler":
+            out.append("StageCompiler")
+            i += 2
+            continue
+        if tok == "Any" and nxt == "Gram":
+            out.append("Any-Gram")
+            i += 2
+            continue
+        if tok == "2" and nxt == "GRU":
+            out.append("2-Layer GRU")
+            i += 2
+            continue
+        if tok == "No" and nxt == "GRU":
+            out.append("(No GRU)")
+            i += 2
+            continue
+        if tok in {"Spectral", "Hybrid", "Outer", "Inner", "Post", "Sandwich"} and nxt == "GRU":
+            out.append(f"{tok}-GRU")
+            i += 2
+            continue
+        if tok == "Cohesive" and nxt != "Manifold":
+            out.append("Cohesive-Manifold")
+            i += 1
+            continue
+        if tok.upper() == "VCPU":
+            out.append("vCPU")
+            i += 1
+            continue
+        if tok == "ISAAST":
+            out.append("ISA/AST")
+            i += 1
+            continue
+        out.append(tok)
+        i += 1
+
+    return " ".join(out)
+
+
+derive_friendly_model_title = _derive_friendly_model_title
 
 
 def _model_id(model_name: str) -> str:
@@ -1841,6 +1922,11 @@ class BenchmarkLedger:
                 )
 
             cfg = raw_data.get("config", {}) if isinstance(raw_data.get("config"), dict) else {}
+            snap_tested_models = [
+                _canonical_model_name(str(tm))
+                for tm in (snap.get("tested_models") or [])
+                if str(tm).strip()
+            ]
             run_snapshots.append(
                 BenchmarkRunSnapshot(
                     run_id=run_id,
@@ -1858,6 +1944,7 @@ class BenchmarkLedger:
                     model_win_counts=win_counts,
                     model_mean_ranks=mean_ranks,
                     task_winners=task_winners,
+                    tested_models=snap_tested_models,
                     notes=str(snap.get("notes", "")),
                 )
             )
@@ -1983,6 +2070,13 @@ class BenchmarkLedger:
             if norm_ts > latest_ts_by_model.get(pt_model, ""):
                 latest_ts_by_model[pt_model] = norm_ts
 
+        for r_snap in run_snapshots:
+            if "pytest" in r_snap.run_label.lower() or not r_snap.recorded_at:
+                continue
+            for tm_name in r_snap.tested_models:
+                if r_snap.recorded_at > latest_ts_by_model.get(tm_name, ""):
+                    latest_ts_by_model[tm_name] = r_snap.recorded_at
+
         raw_profiles: list[ModelArchitectureProfile] = []
         for m_name, m_entries in entries_by_model.items():
             ranks = sorted(e.rank for e in m_entries)
@@ -2046,11 +2140,49 @@ class BenchmarkLedger:
                             f"{base_info.get('source_code', '')}"
                         )
 
+            authentic_candidates = [
+                ts_val
+                for ts_val in (
+                    [latest_ts_by_model.get(m_name, "")]
+                    + [
+                        str(h.get("recorded_at", ""))
+                        for h in model_history_map.get(m_name, [])
+                        if h.get("commit_hash") not in {"worktree-head", "ui-checkpoint", "api-save"}
+                        and "pytest" not in str(h.get("run_label", "")).lower()
+                        and h.get("recorded_at")
+                    ]
+                )
+                if ts_val
+            ]
+            resolved_last_tested = (
+                max(authentic_candidates)
+                if authentic_candidates
+                else (
+                    max(
+                        (
+                            str(h.get("recorded_at", ""))
+                            for h in model_history_map.get(m_name, [])
+                            if h.get("commit_hash") != "worktree-head" and h.get("recorded_at")
+                        ),
+                        default="",
+                    )
+                    or max(
+                        (
+                            str(h.get("recorded_at", ""))
+                            for h in model_history_map.get(m_name, [])
+                            if h.get("recorded_at")
+                        ),
+                        default="",
+                    )
+                )
+            )
+
             raw_profiles.append(
                 ModelArchitectureProfile(
                     model_id=_model_id(m_name),
                     model_name=m_name,
                     class_name=target_class_name,
+                    friendly_title=_derive_friendly_model_title(m_name, target_class_name),
                     family=str(meta.get("family", "Neural Baseline")),
                     is_polyphonic=bool(meta.get("is_polyphonic", False)),
                     is_overall_best=False,
@@ -2078,35 +2210,7 @@ class BenchmarkLedger:
                     method_names=list(src_info.get("method_names", [])),
                     benchmark_entries=sorted(m_entries, key=lambda e: (e.rank, e.benchmark_name)),
                     historical_ranks=model_history_map.get(m_name, []),
-                    last_tested_at=(
-                        latest_ts_by_model.get(m_name)
-                        or max(
-                            (
-                                str(h.get("recorded_at", ""))
-                                for h in model_history_map.get(m_name, [])
-                                if h.get("commit_hash") not in {"worktree-head", "ui-checkpoint", "api-save"}
-                                and "pytest" not in str(h.get("run_label", "")).lower()
-                                and h.get("recorded_at")
-                            ),
-                            default="",
-                        )
-                        or max(
-                            (
-                                str(h.get("recorded_at", ""))
-                                for h in model_history_map.get(m_name, [])
-                                if h.get("commit_hash") != "worktree-head" and h.get("recorded_at")
-                            ),
-                            default="",
-                        )
-                        or max(
-                            (
-                                str(h.get("recorded_at", ""))
-                                for h in model_history_map.get(m_name, [])
-                                if h.get("recorded_at")
-                            ),
-                            default="",
-                        )
-                    ),
+                    last_tested_at=resolved_last_tested,
                     related_modules=list(meta.get("related_modules", ["benchmark_ledger"])),
                     related_kis=list(
                         meta.get(
@@ -2225,7 +2329,30 @@ class BenchmarkLedger:
             if isinstance(request, BenchmarkSaveRequest)
             else BenchmarkSaveRequest.model_validate(request)
         )
-        recorded_at = req.recorded_at or dt.datetime.now(dt.timezone.utc).isoformat()
+        raw_recorded_at = req.recorded_at or dt.datetime.now(dt.timezone.utc).isoformat()
+        try:
+            recorded_at = (
+                dt.datetime.fromisoformat(str(raw_recorded_at).replace("Z", "+00:00"))
+                .astimezone(dt.timezone.utc)
+                .isoformat()
+            )
+        except Exception:
+            recorded_at = str(raw_recorded_at)
+
+        tested_models: set[str] = set()
+        for explicit_sec in (req.language_benchmarks, req.continuous_benchmarks):
+            if isinstance(explicit_sec, dict):
+                for t_val in explicit_sec.values():
+                    if isinstance(t_val, dict):
+                        for r_item in t_val.get("leaderboard", []):
+                            if isinstance(r_item, dict) and r_item.get("model_name"):
+                                tested_models.add(_canonical_model_name(str(r_item["model_name"])))
+            elif isinstance(explicit_sec, list):
+                for t_val in explicit_sec:
+                    if isinstance(t_val, dict):
+                        for r_item in t_val.get("leaderboard", []):
+                            if isinstance(r_item, dict) and r_item.get("model_name"):
+                                tested_models.add(_canonical_model_name(str(r_item["model_name"])))
 
         bundle = _load_authentic_bundle()
         base_raw = (
@@ -2253,6 +2380,7 @@ class BenchmarkLedger:
                 target_model = str(override.get("model_name") or "")
                 if not target_task or not target_model:
                     continue
+                tested_models.add(_canonical_model_name(target_model))
                 for section_key, metric_field, sec_field in (
                     ("language_benchmarks", "eval_ce_loss", "eval_bits_per_byte"),
                     ("continuous_benchmarks", "eval_geodesic_dist", "eval_rel_l2"),
@@ -2294,6 +2422,7 @@ class BenchmarkLedger:
             "run_label": req.run_label,
             "source_type": "api_save",
             "notes": req.notes,
+            "tested_models": sorted(m for m in tested_models if m),
             "raw_data": raw_payload,
             "content_digest": digest,
         }
@@ -2384,6 +2513,7 @@ class BenchmarkLedger:
                     doc_id=model.model_id,
                     doc_type="benchmark_model",
                     title=model.model_name,
+                    friendly_title=model.friendly_title or _derive_friendly_model_title(model.model_name, model.class_name),
                     subtitle=(
                         f"{'PROMOTED GAUNTLET WINNER • ' if model.is_promoted else ''}Rank #{model.overall_rank} • "
                         f"{model.family} • Top-3: {model.top3_count}/{model.benchmarks_evaluated} • Mean Rank {model.mean_rank:.2f}"
@@ -2414,6 +2544,7 @@ class BenchmarkLedger:
                     doc_id=task.benchmark_id,
                     doc_type="benchmark_task",
                     title=task.title,
+                    friendly_title=task.title,
                     subtitle=f"{task.domain_label} • Winner: {task.best_model_name} ({task.best_primary_metric:.4f} {task.primary_metric_name})",
                     category="Language Benchmarks" if task.category == "language" else "Continuous Dynamical Systems",
                     summary=task.description,
@@ -2471,6 +2602,7 @@ class BenchmarkLedger:
                     doc_id=run.run_id,
                     doc_type="benchmark_run",
                     title=run.run_label,
+                    friendly_title=run.run_label,
                     subtitle=f"Snapshot {run.commit_hash} • Best: {run.overall_best_model} (Mean Rank {run.overall_best_model_mean_rank:.2f})",
                     category="Benchmark Run History",
                     summary=(
@@ -2591,6 +2723,7 @@ class BenchmarkLedger:
         try:
             vector_dim = 384
             existing_doc_hashes: dict[str, str] = {}
+            existing_doc_meta: dict[str, dict[str, Any]] = {}
 
             if client is not None:
                 collection_exists = client.collection_exists(collection_name)
@@ -2613,15 +2746,36 @@ class BenchmarkLedger:
                         )
                         for pt in scrolled:
                             pl = pt.payload or {}
-                            if int(pl.get("chunk_index", -1)) == 0 and pl.get("doc_id") and pl.get("text_sha256"):
-                                existing_doc_hashes[str(pl["doc_id"])] = str(pl["text_sha256"])
+                            if int(pl.get("chunk_index", -1)) == 0 and pl.get("doc_id"):
+                                d_id = str(pl["doc_id"])
+                                existing_doc_meta[d_id] = dict(pl)
+                                if pl.get("text_sha256") or pl.get("content_sha256"):
+                                    existing_doc_hashes[d_id] = str(pl.get("text_sha256") or pl.get("content_sha256"))
                     except Exception:
                         existing_doc_hashes = {}
+                        existing_doc_meta = {}
             elif not force_recreate:
                 for pt in staging_mgr.read_points_lockfree(target_qdrant_path, collection_name):
                     pl = pt.payload or {}
-                    if int(pl.get("chunk_index", -1)) == 0 and pl.get("doc_id") and pl.get("text_sha256"):
-                        existing_doc_hashes[str(pl["doc_id"])] = str(pl["text_sha256"])
+                    if int(pl.get("chunk_index", -1)) == 0 and pl.get("doc_id"):
+                        d_id = str(pl["doc_id"])
+                        existing_doc_meta[d_id] = dict(pl)
+                        if pl.get("text_sha256") or pl.get("content_sha256"):
+                            existing_doc_hashes[d_id] = str(pl.get("text_sha256") or pl.get("content_sha256"))
+
+            active_doc_ids = {doc.doc_id for doc in docs}
+            stale_doc_ids = [d_id for d_id in existing_doc_meta if d_id not in active_doc_ids]
+            if stale_doc_ids and client is not None:
+                for stale_id in stale_doc_ids:
+                    try:
+                        client.delete(
+                            collection_name=collection_name,
+                            points_selector=Filter(
+                                must=[FieldCondition(key="doc_id", match=MatchValue(value=stale_id))]
+                            ),
+                        )
+                    except Exception:
+                        pass
 
             def _default_chunk_text(text: str, c_size: int, c_overlap: int) -> list[dict[str, Any]]:
                 cleaned = text.strip()
@@ -2698,7 +2852,14 @@ class BenchmarkLedger:
                     )
                     for idx in range(total_c)
                 ]
-                is_changed = existing_doc_hashes.get(doc.doc_id) != text_sha256
+                prev_meta = existing_doc_meta.get(doc.doc_id) or {}
+                is_changed = (
+                    existing_doc_hashes.get(doc.doc_id) != text_sha256
+                    or not isinstance(prev_meta.get("doc_payload"), dict)
+                    or not prev_meta.get("doc_payload")
+                    or str(prev_meta.get("last_tested_at") or "") != str(doc.last_tested_at or "")
+                    or str(prev_meta.get("friendly_title") or "") != str(doc.friendly_title or "")
+                )
                 if is_changed:
                     changed_doc_ids.append(doc.doc_id)
 
@@ -2710,6 +2871,7 @@ class BenchmarkLedger:
                         "doc_id": doc.doc_id,
                         "doc_type": doc.doc_type,
                         "title": doc.title,
+                        "friendly_title": doc.friendly_title,
                         "subtitle": doc.subtitle,
                         "category": doc.category,
                         "summary": doc.summary,
@@ -2722,6 +2884,7 @@ class BenchmarkLedger:
                         "top3_count": doc.top3_count,
                         "mean_rank": doc.mean_rank,
                         "best_model_name": doc.best_model_name,
+                        "last_tested_at": doc.last_tested_at,
                         "chunk_index": c["chunk_index"],
                         "total_chunks": total_c,
                         "char_start": c["char_start"],
@@ -2730,10 +2893,16 @@ class BenchmarkLedger:
                         "prev_point_id": prev_id,
                         "next_point_id": next_id,
                         "text_sha256": text_sha256,
+                        "content_sha256": text_sha256,
+                        "full_text_sha256": text_sha256,
                         "embedding_model": embedding_model,
                         "related_modules": list(doc.related_modules),
                         "related_kis": list(doc.related_kis),
                     }
+                    if int(c["chunk_index"]) == 0:
+                        rec["doc_payload"] = doc.payload
+                        rec["code_snippet"] = doc.code_snippet
+                        rec["markdown"] = doc.markdown
                     all_chunk_records.append(rec)
                     if is_changed:
                         changed_chunk_records.append(rec)
