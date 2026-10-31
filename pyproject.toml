@@ -132,3 +132,8 @@ exclude = ["tests*"]
 [tool.pytest.ini_options]
 pythonpath = ["src", "."]
 python_files = ["test_*.py", "*_test.py", "test*.py"]
+
+[tool.uv.workspace]
+members = [
+    "applications/agent_brain",
+]

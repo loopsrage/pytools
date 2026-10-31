@@ -1,0 +1,9 @@
+{
+  "name": "text-embedder",
+  "framework": "pytorch",
+  "format": "safetensors",
+  "architecture": "TinyEmbedder",
+  "input_dim": 8,
+  "output_dim": 4,
+  "description": "Small text embedding model"
+}

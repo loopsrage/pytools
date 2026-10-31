@@ -176,7 +176,13 @@ class QdrantGeodesicLifecycleMCPServer:
                     "'sync' (bidirectional or directional Qdrant sync across repos/staging/environments), "
                     "'verify' (verify SHA-256 disk-vs-Qdrant code integrity and keep_in_place invariants), "
                     "'promote_harness' (run status/learn/generate/memorize/reset_memory/predict_next on "
-                    "PromotedModelHarness), and 'snapshot' (export JSONL snapshots)."
+                    "PromotedModelHarness), 'learn' (unified text/tokens/continuous learning dispatcher), "
+                    "'learn_topic' (async Pinhole Aperture topic training with 3-modality "
+                    "separation & Public/Internal bucket gating), 'train_qdrant_topics' (async post-benchmark "
+                    "Qdrant topic training), 'training_status' (async worker & relativistic proper-time tau telemetry), "
+                    "'blend_topics' (topic isolation + simultaneous Topic HRRF & Topic-Data HRRF with "
+                    "Midpoint blending), 'topic_crud' (lock/unlock/delete/read/create topics "
+                    "with ROOT_SCOPE_ID=1009 internal code immunity), and 'snapshot' (export JSONL snapshots)."
                 ),
                 "inputSchema": {
                     "type": "object",
@@ -190,6 +196,12 @@ class QdrantGeodesicLifecycleMCPServer:
                                 "sync",
                                 "verify",
                                 "promote_harness",
+                                "learn",
+                                "learn_topic",
+                                "train_qdrant_topics",
+                                "training_status",
+                                "blend_topics",
+                                "topic_crud",
                                 "snapshot",
                             ],
                             "description": "Lifecycle operation to execute.",

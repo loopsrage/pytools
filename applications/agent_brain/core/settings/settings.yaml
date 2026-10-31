@@ -1,0 +1,155 @@
+# Agent Brain configuration
+# All settings are loaded via the repo's settings module (settings/helper.py)
+
+agent_brain:
+  scraper:
+    user_agent: "agent-brain-bot"
+    headless: true
+    wait_until: "networkidle"
+    timeout_seconds: 60
+    max_concurrent: 5
+    respect_robots_txt: true
+    default_interval_seconds: 3600
+
+  brain:
+    store_type: "file"
+    base_dir: "data/brain"
+    scrape_data_dir: "data/scrapes"
+    topics_dir: "topics"
+    pages_dir: "pages"
+    artifacts_dir: "artifacts"
+
+  etl:
+    max_file_size_mb: 10
+    promoted_columns:
+      - topic
+      - page_id
+    json_columns: []
+    chunk_size: 500
+    chunk_overlap: 100
+
+  doc_pipeline:
+    ocr_lang: "eng"
+    pdf_scale: 2.0
+    hybrid_top_k: 5
+    vector_weight: 0.7
+    keyword_weight: 0.3
+
+  qdrant:
+    collection: "agent_brain_chunks"
+    vector_size: 384
+    scan_interval_seconds: 60.0
+    chunk_size: 500
+    chunk_overlap: 100
+
+  fs_jail:
+    base_dir: "data/brain/fs_jails"
+    max_file_size_mb: 50
+
+  job_boards:
+    # Crawlable job boards (urllib-friendly, no heavy bot detection)
+    - name: "remote-ok"
+      url: "https://remoteok.com/remote-dev+ai-jobs.json"
+      scrape_interval_seconds: 3600
+      crawl: true
+      max_pages: 1
+    - name: "remote-ok-rss"
+      url: "https://remoteok.com/remote-dev+ai-jobs.rss"
+      scrape_interval_seconds: 3600
+      crawl: true
+      max_pages: 1
+      ignore_robots: true
+    - name: "we-work-remotely-rss"
+      url: "https://weworkremotely.com/remote-jobs.rss"
+      scrape_interval_seconds: 3600
+      crawl: true
+      max_pages: 1
+      ignore_robots: true
+    - name: "we-work-remotely"
+      url: "https://weworkremotely.com/categories/remote-programming-jobs"
+      scrape_interval_seconds: 3600
+      crawl: true
+      max_pages: 20
+    - name: "ai-jobs-net"
+      url: "https://ai-jobs.net/?q=software+ai"
+      scrape_interval_seconds: 3600
+      crawl: true
+      max_pages: 5
+    # Utah-focused local job boards (backend infra, CV, applied AI systems)
+    - name: "silicon-slopes-jobs"
+      url: "https://siliconslopes.com/jobs/"
+      scrape_interval_seconds: 3600
+      crawl: true
+      max_pages: 5
+    - name: "trueup-utah"
+      url: "https://trueup.io/jobs?location=utah"
+      scrape_interval_seconds: 3600
+      crawl: true
+      max_pages: 5
+    - name: "ksl-jobs-tech"
+      url: "https://jobs.ksl.com/search?category=technology&state=UT"
+      scrape_interval_seconds: 3600
+      crawl: true
+      max_pages: 5
+    - name: "builtin-utah"
+      url: "https://builtin.com/utah/jobs"
+      scrape_interval_seconds: 3600
+      crawl: true
+      max_pages: 5
+    - name: "kore1-slc"
+      url: "https://kore1.com/jobs?location=salt-lake-city"
+      scrape_interval_seconds: 3600
+      crawl: true
+      max_pages: 5
+    - name: "recursion-pharma-careers"
+      url: "https://recursion.com/careers"
+      scrape_interval_seconds: 3600
+      crawl: true
+      max_pages: 5
+    - name: "lucid-software-careers"
+      url: "https://lucid.co/careers"
+      scrape_interval_seconds: 3600
+      crawl: true
+      max_pages: 5
+    - name: "entrata-careers"
+      url: "https://entrata.com/careers"
+      scrape_interval_seconds: 3600
+      crawl: true
+      max_pages: 5
+    - name: "lvt-careers"
+      url: "https://liveviewtech.com/careers"
+      scrape_interval_seconds: 3600
+      crawl: true
+      max_pages: 5
+
+  scrape_producer:
+    interval_seconds: 300
+
+  api:
+    host: "0.0.0.0"
+    port: 8127
+    title: "Agent Brain - Site Intelligence Pipeline"
+
+  logging:
+    level: "INFO"
+
+  email:
+    enabled: true
+    provider: "gmail"
+    smtp_host: "smtp.gmail.com"
+    smtp_port: 587
+    use_tls: true
+    username: "loop123jk@gmail.com"
+    from_name: "Agent Brain"
+    resume_path: ""
+
+  search:
+    terms:
+      - "ai"
+      - "ml"
+      - "software engineering"
+      - "developer"
+      - "researcher"
+    interval_seconds: 86400
+    # App password is resolved from a secret (env GMAIL_APP_PASSWORD or
+    # file GMAIL_APP_PASSWORD_FILE), never stored in settings.yaml.

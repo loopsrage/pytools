@@ -1581,10 +1581,16 @@ def _load_promoted_manifest(repo_path: Path, fs: FSBase) -> dict[str, Any]:
         if not isinstance(manifest, dict):
             return {}
         promoted_model_py = repo_path / "promoted" / "promoted_model.py"
-        harness_py = repo_path / "promoted" / "harness.py"
+        split_harness_py = repo_path / "src" / "model_harness" / "core.py"
+        legacy_harness_py = repo_path / "promoted" / "harness.py"
         manifest = mask_restricted_vocabulary(dict(manifest))
         manifest["promoted_model_file"] = "promoted/promoted_model.py" if promoted_model_py.exists() else ""
-        manifest["harness_file"] = "promoted/harness.py" if harness_py.exists() else ""
+        if split_harness_py.exists():
+            manifest["harness_file"] = "src/model_harness/core.py"
+        elif legacy_harness_py.exists():
+            manifest["harness_file"] = "promoted/harness.py"
+        else:
+            manifest["harness_file"] = ""
         return manifest
     except Exception:
         return {}

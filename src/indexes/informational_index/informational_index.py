@@ -1599,8 +1599,12 @@ class AgentInformationalGraphIndex(Datasource):
             self.idea_projects_root / "neural_networks" / "promoted" / "promoted_manifest.json"
         )
         promoted_harness_path = (
-            self.idea_projects_root / "neural_networks" / "promoted" / "harness.py"
+            self.idea_projects_root / "neural_networks" / "src" / "model_harness" / "core.py"
         )
+        if not promoted_harness_path.is_file():
+            promoted_harness_path = (
+                self.idea_projects_root / "neural_networks" / "promoted" / "harness.py"
+            )
         if promoted_model_path.is_file():
             prom_manifest: Dict[str, Any] = {}
             if promoted_manifest_path.is_file():
@@ -2125,10 +2129,14 @@ class AgentInformationalGraphIndex(Datasource):
             (
                 "code:neural_networks:promoted_harness",
                 "runtime_code",
-                "Promoted Gauntlet Model 6-Scale Any-Gram Qdrant Harness (promoted/harness.py)",
+                "Promoted Gauntlet Model 6-Scale Any-Gram Qdrant Harness (src/model_harness/core.py)",
                 "PromotedModelHarness",
                 "neural_networks",
-                self.idea_projects_root / "neural_networks" / "promoted" / "harness.py",
+                (
+                    self.idea_projects_root / "neural_networks" / "src" / "model_harness" / "core.py"
+                    if (self.idea_projects_root / "neural_networks" / "src" / "model_harness" / "core.py").is_file()
+                    else self.idea_projects_root / "neural_networks" / "promoted" / "harness.py"
+                ),
                 self.idea_projects_root / "neural_networks" / "promoted" / "promoted_manifest.json",
                 "portfolio_neural_benchmarks",
                 2,
@@ -3890,26 +3898,150 @@ class AgentInformationalGraphIndex(Datasource):
                 "wall_time_ms": round((time.perf_counter() - t0) * 1000.0, 2),
             }
 
-        if norm_action in ("promote_harness", "harness"):
+        if norm_action in (
+            "promote_harness",
+            "harness",
+            "learn",
+            "learn_topic",
+            "train_qdrant_topics",
+            "training_status",
+            "blend_topics",
+            "topic_crud",
+        ):
             nn_root = self.idea_projects_root / "neural_networks"
             harness_result: Dict[str, Any] = {"available": False}
-            if (nn_root / "promoted" / "harness.py").is_file():
+            has_split_harness = (nn_root / "src" / "model_harness" / "core.py").is_file()
+            has_legacy_harness = (nn_root / "promoted" / "harness.py").is_file()
+            if has_split_harness or has_legacy_harness:
+                import importlib
                 import sys
 
                 for p_cand in (str(nn_root), str(nn_root / "src")):
                     if p_cand not in sys.path:
                         sys.path.insert(0, p_cand)
-                import promoted.harness as h_mod
+                try:
+                    import src.model_harness as h_mod
+                except ImportError:
+                    import promoted.harness as h_mod
 
-                harness = h_mod.build_promoted_harness(vocab_size=256, d_model=128, device="cpu")
-                sub_action = str(opts.get("harness_action", "status")).lower()
+                importlib.reload(h_mod)
+                if getattr(self, "_promoted_harness_singleton", None) is None:
+                    self._promoted_harness_singleton = h_mod.build_promoted_harness(
+                        vocab_size=256, d_model=128, device="cpu"
+                    )
+                harness = self._promoted_harness_singleton
+                sub_action = (
+                    norm_action
+                    if norm_action
+                    in ("learn", "learn_topic", "train_qdrant_topics", "training_status", "blend_topics", "topic_crud")
+                    else str(opts.get("harness_action", "status")).lower()
+                )
                 prompt_text = str(
                     opts.get("prompt")
+                    or opts.get("content")
                     or opts.get("text")
                     or "def execute_monadic_cycle(cavity, wave):"
                 )
+                topic_id = str(opts.get("topic_id") or opts.get("title") or "mcp_learned_topic")
+                is_internal_code = bool(opts.get("is_internal_code", False))
+                locked = bool(opts.get("locked", False))
+                async_mode = bool(opts.get("async_mode", True))
+
+                if "internal_key" in opts:
+                    k_in = opts.get("internal_key")
+                    if k_in:
+                        harness.inject_internal_key(k_in)
+                    else:
+                        harness.clear_internal_key()
+
                 if sub_action == "learn":
                     harness_result = harness.learn(prompt_text, steps=int(opts.get("steps", 2)))
+                elif sub_action == "learn_topic":
+                    # Upsert public topic into staging Qdrant informational collection as well
+                    if not is_internal_code:
+                        pt_id = str(
+                            uuid5_from_args(INFORMATIONAL_NAMESPACE_UUID, "learned_topic", topic_id)
+                        )
+                        self.staging_manager.upsert_points_lockfree(
+                            storage_path=self.staging_manager.storage_dir,
+                            collection_name=self.collection_name,
+                            points=[
+                                PointStruct(
+                                    id=pt_id,
+                                    vector=_deterministic_384d_vector(f"{topic_id} {prompt_text}"),
+                                    payload={
+                                        "doc_type": "learned_topic_manifold",
+                                        "topic_id": topic_id,
+                                        "content": prompt_text,
+                                        "scope_id": 0,
+                                        "locked": locked,
+                                        "updated_at": round(time.time(), 3),
+                                    },
+                                )
+                            ],
+                            recreate=False,
+                        )
+                    harness_result = harness.learn_topic(
+                        topic_id=topic_id,
+                        content=prompt_text,
+                        is_internal_code=is_internal_code,
+                        locked=locked,
+                        async_mode=async_mode,
+                        metadata=opts.get("metadata"),
+                    )
+                elif sub_action == "train_qdrant_topics":
+                    harness_result = harness.train_qdrant_topics_async(
+                        topics=opts.get("topics"),
+                        include_code_corpus=bool(opts.get("include_code_corpus", True)),
+                        include_informational_index=bool(opts.get("include_informational_index", True)),
+                        max_topics=int(opts.get("max_topics", 16)),
+                        async_mode=async_mode,
+                    )
+                elif sub_action == "training_status":
+                    harness_result = harness.get_async_training_status()
+                elif sub_action == "blend_topics":
+                    raw_res = harness.blend_topics_hrrf(
+                        query=str(opts.get("query") or prompt_text),
+                        candidate_topics=opts.get("candidate_topics"),
+                        top_k_topics=int(opts.get("top_k_topics", 4)),
+                        top_k_data=int(opts.get("top_k_data", 8)),
+                    )
+                    harness_result = {
+                        "status": raw_res.get("status"),
+                        "query_modality": raw_res.get("query_modality"),
+                        "query_shannon_entropy": raw_res.get("query_shannon_entropy"),
+                        "topic_rrf_rankings": raw_res.get("topic_rrf_rankings", []),
+                        "topic_data_rrf_rankings": raw_res.get("topic_data_rrf_rankings", []),
+                    }
+                elif sub_action in ("topic_crud", "lock_topic", "unlock_topic", "delete_topic"):
+                    crud_act = (
+                        "lock"
+                        if sub_action == "lock_topic"
+                        else "unlock"
+                        if sub_action == "unlock_topic"
+                        else "delete"
+                        if sub_action == "delete_topic"
+                        else str(opts.get("crud_action") or opts.get("sub_action") or "status")
+                    )
+                    raw_crud = harness.topic_crud(
+                        action=crud_act,
+                        topic_id=opts.get("topic_id"),
+                        content=opts.get("content") or opts.get("text"),
+                        query_text=opts.get("query_text") or opts.get("query"),
+                        candidate_topics=opts.get("candidate_topics"),
+                        entropy_range=tuple(opts["entropy_range"]) if opts.get("entropy_range") else None,
+                        scope=str(opts.get("scope", "topic")),
+                        is_internal_code=is_internal_code,
+                        locked=locked,
+                        async_mode=bool(opts.get("async_mode", False)),
+                        top_k_topics=int(opts.get("top_k_topics", 4)),
+                        top_k_data=int(opts.get("top_k_data", 8)),
+                        metadata=opts.get("metadata"),
+                    )
+                    harness_result = {
+                        k: (v.detach().cpu().tolist() if hasattr(v, "detach") else v)
+                        for k, v in raw_crud.items()
+                    }
                 elif sub_action == "generate":
                     harness_result = {
                         "generated": harness.generate(
@@ -3929,7 +4061,7 @@ class AgentInformationalGraphIndex(Datasource):
                     harness_result = {"result": harness_result}
                 harness_result["available"] = True
             return {
-                "action": "promote_harness",
+                "action": norm_action,
                 "system_id": "neural_networks",
                 "status": "COMPLETED" if harness_result.get("available") else "UNAVAILABLE",
                 "harness_result": harness_result,

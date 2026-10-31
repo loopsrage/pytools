@@ -16,3 +16,8 @@ ENV/
 .licenses/
 data/
 skills/
+node_modules/
+dist/
+dist/
+.env.local
+.env.*.local
