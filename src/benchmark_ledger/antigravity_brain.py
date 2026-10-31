@@ -279,7 +279,9 @@ class AntigravityBrainLedger:
         self.ledger_path = (
             Path(ledger_path)
             if ledger_path is not None
-            else Path("/Users/jarek/IdeaProjects/portfolio/portfolio/antigravity_brain_ledger.json")
+            else Path(
+                "/Users/jarek/IdeaProjects/toolset/applications/agent_brain/data/antigravity_brain_ledger.json"
+            )
         )
         self.max_subagent_sessions = max_subagent_sessions
 
@@ -1991,10 +1993,12 @@ class AntigravityBrainLedger:
                                 points=points,
                                 vector_size=384,
                             )
-                        portfolio_qdrant = Path("/Users/jarek/IdeaProjects/portfolio/portfolio/.qdrant_data")
-                        if q_path != portfolio_qdrant and portfolio_qdrant.is_dir():
+                        agent_brain_qdrant = Path(
+                            "/Users/jarek/IdeaProjects/toolset/applications/agent_brain/data/.qdrant_options"
+                        )
+                        if q_path != agent_brain_qdrant and agent_brain_qdrant.is_dir():
                             staging_mgr.upsert_points_lockfree(
-                                storage_path=portfolio_qdrant,
+                                storage_path=agent_brain_qdrant,
                                 collection_name=collection_name,
                                 points=points,
                                 vector_size=384,
@@ -2025,7 +2029,7 @@ class AntigravityBrainLedger:
 
 def sync_antigravity_brain_to_qdrant(
     brain_root: str | Path = "/Users/jarek/.gemini/antigravity-cli/brain",
-    ledger_path: str | Path = "/Users/jarek/IdeaProjects/portfolio/portfolio/antigravity_brain_ledger.json",
+    ledger_path: str | Path = "/Users/jarek/IdeaProjects/toolset/applications/agent_brain/data/antigravity_brain_ledger.json",
     qdrant_path: str | Path = "/Users/jarek/IdeaProjects/qdrant_staging/storage",
     collection_name: str = "portfolio_antigravity_brain",
     qdrant_client: Any | None = None,
