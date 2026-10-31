@@ -221,13 +221,14 @@ def test_qdrant_geodesic_lifecycle_mcp_server() -> None:
         }
     )
     sys_payload = sys_resp["result"]["structuredContent"]
-    assert sys_payload["total_systems"] == 7
+    assert sys_payload["total_systems"] == 8
     sys_ids = {s["system_id"] for s in sys_payload["systems"]}
     assert {
         "portfolio",
         "components",
         "toolset",
         "neural_networks",
+        "playground",
         "large_tools",
         "StageCompiler-development",
         "qdrant_staging",
@@ -236,6 +237,24 @@ def test_qdrant_geodesic_lifecycle_mcp_server() -> None:
         assert s["keep_in_place"] is True
         assert "design" in s["layers"]
         assert "compiler" in s["layers"]
+
+    bench_search_resp = mcp.handle_jsonrpc_message(
+        {
+            "jsonrpc": "2.0",
+            "id": 31,
+            "method": "tools/call",
+            "params": {
+                "name": "qdrant_search",
+                "arguments": {
+                    "query": "hyperbolic_harness SplitDigest",
+                    "collection": "unified_harness_benchmarks",
+                    "top_k": 5,
+                },
+            },
+        }
+    )
+    bench_search_payload = bench_search_resp["result"]["structuredContent"]
+    assert bench_search_payload["total_matches"] >= 1
 
     # 3. `qdrant_search` tool call across unified collections
     search_resp = mcp.handle_jsonrpc_message(

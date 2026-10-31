@@ -107,6 +107,8 @@ class QdrantGeodesicLifecycleMCPServer:
                             "type": "string",
                             "description": (
                                 "Optional Qdrant collection filter ('all', 'agent_informational_graph_index', "
+                                "'unified_harness_benchmarks', 'corpus_tasks', 'corpus_qa_pairs', "
+                                "'corpus_topics', 'corpus_dedup_index', "
                                 "'portfolio_wiki_chunks', 'portfolio_neural_benchmarks', "
                                 "'portfolio_antigravity_brain', 'neural_networks_code_corpus', "
                                 "'code_corpus_temporal_index'). Defaults to 'all'."
@@ -116,7 +118,7 @@ class QdrantGeodesicLifecycleMCPServer:
                             "type": "string",
                             "description": (
                                 "Optional system filter ('all', 'portfolio', 'components', 'toolset', "
-                                "'neural_networks', 'large_tools', 'StageCompiler-development', 'qdrant_staging')."
+                                "'neural_networks', 'playground', 'large_tools', 'StageCompiler-development', 'qdrant_staging')."
                             ),
                         },
                         "layer": {
@@ -196,6 +198,7 @@ class QdrantGeodesicLifecycleMCPServer:
                                 "sync",
                                 "verify",
                                 "promote_harness",
+                                "run_slot_benchmarks",
                                 "learn",
                                 "learn_topic",
                                 "train_qdrant_topics",

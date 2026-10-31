@@ -3107,6 +3107,11 @@ class AgentInformationalGraphIndex(Datasource):
                     "neural_networks_code_corpus",
                     "code_corpus_temporal_index",
                     "portfolio_neural_benchmarks",
+                    "unified_harness_benchmarks",
+                    "corpus_tasks",
+                    "corpus_qa_pairs",
+                    "corpus_topics",
+                    "corpus_dedup_index",
                 ],
                 "layers": {
                     "design": str(
@@ -3124,14 +3129,47 @@ class AgentInformationalGraphIndex(Datasource):
                         / "stage_compiler_model.py"
                     ),
                     "code": str(
-                        self.idea_projects_root / "neural_networks" / "promoted" / "harness.py"
+                        self.idea_projects_root
+                        / "neural_networks"
+                        / "src"
+                        / "model_harness"
+                        / "core.py"
                     ),
                 },
                 "entrypoints": [
-                    "neural_networks/promoted/harness.py",
+                    "neural_networks/src/model_harness/core.py",
+                    "neural_networks/src/model_harness/slot_benchmark.py",
+                    "neural_networks/corpus_harness/harness.py",
                     "neural_networks/promoted/promoted_model.py",
                     "neural_networks/src/models/stage_compiler/stage_compiler_model.py",
                     "neural_networks/src/models/monadic_cavity/monadic_cavity_models.py",
+                ],
+            },
+            {
+                "system_id": "playground",
+                "name": "Isolated Linear, Hyperbolic, and Corpus Harnesses + Unified Corpus Registry",
+                "root_path": str(self.idea_projects_root / "playground"),
+                "repo_name": "playground",
+                "keep_in_place": True,
+                "qdrant_collections": [
+                    "unified_harness_benchmarks",
+                    "corpus_tasks",
+                    "corpus_dedup_index",
+                ],
+                "layers": {
+                    "design": str(self.idea_projects_root / "playground" / "src" / "corpus" / "registry.py"),
+                    "compiler": str(
+                        self.idea_projects_root / "playground" / "src" / "hyperbolic_harness" / "harness.py"
+                    ),
+                    "code": str(
+                        self.idea_projects_root / "playground" / "src" / "corpus_harness" / "harness.py"
+                    ),
+                },
+                "entrypoints": [
+                    "playground/src/linear_harness/harness.py",
+                    "playground/src/hyperbolic_harness/harness.py",
+                    "playground/src/corpus_harness/harness.py",
+                    "playground/src/corpus/registry.py",
                 ],
             },
             {
@@ -3248,6 +3286,7 @@ class AgentInformationalGraphIndex(Datasource):
                     "sync",
                     "verify",
                     "promote_harness",
+                    "run_slot_benchmarks",
                     "snapshot",
                 ]
             systems.append(entry)
@@ -3388,6 +3427,10 @@ class AgentInformationalGraphIndex(Datasource):
                 )
                 searchable = (
                     f"{doc_key} {rep.get('title', '')} {rep.get('model_name', '')} "
+                    f"{rep.get('model_slot_id', '')} {rep.get('model_class', '')} "
+                    f"{rep.get('harness', '')} {rep.get('test_id', '')} "
+                    f"{rep.get('task_id', '')} {rep.get('topic_id', '')} "
+                    f"{rep.get('dataset', '')} {rep.get('benchmark', '')} "
                     f"{rep.get('class_name', '')} {rep.get('rel_path', '')} "
                     f"{rep.get('source_file', '')} {rejoined_text[:1600]}"
                 ).lower()
@@ -3412,11 +3455,11 @@ class AgentInformationalGraphIndex(Datasource):
 
                 inferred_layer = (
                     "model"
-                    if "neural_benchmarks" in coll_name
+                    if ("neural_benchmarks" in coll_name or "harness_benchmarks" in coll_name)
                     else "compiler"
                     if "compiler" in searchable
                     else "design"
-                    if "wiki" in coll_name
+                    if ("wiki" in coll_name or "corpus_" in coll_name)
                     else "code"
                 )
                 if layer and layer != "all" and inferred_layer != layer:
@@ -3424,7 +3467,12 @@ class AgentInformationalGraphIndex(Datasource):
 
                 sys_inferred = (
                     "neural_networks"
-                    if "neural" in coll_name or "code_corpus" in coll_name
+                    if (
+                        "neural" in coll_name
+                        or "code_corpus" in coll_name
+                        or "harness_benchmarks" in coll_name
+                        or "corpus_" in coll_name
+                    )
                     else "portfolio"
                 )
                 hits.append(
@@ -3437,11 +3485,19 @@ class AgentInformationalGraphIndex(Datasource):
                             "title": str(
                                 rep.get("title")
                                 or rep.get("model_name")
+                                or (
+                                    f"{rep.get('model_slot_id')}::{rep.get('harness')}::{rep.get('test_id')}"
+                                    if rep.get("model_slot_id") and rep.get("harness")
+                                    else None
+                                )
+                                or rep.get("task_id")
+                                or rep.get("topic_id")
                                 or rep.get("rel_path")
                                 or doc_key
                             ),
                             "idiomatic_name": str(
                                 rep.get("class_name")
+                                or rep.get("model_class")
                                 or rep.get("module_name")
                                 or rep.get("rel_path")
                                 or doc_key
@@ -3895,6 +3951,82 @@ class AgentInformationalGraphIndex(Datasource):
                 "missing_node_paths": missing_paths,
                 "keep_in_place_invariants_valid": len(missing_paths) == 0,
                 "code_corpus_sha256_verification": code_verification,
+                "wall_time_ms": round((time.perf_counter() - t0) * 1000.0, 2),
+            }
+
+        if norm_action == "run_slot_benchmarks":
+            nn_root = self.idea_projects_root / "neural_networks"
+            slot_mod_path = nn_root / "src" / "model_harness" / "slot_benchmark.py"
+            if not slot_mod_path.is_file():
+                return {
+                    "action": norm_action,
+                    "system_id": "neural_networks",
+                    "status": "UNAVAILABLE",
+                    "error": f"Slot benchmark runner not found at {slot_mod_path}",
+                    "wall_time_ms": round((time.perf_counter() - t0) * 1000.0, 2),
+                }
+            import sys
+
+            for p_cand in (str(nn_root), str(nn_root / "src")):
+                if p_cand not in sys.path:
+                    sys.path.insert(0, p_cand)
+            from src.model_harness.slot_benchmark import ALL_HARNESSES, run_slot_benchmark_suite
+
+            raw_slots = opts.get("slots", ["mlp", "kan", "hyperbolic"])
+            if isinstance(raw_slots, str):
+                slots_arg = [s.strip() for s in raw_slots.split(",") if s.strip()]
+            else:
+                slots_arg = list(raw_slots)
+            raw_harnesses = opts.get("harnesses", list(ALL_HARNESSES))
+            if isinstance(raw_harnesses, str):
+                harnesses_arg = (
+                    list(ALL_HARNESSES)
+                    if raw_harnesses.strip().lower() == "all"
+                    else [h.strip() for h in raw_harnesses.split(",") if h.strip()]
+                )
+            else:
+                harnesses_arg = list(raw_harnesses)
+            raw_datasets = opts.get("datasets")
+            if isinstance(raw_datasets, str):
+                datasets_arg = (
+                    None
+                    if raw_datasets.strip().lower() in ("", "all")
+                    else [d.strip() for d in raw_datasets.split(",") if d.strip()]
+                )
+            else:
+                datasets_arg = list(raw_datasets) if raw_datasets else None
+            raw_tests = opts.get("tests") or opts.get("test_names")
+            if isinstance(raw_tests, str):
+                tests_arg = (
+                    None
+                    if raw_tests.strip().lower() in ("", "all")
+                    else [t.strip() for t in raw_tests.split(",") if t.strip()]
+                )
+            else:
+                tests_arg = list(raw_tests) if raw_tests else None
+
+            suite_res = run_slot_benchmark_suite(
+                slots=slots_arg,
+                harnesses=harnesses_arg,
+                datasets=datasets_arg,
+                test_names=tests_arg,
+                epochs=int(opts.get("epochs", 20)),
+                lr=float(opts.get("lr", 0.05)),
+                n_samples=int(opts.get("n_samples", 120)),
+                seed=int(opts.get("seed", 42)),
+                promoted_d_model=int(opts.get("promoted_d_model", 64)),
+                staging_root=self.staging_root,
+                collection_name=str(opts.get("collection_name", "unified_harness_benchmarks")),
+                run_id=opts.get("run_id"),
+            )
+            compact_suite = dict(suite_res)
+            if not bool(opts.get("include_records", False)):
+                compact_suite.pop("records", None)
+            return {
+                "action": norm_action,
+                "system_id": "neural_networks",
+                "status": "COMPLETED",
+                "benchmark_result": compact_suite,
                 "wall_time_ms": round((time.perf_counter() - t0) * 1000.0, 2),
             }
 
