@@ -1622,8 +1622,18 @@ class AgentInformationalGraphIndex(Datasource):
             self.idea_projects_root / "neural_networks" / "promoted" / "promoted_manifest.json"
         )
         promoted_harness_path = (
-            self.idea_projects_root / "neural_networks" / "src" / "model_harness" / "core.py"
+            self.idea_projects_root
+            / "agent_brain"
+            / "src"
+            / "agent_brain"
+            / "harness"
+            / "model_harness"
+            / "core.py"
         )
+        if not promoted_harness_path.is_file():
+            promoted_harness_path = (
+                self.idea_projects_root / "neural_networks" / "src" / "model_harness" / "core.py"
+            )
         if not promoted_harness_path.is_file():
             promoted_harness_path = (
                 self.idea_projects_root / "neural_networks" / "promoted" / "harness.py"
@@ -2152,13 +2162,31 @@ class AgentInformationalGraphIndex(Datasource):
             (
                 "code:neural_networks:promoted_harness",
                 "runtime_code",
-                "Promoted Gauntlet Model 6-Scale Any-Gram Qdrant Harness (src/model_harness/core.py)",
+                "Promoted Gauntlet Model Any-Gram Qdrant Harness (agent_brain/harness/model_harness/core.py)",
                 "PromotedModelHarness",
                 "neural_networks",
                 (
-                    self.idea_projects_root / "neural_networks" / "src" / "model_harness" / "core.py"
-                    if (self.idea_projects_root / "neural_networks" / "src" / "model_harness" / "core.py").is_file()
-                    else self.idea_projects_root / "neural_networks" / "promoted" / "harness.py"
+                    self.idea_projects_root
+                    / "agent_brain"
+                    / "src"
+                    / "agent_brain"
+                    / "harness"
+                    / "model_harness"
+                    / "core.py"
+                    if (
+                        self.idea_projects_root
+                        / "agent_brain"
+                        / "src"
+                        / "agent_brain"
+                        / "harness"
+                        / "model_harness"
+                        / "core.py"
+                    ).is_file()
+                    else (
+                        self.idea_projects_root / "neural_networks" / "src" / "model_harness" / "core.py"
+                        if (self.idea_projects_root / "neural_networks" / "src" / "model_harness" / "core.py").is_file()
+                        else self.idea_projects_root / "neural_networks" / "promoted" / "harness.py"
+                    )
                 ),
                 self.idea_projects_root / "neural_networks" / "promoted" / "promoted_manifest.json",
                 "portfolio_neural_benchmarks",
@@ -3154,15 +3182,14 @@ class AgentInformationalGraphIndex(Datasource):
                     "code": str(
                         self.idea_projects_root
                         / "neural_networks"
-                        / "src"
-                        / "model_harness"
-                        / "core.py"
+                        / "promoted"
+                        / "promoted_model.py"
                     ),
                 },
                 "entrypoints": [
-                    "neural_networks/src/model_harness/core.py",
-                    "neural_networks/src/model_harness/slot_benchmark.py",
-                    "neural_networks/corpus_harness/harness.py",
+                    "agent_brain/src/agent_brain/harness/model_harness/core.py",
+                    "agent_brain/src/agent_brain/harness/model_harness/slot_benchmark.py",
+                    "agent_brain/src/agent_brain/harness/corpus_harness/harness.py",
                     "neural_networks/promoted/promoted_model.py",
                     "neural_networks/src/models/stage_compiler/stage_compiler_model.py",
                     "neural_networks/src/models/monadic_cavity/monadic_cavity_models.py",
@@ -3979,21 +4006,29 @@ class AgentInformationalGraphIndex(Datasource):
 
         if norm_action == "run_slot_benchmarks":
             nn_root = self.idea_projects_root / "neural_networks"
-            slot_mod_path = nn_root / "src" / "model_harness" / "slot_benchmark.py"
-            if not slot_mod_path.is_file():
-                return {
-                    "action": norm_action,
-                    "system_id": "neural_networks",
-                    "status": "UNAVAILABLE",
-                    "error": f"Slot benchmark runner not found at {slot_mod_path}",
-                    "wall_time_ms": round((time.perf_counter() - t0) * 1000.0, 2),
-                }
+            ab_src = self.idea_projects_root / "agent_brain" / "src"
+            ab_slot_path = ab_src / "agent_brain" / "harness" / "model_harness" / "slot_benchmark.py"
+            legacy_slot_path = nn_root / "src" / "model_harness" / "slot_benchmark.py"
             import sys
 
-            for p_cand in (str(nn_root), str(nn_root / "src")):
-                if p_cand not in sys.path:
+            for p_cand in (str(ab_src), str(nn_root), str(nn_root / "src")):
+                if Path(p_cand).is_dir() and p_cand not in sys.path:
                     sys.path.insert(0, p_cand)
-            from src.model_harness.slot_benchmark import ALL_HARNESSES, run_slot_benchmark_suite
+            try:
+                from agent_brain.harness.model_harness.slot_benchmark import (
+                    ALL_HARNESSES,
+                    run_slot_benchmark_suite,
+                )
+            except ImportError:
+                if not legacy_slot_path.is_file():
+                    return {
+                        "action": norm_action,
+                        "system_id": "neural_networks",
+                        "status": "UNAVAILABLE",
+                        "error": f"Slot benchmark runner not found at {ab_slot_path}",
+                        "wall_time_ms": round((time.perf_counter() - t0) * 1000.0, 2),
+                    }
+                from src.model_harness.slot_benchmark import ALL_HARNESSES, run_slot_benchmark_suite
 
             raw_slots = opts.get("slots", ["mlp", "kan", "hyperbolic"])
             if isinstance(raw_slots, str):
@@ -4064,21 +4099,27 @@ class AgentInformationalGraphIndex(Datasource):
             "topic_crud",
         ):
             nn_root = self.idea_projects_root / "neural_networks"
+            ab_src = self.idea_projects_root / "agent_brain" / "src"
             harness_result: Dict[str, Any] = {"available": False}
-            has_split_harness = (nn_root / "src" / "model_harness" / "core.py").is_file()
-            has_legacy_harness = (nn_root / "promoted" / "harness.py").is_file()
-            if has_split_harness or has_legacy_harness:
-                import importlib
-                import sys
+            import importlib
+            import sys
 
-                for p_cand in (str(nn_root), str(nn_root / "src")):
-                    if p_cand not in sys.path:
-                        sys.path.insert(0, p_cand)
+            for p_cand in (str(ab_src), str(nn_root), str(nn_root / "src")):
+                if Path(p_cand).is_dir() and p_cand not in sys.path:
+                    sys.path.insert(0, p_cand)
+            h_mod = None
+            for mod_name in (
+                "agent_brain.harness.model_harness",
+                "src.model_harness",
+                "promoted.harness",
+            ):
                 try:
-                    import src.model_harness as h_mod
+                    h_mod = importlib.import_module(mod_name)
+                    break
                 except ImportError:
-                    import promoted.harness as h_mod
+                    continue
 
+            if h_mod is not None:
                 importlib.reload(h_mod)
                 if getattr(self, "_promoted_harness_singleton", None) is None:
                     self._promoted_harness_singleton = h_mod.build_promoted_harness(

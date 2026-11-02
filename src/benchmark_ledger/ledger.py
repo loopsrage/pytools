@@ -2964,7 +2964,7 @@ class BenchmarkLedger:
                         recreate=force_recreate,
                     )
                 agent_brain_qdrant = Path(
-                    "/Users/jarek/IdeaProjects/toolset/applications/agent_brain/data/.qdrant_options"
+                    "/Users/jarek/IdeaProjects/agent_brain/data/.qdrant_options"
                 )
                 if target_qdrant_path != agent_brain_qdrant and agent_brain_qdrant.is_dir():
                     staging_mgr.upsert_points_lockfree(
@@ -3017,7 +3017,7 @@ def scrape_neural_networks_benchmarks(
 
 def sync_neural_networks_benchmarks_to_qdrant(
     repo_path: str | Path = "/Users/jarek/IdeaProjects/neural_networks",
-    ledger_path: str | Path | None = "/Users/jarek/IdeaProjects/toolset/applications/agent_brain/data/benchmark_history_ledger.json",
+    ledger_path: str | Path | None = "/Users/jarek/IdeaProjects/agent_brain/data/benchmark_history_ledger.json",
     qdrant_path: str | Path | None = "/Users/jarek/IdeaProjects/qdrant_staging/storage",
     collection_name: str = "portfolio_neural_benchmarks",
     force_recreate: bool = False,

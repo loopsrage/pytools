@@ -25,9 +25,13 @@ class IndexQueue:
 
     def __init__(self, action: dict[str, ActionConfig]):
         self.index = Index()
+        self.index.new("STAGE_ACTIONS")
         self.max_index_size = 256
         self._counter_lock = threading.Condition(lock=threading.Lock())
-        self._loop = asyncio.get_running_loop()
+        try:
+            self._loop = asyncio.get_running_loop()
+        except RuntimeError:
+            self._loop = None
         self._all_tasks_done = asyncio.Event()
         self._all_tasks_done.set()
 

@@ -155,20 +155,30 @@ class WorkerApp(AppBase):
         super().init(stop_event, tg, logger)
         self.app_index.start_workers(stop_event, tg)
 
+    async def close(self):
+        await self.app_index.close_workers()
+        await super().close()
+
 class SimpleApp(AppBase):
     action_queues: IndexQueue = None
     actions: dict[str, ActionConfig]
 
-    def __init__(self, actions: dict[str, ActionConfig]):
+    def __init__(self, actions: dict[str, ActionConfig] | None = None):
         super().__init__()
-        self.queues.extend([controller.queue for _, controller in actions.items()])
-        self.action_queues = IndexQueue({name: controller for name, controller in actions.items()})
+        resolved_actions = actions or {}
+        self.actions = resolved_actions
+        self.queues.extend([controller.queue for _, controller in resolved_actions.items()])
+        self.action_queues = (
+            IndexQueue({name: controller for name, controller in resolved_actions.items()})
+            if resolved_actions
+            else None
+        )
 
 class WebApp(AppBase):
     _settings: UvicornSettings = None
     _fast_api = None
 
-    def __init__(self, uvcorn_settings: UvicornSettings, controllers: List[Controller] = None):
+    def __init__(self, uvcorn_settings: UvicornSettings | None = None, controllers: List[Controller] = None):
         super().__init__()
         self._settings = uvcorn_settings
         self.controllers = controllers or []
@@ -234,14 +244,16 @@ class WebApp(AppBase):
         self._fast_api.state.storage = FSBase(filesystem="memory")
         static_dir = setting("FastApi", "static_files")
         try:
-            if os.path.exists(static_dir):
+            if static_dir and os.path.exists(static_dir):
                 self._fast_api.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
-            else:
+            elif self.logger:
                 self.logger.warning(f"Static directory '{static_dir}' not found. Skipping mount.")
-            uvicorn.run(self._fast_api, **self._settings.model_dump())
+            if self._settings is not None:
+                uvicorn.run(self._fast_api, **self._settings.model_dump())
         except BaseException as e:
             traceback.print_exception(e)
-            self.logger.error(str(e))
+            if self.logger:
+                self.logger.error(str(e))
 
     async def aserve(self):
         try:
@@ -249,15 +261,23 @@ class WebApp(AppBase):
         except BaseException as e:
             print(e)
             raise
+        finally:
+            if self.stop_event is not None:
+                self.stop_event.set()
 
     def init(self, stop_event, tg, logger=None):
         super().init(stop_event, tg, logger)
-        tg.create_task(self.aserve())
+        if self._settings is not None:
+            tg.create_task(self.aserve())
 
 class WebAppWithWorkers(WebApp, WorkerApp):
     def init(self, stop_event, tg, logger=None):
         WebApp.init(self, stop_event, tg, logger)
         self.app_index.start_workers(stop_event, tg)
+
+    async def close(self):
+        await self.app_index.close_workers()
+        await WebApp.close(self)
 
 class AlembicWebAppWithWorkers(WebAppWithWorkers, AlembicApp):
     def __init__(self, uvicorn_settings, path, script_location, sql_alchemy_url):
