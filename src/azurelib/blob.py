@@ -1,42 +1,26 @@
 import base64
 import hashlib
-import shutil
-import ssl
 from pathlib import Path
 from typing import Optional, Callable, Tuple, Any
-try:
-    from llama_index.embeddings.azure_openai import AzureOpenAIEmbedding
-except ImportError:
-    AzureOpenAIEmbedding = Any
 
 import fsspec
-import truststore
 from pydantic import ConfigDict
 from pydantic_settings import BaseSettings
 
-from azurelib.sql import AzureSqlConfig
 from fsspecc.base_fsspecfs.base_fsspecfs import FSBase
-from openailib.openailib import AzureOpenAIConfig, AzureSearchClientConfig
 
-
-class AzureSearchVectorStoreConfig(BaseSettings):
-    index_key: str | None
-    embedding_dimensionality: int | None
 
 class AzureBlobConfig(BaseSettings):
     model_config = ConfigDict(extra="allow")
     account_name: str | None = None
     account_key: str | None = None
     ssl: Any | None = None
+    connection_verify: Any | None = None
+
 
 class AzureIndexAgentSearchConfig(BaseSettings):
-    model_config = ConfigDict(extra='allow')
-    Sql: Optional[AzureSqlConfig] = None
-    Openai: Optional[AzureOpenAIConfig] = None
-    Search: Optional[AzureSearchClientConfig] = None
-    Storage: Optional[AzureBlobConfig] = None
-    Embed: Optional[AzureOpenAIEmbedding] = None
-    Vector: Optional[AzureSearchVectorStoreConfig] = None
+    model_config = ConfigDict(extra="allow")
+    Storage: AzureBlobConfig = AzureBlobConfig()
 
 def calculate_local_md5(data: bytes) -> str:
     """Calculates MD5 hash of local bytes."""

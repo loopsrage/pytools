@@ -14,8 +14,10 @@ dependencies = [
     "atomicx>=0.0.15",
     "concurrent-collections>=2.1.0",
     "fsspec>=2026.1.0",
+    "psycopg2-binary>=2.9.12",
     "pydantic>=2.12.5",
     "pydantic-settings>=2.12.0",
+    "pymongo>=4.19.0",
     "python-dotenv>=1.2.1",
     "pyyaml>=6.0.2",
     "tqdm>=4.67.0",
@@ -39,11 +41,26 @@ db = [
 ]
 azure = [
     "azure-core>=1.39.0",
+    "azure-keyvault-secrets>=4.8.0",
     "azure-search-documents>=11.6.0",
     "beautifulsoup4>=4.14.3",
     "llama-index-embeddings-azure-openai>=0.5.2",
     "openai>=2.32.0",
     "truststore>=0.10.4",
+]
+aws = [
+    "boto3>=1.35.0",
+    "botocore>=1.35.0",
+]
+gc = [
+    "google-cloud-storage>=2.18.0",
+    "google-cloud-secret-manager>=2.20.0",
+    "google-cloud-aiplatform>=1.51.0",
+]
+gmail = [
+    "google-api-python-client>=2.15.0",
+    "google-auth>=2.30.0",
+    "google-auth-oauthlib>=1.2.0",
 ]
 agents = [
     "langchain>=1.2.7",
@@ -87,8 +104,16 @@ all = [
     "azure-core>=1.39.0",
     "azure-search-documents>=11.6.0",
     "beautifulsoup4>=4.14.3",
+    "boto3>=1.35.0",
+    "botocore>=1.35.0",
     "fastapi>=0.128.0",
     "fastapi-restful>=0.6.0",
+    "google-api-python-client>=2.15.0",
+    "google-auth>=2.30.0",
+    "google-auth-oauthlib>=1.2.0",
+    "google-cloud-aiplatform>=1.51.0",
+    "google-cloud-secret-manager>=2.20.0",
+    "google-cloud-storage>=2.18.0",
     "langchain>=1.2.7",
     "langchain-ollama>=1.0.1",
     "langgraph>=0.2.0",
@@ -127,7 +152,7 @@ all = [
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["*"]
-exclude = ["tests*"]
+exclude = ["tests*", "test*"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src", "."]

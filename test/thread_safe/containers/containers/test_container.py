@@ -1,6 +1,6 @@
 import json
 import unittest
-from .container import build_container_tree, Container
+from thread_safe.containers.containers.container import build_container_tree, Container
 
 CONTAINER_STRING = """
 {

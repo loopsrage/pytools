@@ -64,6 +64,12 @@ class AsyncController:
         self._sleep_task = None
         self._start_now = start_now
 
+    def start(self) -> None:
+        """Start the background ticker task that fires the tick event every interval."""
+        if self._task is None:
+            initial_delay = 0 if self._start_now else self.interval
+            self._task = asyncio.create_task(self._run_ticker(initial_delay))
+
     def trigger(self):
         """Manually trigger the event to bypass the current sleep interval."""
         self._tick_event.set()

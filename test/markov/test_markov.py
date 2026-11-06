@@ -1,6 +1,7 @@
 import json
 import unittest
 from collections import namedtuple
+
 import numpy as np
 
 from markov.markov import Markov, MarkovData, MarkovEncoder

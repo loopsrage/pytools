@@ -1,3 +1,4 @@
+import json
 import random
 import time
 from typing import Any
@@ -8,6 +9,25 @@ except ImportError:
     AsyncMongoClient = Any
     IndexModel = None
 from markov.mongo_markov import MongoMarkov
+
+
+def _encode_state(state: Any) -> Any:
+    """Serialize sequence states to JSON strings so they can be indexed in MongoDB."""
+    if isinstance(state, (list, tuple)):
+        return json.dumps(list(state))
+    return state
+
+
+def _decode_state(state: Any) -> Any:
+    """Decode JSON-string states back to tuples; scalars pass through unchanged."""
+    if isinstance(state, str):
+        try:
+            parsed = json.loads(state)
+            if isinstance(parsed, list):
+                return tuple(parsed)
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return state
 
 
 class MongoMDP:
@@ -38,7 +58,7 @@ class MongoMDP:
             await self.setup_markov_indices()
             self._indices_initialized = True
         await self.collection.update_one(
-            {"from_ri": list(from_ri), "action": action, "to_ri": list(to_ri)},
+            {"from_ri": _encode_state(from_ri), "action": action, "to_ri": _encode_state(to_ri)},
             [
                 {
                     "$set": {
@@ -130,7 +150,7 @@ class MongoMDP:
         return selected_ri
 
     async def select_next(self, current_ri: Any, last: Any, epsilon: float = 0.1):
-        cursor = self.collection.find({"from_ri": current_ri}).sort([("total_reward", -1)]).limit(1)
+        cursor = self.collection.find({"from_ri": _encode_state(current_ri)}).sort([("total_reward", -1)]).limit(1)
         best_transitions = await cursor.to_list(length=1)
         if not best_transitions or random.random() < epsilon:
 
@@ -156,7 +176,7 @@ class MongoMDP:
         return best_t["to_ri"], best_t["action"]
 
     async def keys(self):
-        return await self.collection.distinct("from_ri")
+        return [_decode_state(k) for k in await self.collection.distinct("from_ri")]
 
     async def actions(self):
         return await self.collection.distinct("action")
@@ -190,9 +210,9 @@ class MongoMDP:
 
         # Normalize everything to tuples before returning to solve_policy
         for entry in results:
-            entry["_id"]["from"] = tuple(entry["_id"]["from"])
+            entry["_id"]["from"] = _decode_state(entry["_id"]["from"])
             for outcome in entry["outcomes"]:
-                outcome["to_ri"] = tuple(outcome["to_ri"])
+                outcome["to_ri"] = _decode_state(outcome["to_ri"])
 
         return results
 
@@ -240,8 +260,8 @@ class MongoMDP:
             # 2. Transform into MDP triplet: (State, Action, Next State)
             # We use 'observed_behavior' as the baseline action label
             mdp_record = {
-                "from_ri": doc["from_ri"],
-                "to_ri": doc["to_ri"],
+                "from_ri": _encode_state(doc["from_ri"]),
+                "to_ri": _encode_state(doc["to_ri"]),
                 "action": "observed_behavior",
                 "transition_count": doc.get("transition_count", 1),
                 "total_reward": doc.get("total_reward", 0.0),

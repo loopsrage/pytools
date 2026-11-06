@@ -1,7 +1,7 @@
 import asyncio
 import inspect
 import traceback
-from typing import Callable, Union, Any
+from typing import Callable, Union, Any, Optional
 
 from queue_controller.queueController import QueueController
 from queue_controller.queueData import QueueData
@@ -12,21 +12,38 @@ def handle_error_f(e: Exception) -> bool:
     traceback.print_exception(e)
     return False
 
+
 class PeriodicProducer:
     _controller: AsyncController
-    _queue: QueueController
-    _action: Callable[[], Union[list[Any]|None]]
-    _handle_error = None
-    def __init__(self,action: Callable[[], Any],  queue: QueueController = None, interval: int = 1, start_now: bool = False, handle_error=None):
+    _queue: Optional[QueueController]
+    _action: Callable[[], Union[list[Any] | None]]
+    _handle_error: Callable[[Exception], bool]
+    _task: Optional[asyncio.Task]
+
+    def __init__(
+        self,
+        action: Callable[[], Any],
+        queue: Optional[QueueController] = None,
+        interval: int = 1,
+        start_now: bool = False,
+        handle_error=None,
+    ):
         self._handle_error = handle_error if handle_error is not None else handle_error_f
         self._controller = AsyncController(interval, start_now)
+        self._controller.start()
         self._queue = queue
         self._action = action
-        self._task = asyncio.create_task(self.run_loop())
+        self._task: Optional[asyncio.Task] = None
+        self.start()
+
+    def start(self) -> None:
+        if self._task is None:
+            self._task = asyncio.create_task(self.run_loop())
 
     def close(self):
         self._controller.close()
-        self._task.cancel()
+        if self._task is not None:
+            self._task.cancel()
 
     async def run_loop(self):
         try:
@@ -45,22 +62,30 @@ class PeriodicProducer:
                     continue
 
                 if isinstance(result, Exception):
-                    raise result
+                    self._handle_error(result)
+                    continue
+
+                if not isinstance(result, list):
+                    result = [result]
 
                 tasks = []
-                if result is not None:
-                    for r in result:
+                for r in result:
+                    if self._queue is not None:
                         tasks.append(self._queue.enqueue(QueueData(result=r)))
                 await asyncio.gather(*tasks)
-                if len(tasks) > 0:
-                    self._controller.trigger()
+        except asyncio.CancelledError:
+            pass
         except Exception as e:
             traceback.print_exception(e)
             if not self._handle_error(e):
                 raise e
         finally:
             self._controller.close()
-            self._task.cancel()
+
+    @property
+    def running(self) -> bool:
+        return self._controller.running
+
 
 def get_producer_result(queue_data: QueueData) -> Any:
     return queue_data.attribute("result")
