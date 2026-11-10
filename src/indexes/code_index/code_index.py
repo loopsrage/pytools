@@ -47,19 +47,10 @@ DEFAULT_EXCLUDE_DIRS: frozenset[str] = frozenset(
 
 
 def _deterministic_vector_384(text: str, dim: int = 384) -> list[float]:
-    """Deterministic unit-norm embedding vector fallback when sentence-transformers is not used."""
-    cleaned = text.strip() or "empty"
-    vecs: list[float] = []
-    block_idx = 0
-    while len(vecs) < dim:
-        digest = hashlib.sha256(f"{block_idx}:{cleaned}".encode("utf-8")).digest()
-        for b in digest:
-            if len(vecs) >= dim:
-                break
-            vecs.append((b / 127.5) - 1.0)
-        block_idx += 1
-    norm = math.sqrt(sum(x * x for x in vecs)) or 1.0
-    return [round(x / norm, 6) for x in vecs]
+    """Deterministic Poincaré ball embedding vector via `ProceduralPhaseSpace`."""
+    from procedural_phase_space import embed_phase_space_text
+
+    return embed_phase_space_text(text.strip() or "empty", dim=dim, normalize=False)
 
 
 def project_to_poincare_ball(
@@ -466,44 +457,19 @@ class CodeCorpusIndex(Datasource):
         return [_deterministic_vector_384(t, dim=384) for t in texts]
 
     def _chunk_source(self, text: str) -> list[dict[str, Any]]:
-        if not text:
-            return [
-                {
-                    "chunk_index": 0,
-                    "char_start": 0,
-                    "char_end": 0,
-                    "core_start": 0,
-                    "core_end": 0,
-                    "overlap_prefix_len": 0,
-                    "chunk_text": "",
-                    "non_overlapping_slice": "",
-                }
-            ]
-        step = max(64, self.chunk_size - self.chunk_overlap)
-        chunks: list[dict[str, Any]] = []
-        pos = 0
-        idx = 0
-        text_len = len(text)
-        while pos < text_len:
-            c_start = max(0, pos - self.chunk_overlap) if pos > 0 else 0
-            c_end = min(text_len, pos + step)
-            chunks.append(
-                {
-                    "chunk_index": idx,
-                    "char_start": c_start,
-                    "char_end": c_end,
-                    "core_start": pos,
-                    "core_end": c_end,
-                    "overlap_prefix_len": pos - c_start,
-                    "chunk_text": text[c_start:c_end],
-                    "non_overlapping_slice": text[pos:c_end],
-                }
-            )
-            if c_end >= text_len:
-                break
-            pos = c_end
-            idx += 1
-        return chunks
+        text_len = len(text) if text else 0
+        return [
+            {
+                "chunk_index": 0,
+                "char_start": 0,
+                "char_end": text_len,
+                "core_start": 0,
+                "core_end": text_len,
+                "overlap_prefix_len": 0,
+                "chunk_text": text or "",
+                "non_overlapping_slice": text or "",
+            }
+        ]
 
     # ------------------------------------------------------------------
     # Qdrant SHA-256 Pre-Save Lookup

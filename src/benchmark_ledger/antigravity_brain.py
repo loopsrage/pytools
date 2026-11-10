@@ -1831,7 +1831,9 @@ class AntigravityBrainLedger:
             if client is None:
                 q_path.mkdir(parents=True, exist_ok=True)
                 try:
-                    client = QdrantClient(path=str(q_path))
+                    from procedural_phase_space import HyperbolicQdrantClient
+
+                    client = HyperbolicQdrantClient(QdrantClient(path=str(q_path)))
                     owns_client = True
                 except Exception:
                     client = None
@@ -1840,7 +1842,7 @@ class AntigravityBrainLedger:
                 if client is not None and not client.collection_exists(collection_name):
                     client.create_collection(
                         collection_name=collection_name,
-                        vectors_config=VectorParams(size=384, distance=Distance.COSINE),
+                        vectors_config=VectorParams(size=384, distance=Distance.DOT),
                     )
 
                 changed_records: list[dict[str, Any]] = []
@@ -1867,40 +1869,30 @@ class AntigravityBrainLedger:
                         pass
                     self._index.store_in_index("QDRANT_DOCS", doc.doc_id, meta_sha256)
 
-                    step_chars = max(1, chunk_size - chunk_overlap)
-                    chunks: list[dict[str, Any]] = []
-                    pos = 0
                     text_len = len(full_text)
-                    while pos < text_len:
-                        c_start = max(0, pos - chunk_overlap) if pos > 0 else 0
-                        c_end = min(text_len, pos + step_chars)
-                        chunks.append(
-                            {
-                                "char_start": c_start,
-                                "char_end": c_end,
-                                "core_start": pos,
-                                "core_end": c_end,
-                                "overlap_prefix_len": pos - c_start,
-                                "chunk_text": full_text[c_start:c_end],
-                                "non_overlapping_slice": full_text[pos:c_end],
-                            }
-                        )
-                        if c_end >= text_len:
-                            break
-                        pos = c_end
+                    chunks: list[dict[str, Any]] = [
+                        {
+                            "char_start": 0,
+                            "char_end": text_len,
+                            "core_start": 0,
+                            "core_end": text_len,
+                            "overlap_prefix_len": 0,
+                            "chunk_text": full_text,
+                            "non_overlapping_slice": full_text,
+                        }
+                    ]
 
-                    total_c = len(chunks)
+                    total_c = 1
                     point_ids = [
                         uuid5_from_args(
                             ANTIGRAVITY_BRAIN_NAMESPACE_UUID,
                             collection_name,
                             doc.doc_id,
-                            idx,
+                            0,
                             embedding_model,
                             chunk_size,
                             chunk_overlap,
                         )
-                        for idx in range(total_c)
                     ]
 
                     for idx, c in enumerate(chunks):
@@ -1951,23 +1943,12 @@ class AntigravityBrainLedger:
                         )
 
                 if changed_records:
-                    try:
-                        from sentence_transformers import SentenceTransformer
+                    from procedural_phase_space import embed_phase_space_text
 
-                        st_model = SentenceTransformer(embedding_model, device="cpu")
-                        raw_vecs = st_model.encode(
-                            embed_inputs,
-                            batch_size=32,
-                            show_progress_bar=False,
-                            normalize_embeddings=True,
-                        )
-                    except Exception:
-                        raw_vecs = []
-                        for t in embed_inputs:
-                            digest = hashlib.sha256(t.encode("utf-8")).digest()
-                            raw_v = [((digest[i % len(digest)] / 127.5) - 1.0) for i in range(384)]
-                            norm = max(sum(x * x for x in raw_v) ** 0.5, 1e-9)
-                            raw_vecs.append([round(x / norm, 6) for x in raw_v])
+                    raw_vecs = [
+                        embed_phase_space_text(t, dim=384, normalize=False)
+                        for t in embed_inputs
+                    ]
                     points = [
                         PointStruct(
                             id=rec["point_id"],

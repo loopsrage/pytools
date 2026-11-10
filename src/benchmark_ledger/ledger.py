@@ -2721,7 +2721,9 @@ class BenchmarkLedger:
         if client is None:
             target_qdrant_path.mkdir(parents=True, exist_ok=True)
             try:
-                client = QdrantClient(path=str(target_qdrant_path))
+                from procedural_phase_space import HyperbolicQdrantClient
+
+                client = HyperbolicQdrantClient(QdrantClient(path=str(target_qdrant_path)))
                 owns_client = True
             except Exception:
                 client = None
@@ -2740,7 +2742,7 @@ class BenchmarkLedger:
                 if not collection_exists:
                     client.create_collection(
                         collection_name=collection_name,
-                        vectors_config=VectorParams(size=vector_dim, distance=Distance.COSINE),
+                        vectors_config=VectorParams(size=vector_dim, distance=Distance.DOT),
                     )
                 else:
                     try:
@@ -2785,53 +2787,14 @@ class BenchmarkLedger:
 
             def _default_chunk_text(text: str, c_size: int, c_overlap: int) -> list[dict[str, Any]]:
                 cleaned = text.strip()
-                if not cleaned:
-                    return [{"chunk_index": 0, "char_start": 0, "char_end": 0, "text": ""}]
-                step = max(c_size - c_overlap, 64)
-                chunks_out: list[dict[str, Any]] = []
-                pos = 0
-                idx = 0
-                while pos < len(cleaned):
-                    end = min(pos + c_size, len(cleaned))
-                    chunks_out.append(
-                        {
-                            "chunk_index": idx,
-                            "char_start": pos,
-                            "char_end": end,
-                            "text": cleaned[pos:end],
-                        }
-                    )
-                    if end >= len(cleaned):
-                        break
-                    pos += step
-                    idx += 1
-                return chunks_out
+                return [{"chunk_index": 0, "char_start": 0, "char_end": len(cleaned), "text": cleaned}]
 
             def _default_encode_texts(texts: list[str]) -> list[list[float]]:
                 if not texts:
                     return []
-                try:
-                    from sentence_transformers import SentenceTransformer
+                from procedural_phase_space import embed_phase_space_text
 
-                    try:
-                        model = SentenceTransformer(embedding_model, device="cpu", local_files_only=True)
-                    except Exception:
-                        model = SentenceTransformer(embedding_model, device="cpu")
-                    encoded = model.encode(
-                        texts,
-                        normalize_embeddings=True,
-                        show_progress_bar=False,
-                        convert_to_numpy=True,
-                    )
-                    return [[round(float(x), 6) for x in row.tolist()] for row in encoded]
-                except Exception:
-                    vecs: list[list[float]] = []
-                    for t in texts:
-                        digest = hashlib.sha256(t.encode("utf-8")).digest()
-                        raw_v = [((digest[i % len(digest)] / 127.5) - 1.0) for i in range(vector_dim)]
-                        norm = max(sum(x * x for x in raw_v) ** 0.5, 1e-9)
-                        vecs.append([round(x / norm, 6) for x in raw_v])
-                    return vecs
+                return [embed_phase_space_text(t, dim=vector_dim, normalize=False) for t in texts]
 
             active_chunk_fn = chunk_fn or _default_chunk_text
             active_encode_fn = encode_fn or (lambda txts, _m=embedding_model: _default_encode_texts(txts))
