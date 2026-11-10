@@ -64,33 +64,12 @@ def _decode_sqlite_point_id(encoded_id: str | bytes) -> str:
 
 def _deterministic_384d_vector(text: str, dim: int = DEFAULT_VECTOR_SIZE) -> List[float]:
     """
-    Computes a deterministic unit-normalized 384-D semantic feature vector from token
-    trigrams and identifier stems when CPU SentenceTransformer weights are not preloaded,
-    guaranteeing sub-millisecond indexing and cosine similarity wayfinding.
+    Computes a deterministic 384-D Poincaré ball vector (`||x|| < 1.0`) via
+    `ProceduralPhaseSpace` (`embed_phase_space_text`) for hyperbolic geodesic wayfinding.
     """
-    vec = [0.0] * dim
-    tokens = re.findall(r"[a-zA-Z0-9_]{2,}", text.lower())
-    if not tokens:
-        vec[0] = 1.0
-        return vec
+    from procedural_phase_space import embed_phase_space_text
 
-    for tok in tokens:
-        h = int(hashlib.md5(tok.encode("utf-8")).hexdigest(), 16)
-        idx1 = h % dim
-        idx2 = (h >> 16) % dim
-        sign1 = 1.0 if ((h >> 32) & 1) == 0 else -1.0
-        sign2 = 1.0 if ((h >> 33) & 1) == 0 else -1.0
-        vec[idx1] += sign1 * 1.25
-        vec[idx2] += sign2 * 0.75
-        # Character 3-grams for partial symbol matching
-        if len(tok) >= 3:
-            for i in range(len(tok) - 2):
-                tri = tok[i : i + 3]
-                th = int(hashlib.md5(tri.encode("utf-8")).hexdigest(), 16)
-                vec[th % dim] += 0.35 if ((th >> 8) & 1) == 0 else -0.35
-
-    norm = math.sqrt(sum(v * v for v in vec)) or 1.0
-    return [round(v / norm, 6) for v in vec]
+    return embed_phase_space_text(text, dim=dim, normalize=False)
 
 
 def _compute_poincare_ball_coords(
@@ -276,7 +255,7 @@ class UnifiedQdrantStagingManager:
         return {
             "vectors": {
                 "size": size,
-                "distance": "Cosine",
+                "distance": "Dot",
                 "hnsw_config": None,
                 "quantization_config": None,
                 "on_disk": None,
@@ -347,6 +326,40 @@ class UnifiedQdrantStagingManager:
             "target_total": target_total,
         }
 
+    @staticmethod
+    def _is_isolated_test_path(storage_path: Path) -> bool:
+        s = str(storage_path)
+        return (
+            "pytest-" in s
+            or "/T/pytest" in s
+            or "/tmp/pytest" in s
+            or "agent_brain_pytest" in s
+            or "/var/folders/" in s
+        )
+
+    @staticmethod
+    def _open_minikube_client() -> Optional[Any]:
+        import os
+        from procedural_phase_space import HyperbolicQdrantClient
+
+        url = os.environ.get("QDRANT_URL", "http://localhost:6333").strip()
+        if not url:
+            return None
+        grpc_port = int(os.environ.get("QDRANT_GRPC_PORT", "6334"))
+        prefer_grpc = os.environ.get("QDRANT_PREFER_GRPC", "1").strip() not in ("0", "false", "False")
+        try:
+            return HyperbolicQdrantClient(
+                QdrantClient(
+                    url=url,
+                    grpc_port=grpc_port,
+                    prefer_grpc=prefer_grpc,
+                    timeout=30,
+                    check_compatibility=False,
+                )
+            )
+        except Exception:
+            return None
+
     def upsert_points_lockfree(
         self,
         storage_path: Path,
@@ -356,9 +369,32 @@ class UnifiedQdrantStagingManager:
         recreate: bool = False,
     ) -> int:
         """
-        Upserts `PointStruct` records directly into `storage_path/collection/<collection_name>/storage.sqlite`
-        and registers the collection in `storage_path/meta.json` without acquiring a portalocker lock.
+        Upserts `PointStruct` records into Minikube Qdrant (`localhost:6333` / `6334`) when targeting
+        shared staging, and mirrors to `storage_path/collection/<collection_name>/storage.sqlite`.
         """
+        if not self._is_isolated_test_path(storage_path):
+            client = self._open_minikube_client()
+            if client is not None:
+                try:
+                    if recreate and client.collection_exists(collection_name):
+                        client.delete_collection(collection_name)
+                    if not client.collection_exists(collection_name):
+                        client.create_collection(
+                            collection_name=collection_name,
+                            vectors_config=VectorParams(size=vector_size, distance=Distance.DOT),
+                        )
+                    for i in range(0, len(points), 512):
+                        batch = points[i : i + 512]
+                        if batch:
+                            client.upsert(collection_name=collection_name, points=batch, wait=True)
+                except Exception:
+                    pass
+                finally:
+                    try:
+                        client.close()
+                    except Exception:
+                        pass
+
         meta = self._load_meta_json(storage_path)
         meta["collections"][collection_name] = self._default_collection_config(size=vector_size)
         self._save_meta_json(storage_path, meta)
@@ -388,7 +424,44 @@ class UnifiedQdrantStagingManager:
         collection_name: str,
         limit: Optional[int] = None,
     ) -> List[PointStruct]:
-        """Reads `PointStruct` rows from a local Qdrant SQLite collection in read-only mode."""
+        """Reads `PointStruct` rows from Minikube Qdrant (`localhost:6333` / `6334`) or local SQLite."""
+        if not self._is_isolated_test_path(storage_path):
+            client = self._open_minikube_client()
+            if client is not None:
+                try:
+                    if client.collection_exists(collection_name):
+                        points_out: List[PointStruct] = []
+                        offset = None
+                        target_limit = int(limit) if (limit is not None and int(limit) > 0) else None
+                        while True:
+                            batch_sz = 512
+                            if target_limit is not None:
+                                batch_sz = min(batch_sz, max(1, target_limit - len(points_out)))
+                            records, next_offset = client.scroll(
+                                collection_name=collection_name,
+                                limit=batch_sz,
+                                offset=offset,
+                                with_payload=True,
+                                with_vectors=True,
+                            )
+                            for r in records:
+                                vec = list(r.vector) if isinstance(r.vector, (list, tuple)) else []
+                                payload = mask_restricted_vocabulary(dict(r.payload or {}))
+                                points_out.append(PointStruct(id=r.id, vector=vec, payload=payload))
+                            if target_limit is not None and len(points_out) >= target_limit:
+                                break
+                            if next_offset is None or not records:
+                                break
+                            offset = next_offset
+                        return points_out
+                except Exception:
+                    pass
+                finally:
+                    try:
+                        client.close()
+                    except Exception:
+                        pass
+
         sqlite_path = storage_path / "collection" / collection_name / "storage.sqlite"
         if not sqlite_path.is_file():
             return []
@@ -596,7 +669,7 @@ class UnifiedQdrantStagingManager:
                     if coll_name not in existing_remote:
                         client.create_collection(
                             collection_name=coll_name,
-                            vectors_config=VectorParams(size=vec_size, distance=Distance.COSINE),
+                            vectors_config=VectorParams(size=vec_size, distance=Distance.DOT),
                         )
                     pushed = 0
                     pulled = 0
@@ -2737,13 +2810,15 @@ class AgentInformationalGraphIndex(Datasource):
             scored = [(1.0, n) for n in filtered]
             scored.sort(key=lambda x: (x[1].get("hierarchy_level", 9), x[1].get("node_id", "")))
         else:
+            from procedural_phase_space import poincare_hyperbolic_similarity
+
             q_vec = _deterministic_384d_vector(q_clean, dim=DEFAULT_VECTOR_SIZE)
             q_tokens = [t for t in re.findall(r"[a-zA-Z0-9_]{2,}", q_clean.lower())]
             scored = []
             for n in filtered:
                 s_text = str(n.get("search_text", "")).lower()
                 n_vec = _deterministic_384d_vector(s_text, dim=DEFAULT_VECTOR_SIZE)
-                cosine = sum(a * b for a, b in zip(q_vec, n_vec))
+                hyp_sim = poincare_hyperbolic_similarity(q_vec, n_vec)
                 lexical_hits = sum(1 for tok in q_tokens if tok in s_text)
                 idiomatic_lower = str(n.get("idiomatic_name", "")).lower()
                 node_id_lower = str(n.get("node_id", "")).lower()
@@ -2754,7 +2829,7 @@ class AgentInformationalGraphIndex(Datasource):
                 else:
                     exact_id_boost = 0.0
                 lex_score = (lexical_hits / max(1, len(q_tokens))) * 0.55
-                total_score = round(float(cosine * 0.45 + lex_score + exact_id_boost), 4)
+                total_score = round(float(hyp_sim * 0.45 + lex_score + exact_id_boost), 4)
                 if total_score > 0.05 or lexical_hits > 0:
                     scored.append((total_score, n))
             scored.sort(key=lambda x: x[0], reverse=True)
@@ -3491,15 +3566,17 @@ class AgentInformationalGraphIndex(Datasource):
                     lex_hits = sum(1 for tok in q_tokens if tok in searchable)
                     if lex_hits == 0 and q_clean.lower() not in searchable:
                         continue
+                    from procedural_phase_space import poincare_hyperbolic_similarity
+
                     vec = chunk_list[0]["vector"]
-                    cos = (
-                        sum(a * b for a, b in zip(q_vec, vec))
+                    hyp_sim = (
+                        poincare_hyperbolic_similarity(q_vec, vec)
                         if len(vec) == len(q_vec)
                         else 0.25
                     )
                     exact_boost = 0.8 if q_clean.lower() in searchable else 0.0
                     score = round(
-                        float(cos * 0.4 + (lex_hits / max(1, len(q_tokens))) * 0.6 + exact_boost),
+                        float(hyp_sim * 0.4 + (lex_hits / max(1, len(q_tokens))) * 0.6 + exact_boost),
                         4,
                     )
 

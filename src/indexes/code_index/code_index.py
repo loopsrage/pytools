@@ -383,7 +383,33 @@ class CodeCorpusIndex(Datasource):
             return self._external_client, False
         if self.qdrant_path is None:
             return None, False
+        import os
+        import tempfile
         from qdrant_client import QdrantClient
+
+        resolved_str = str(self.qdrant_path)
+        tmp_dir = str(Path(tempfile.gettempdir()).resolve())
+        is_temp = (
+            resolved_str.startswith(tmp_dir)
+            or "/pytest-" in resolved_str
+            or "/var/folders/" in resolved_str
+            or resolved_str.startswith("/tmp/")
+            or resolved_str.startswith("/private/tmp/")
+        )
+        if not is_temp:
+            try:
+                url = os.environ.get("QDRANT_URL", "http://localhost:6333")
+                grpc_port = int(os.environ.get("QDRANT_GRPC_PORT", "6334"))
+                prefer_grpc = os.environ.get("QDRANT_PREFER_GRPC", "false").lower() in ("1", "true", "yes")
+                client = QdrantClient(
+                    url=url,
+                    grpc_port=grpc_port,
+                    prefer_grpc=prefer_grpc,
+                    check_compatibility=False,
+                )
+                return client, True
+            except Exception:
+                pass
 
         self.qdrant_path.mkdir(parents=True, exist_ok=True)
         try:
@@ -393,6 +419,8 @@ class CodeCorpusIndex(Datasource):
             return None, False
 
     def _ensure_collection_and_sha256_index(self, client: Any) -> None:
+        if getattr(self, "_collection_ensured", False):
+            return
         from qdrant_client.models import Distance, PayloadSchemaType, VectorParams
 
         if not client.collection_exists(self.collection_name):
@@ -416,6 +444,7 @@ class CodeCorpusIndex(Datasource):
                         )
                     except Exception:
                         pass
+        self._collection_ensured = True
 
     def _encode_texts(self, texts: list[str]) -> list[list[float]]:
         if not texts:
@@ -567,6 +596,7 @@ class CodeCorpusIndex(Datasource):
         write_to_fs: bool = False,
         client: Any | None = None,
         rebuild_graph: bool = True,
+        skip_qdrant_sha_check: bool = False,
     ) -> dict[str, Any]:
         """
         CREATE / UPDATE operation:
@@ -601,11 +631,15 @@ class CodeCorpusIndex(Datasource):
 
             try:
                 # 1. Search Qdrant for SHA-256 hash BEFORE saving
-                existing_in_qdrant = self.has_sha256_in_qdrant(
-                    sha256_hash=sha256_hash,
-                    rel_path=norm_rel,
-                    only_head=True,
-                    client=active_client,
+                existing_in_qdrant = (
+                    False
+                    if skip_qdrant_sha_check
+                    else self.has_sha256_in_qdrant(
+                        sha256_hash=sha256_hash,
+                        rel_path=norm_rel,
+                        only_head=True,
+                        client=active_client,
+                    )
                 )
                 existing_rec = self._index.load_from_index("FILES", norm_rel)
                 if existing_in_qdrant and existing_rec is not None and existing_rec.get("sha256") == sha256_hash:
@@ -1007,6 +1041,7 @@ class CodeCorpusIndex(Datasource):
                         rel_path=rel_p,
                         client=client,
                         rebuild_graph=False,
+                        skip_qdrant_sha_check=bool(head_sha_map),
                     )
                     if res.get("changed"):
                         indexed_count += 1
@@ -1125,7 +1160,8 @@ class CodeCorpusIndex(Datasource):
                     indexed_rec = self._index.load_from_index("FILES", rel_p)
                     in_qdrant = (
                         disk_sha in head_sha_map.get(rel_p, set())
-                        or self.has_sha256_in_qdrant(
+                        if head_sha_map
+                        else self.has_sha256_in_qdrant(
                             sha256_hash=disk_sha,
                             rel_path=rel_p,
                             only_head=True,

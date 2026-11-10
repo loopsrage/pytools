@@ -1,6 +1,27 @@
 
 import threading
-from atomicx import AtomicInt
+
+try:
+    from atomicx import AtomicInt
+except ImportError:
+
+    class AtomicInt:  # type: ignore[no-redef]
+        def __init__(self, initial: int = 0) -> None:
+            self._lock = threading.Lock()
+            self._value = int(initial)
+
+        def load(self) -> int:
+            return self._value
+
+        def store(self, val: int) -> None:
+            with self._lock:
+                self._value = int(val)
+
+        def add(self, delta: int) -> int:
+            with self._lock:
+                prev = self._value
+                self._value += int(delta)
+                return prev
 
 ADD_FAILED = -1
 

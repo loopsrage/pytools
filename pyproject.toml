@@ -11,7 +11,7 @@ description = "Modular Python utility libraries for concurrency, async queues, s
 requires-python = ">=3.12"
 dependencies = [
     "aiohttp>=3.13.3",
-    "atomicx>=0.0.15",
+    "atomicx>=0.0.15; platform_machine == 'x86_64' or sys_platform == 'darwin' or sys_platform == 'win32'",
     "concurrent-collections>=2.1.0",
     "fsspec>=2026.1.0",
     "psycopg2-binary>=2.9.12",

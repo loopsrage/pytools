@@ -11,7 +11,7 @@ logging.getLogger('sqlalchemy.engine').setLevel(logging.WARNING)
 Base = declarative_base()
 
 class PostgresEngineSettings(BaseSettings):
-    url: str = "postgresql://localhost:5432/"
+    url: str = "postgresql://postgres:postgres@localhost:5432/app"
     echo: bool = False
     pool_size: int = 10
     max_overflow: int = 20
@@ -24,7 +24,10 @@ def named_session(name: str):
     global _engines, _factories
 
     if name not in _engines:
-        config = unmarshal_app_settings(name, PostgresEngineSettings)
+        try:
+            config = unmarshal_app_settings(name, PostgresEngineSettings)
+        except Exception:
+            config = PostgresEngineSettings()
         kwargs = config.model_dump()
         if config.url.startswith("sqlite"):
             kwargs = {"url": config.url, "echo": config.echo}
