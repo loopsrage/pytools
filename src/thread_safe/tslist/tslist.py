@@ -11,7 +11,8 @@ except ImportError:
             self._value = int(initial)
 
         def load(self) -> int:
-            return self._value
+            with self._lock:
+                return self._value
 
         def store(self, val: int) -> None:
             with self._lock:
