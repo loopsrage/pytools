@@ -1,33 +1,36 @@
 """
-Unified Qdrant Staging & Juxtaposed Code/Documentation Informational Graph Index.
+Unified PostgreSQL pgvector Staging & Juxtaposed Code/Documentation Informational Graph Index.
 
-Unifies all Qdrant namespaces across sibling repositories into a permanent staging
-directory above `portfolio` (`/Users/jarek/IdeaProjects/qdrant_staging`), supports
-bidirectional/directional synchronization with external environments, and maintains
-the `agent_informational_graph_index` collection that maps and juxtaposes code,
-UI elements, `toolset` indexes, and documentation so agents never get lost.
+Unifies all PostgreSQL `pgvector` (`vectors` DB) collections and portable staging artifacts
+in `/Users/jarek/IdeaProjects/vector_staging`, supports bidirectional/directional synchronization
+with external environments, and maintains the `agent_informational_graph_index` collection that
+maps and juxtaposes code, UI elements, `toolset` indexes, and documentation using Procedural
+Phase Space (PPS) embeddings so agents never get lost.
 """
 
 from __future__ import annotations
 
 import ast
-import base64
 import collections
 import hashlib
 import json
 import math
-import pickle
 import re
-import shutil
-import sqlite3
 import time
-import uuid
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-from qdrant_client import QdrantClient
-from qdrant_client.models import Distance, PointStruct, VectorParams
+import psycopg
+from procedural_phase_space import (
+    Distance,
+    HyperbolicPGVectorClient,
+    PointStruct,
+    VectorParams,
+    embed_phase_space_text,
+    poincare_hyperbolic_similarity,
+    resolve_vectors_pg_dsn,
+)
 
 from benchmark_ledger.vocab_mask import mask_restricted_string, mask_restricted_vocabulary
 from fsspecc.base_fsspecfs.base_fsspecfs import FSBase
@@ -43,32 +46,16 @@ INFORMATIONAL_COLLECTION_NAME = "agent_informational_graph_index"
 DEFAULT_VECTOR_SIZE = 384
 
 DEFAULT_IDEA_PROJECTS_ROOT = Path("/Users/jarek/IdeaProjects")
-DEFAULT_STAGING_ROOT = DEFAULT_IDEA_PROJECTS_ROOT / "qdrant_staging"
+DEFAULT_STAGING_ROOT = DEFAULT_IDEA_PROJECTS_ROOT / "vector_staging"
 DEFAULT_SKILL_MD_PATH = Path("/Users/jarek/.gemini/config/skills/pytools-toolset/SKILL.md")
 DEFAULT_KNOWLEDGE_ROOT = Path("/Users/jarek/.gemini/antigravity-cli/knowledge")
 
 
-def _encode_sqlite_point_id(point_id: str) -> str:
-    """Encodes a point ID string into Qdrant local SQLite primary key format (base64 pickle)."""
-    return base64.b64encode(pickle.dumps(str(point_id))).decode("ascii")
-
-
-def _decode_sqlite_point_id(encoded_id: str | bytes) -> str:
-    """Decodes a Qdrant local SQLite primary key back into a string point ID."""
-    try:
-        raw = base64.b64decode(encoded_id) if isinstance(encoded_id, str) else encoded_id
-        return str(pickle.loads(raw))
-    except Exception:
-        return str(encoded_id)
-
-
 def _deterministic_384d_vector(text: str, dim: int = DEFAULT_VECTOR_SIZE) -> List[float]:
     """
-    Computes a deterministic 384-D Poincaré ball vector (`||x|| < 1.0`) via
+    Computes a deterministic Poincaré ball vector (`||x|| < 1.0`) via
     `ProceduralPhaseSpace` (`embed_phase_space_text`) for hyperbolic geodesic wayfinding.
     """
-    from procedural_phase_space import embed_phase_space_text
-
     return embed_phase_space_text(text, dim=dim, normalize=False)
 
 
@@ -85,7 +72,7 @@ def _compute_poincare_ball_coords(
     """
     radius_by_level = {
         0: 0.18,  # Root staging / workspace anchor
-        1: 0.34,  # Sibling repository or Qdrant namespace
+        1: 0.34,  # Sibling repository or vector namespace
         2: 0.56,  # Toolset index / module / promoted model
         3: 0.76,  # UI component / concrete file / KI
     }
@@ -114,7 +101,7 @@ class JuxtaposedGraphEdge:
 class JuxtaposedNode:
     """
     Single wayfinding vertex in `agent_informational_graph_index` that juxtaposes physical
-    code structure directly alongside its authoritative documentation, Qdrant namespace,
+    code structure directly alongside its authoritative documentation, pgvector namespace,
     placement invariant (`keep_in_place`), and graph edges.
     """
 
@@ -127,7 +114,7 @@ class JuxtaposedNode:
     placement_directive: str
     juxtaposed_code: Dict[str, Any]
     juxtaposed_docs: Dict[str, Any]
-    qdrant_namespace: str
+    vector_namespace: str
     staging_path: str
     hierarchy_level: int = 2
     poincare_coords: List[float] = field(default_factory=list)
@@ -136,7 +123,17 @@ class JuxtaposedNode:
     updated_at: float = field(default_factory=lambda: round(time.time(), 3))
 
     def to_payload(self) -> Dict[str, Any]:
+        raw_code_path = str(self.juxtaposed_code.get("code_path") or "")
+        raw_doc_path = str(self.juxtaposed_docs.get("doc_path") or "")
         payload = mask_restricted_vocabulary(asdict(self))
+        if raw_code_path and Path(raw_code_path).exists():
+            masked_cp = str((payload.get("juxtaposed_code") or {}).get("code_path") or "")
+            if not masked_cp or not Path(masked_cp).exists():
+                payload["juxtaposed_code"]["code_path"] = raw_code_path
+        if raw_doc_path and Path(raw_doc_path).exists():
+            masked_dp = str((payload.get("juxtaposed_docs") or {}).get("doc_path") or "")
+            if not masked_dp or not Path(masked_dp).exists():
+                payload["juxtaposed_docs"]["doc_path"] = raw_doc_path
         payload["point_id"] = str(
             uuid5_from_args(INFORMATIONAL_NAMESPACE_UUID, "info_node", payload["node_id"])
         )
@@ -156,380 +153,181 @@ class JuxtaposedNode:
         )
         return (
             f"{self.node_id} {self.node_type} {self.title} {self.idiomatic_name} "
-            f"{self.repo_name} {self.qdrant_namespace} {self.placement_directive} "
+            f"{self.repo_name} {self.vector_namespace} {self.placement_directive} "
             f"{' '.join(self.tags)} {code_part} {doc_part}"
         )
 
 
-class UnifiedQdrantStagingManager:
+class UnifiedVectorStagingManager:
     """
-    Manages the permanent unified Qdrant directory at `/Users/jarek/IdeaProjects/qdrant_staging`
-    adjacent to sibling repositories (`components`, `portfolio`, `toolset`, `neural_networks`,
-    `large_tools`, `StageCompiler-development`) and performs lock-free collection unification
-    and cross-environment synchronization.
+    Manages the permanent unified vector staging hub at `/Users/jarek/IdeaProjects/vector_staging`
+    backed by persistent PostgreSQL `pgvector` (`vectors` database) and portable JSONL snapshots
+    for cross-environment synchronization.
     """
 
     def __init__(
         self,
         staging_root: str | Path = DEFAULT_STAGING_ROOT,
         idea_projects_root: str | Path = DEFAULT_IDEA_PROJECTS_ROOT,
+        pgvector_dsn: Optional[str] = None,
     ) -> None:
         self.staging_root = Path(staging_root).resolve()
         self.idea_projects_root = Path(idea_projects_root).resolve()
-        self.storage_dir = self.staging_root / "storage"
         self.snapshots_dir = self.staging_root / "snapshots"
         self.manifest_path = self.staging_root / "staging_manifest.json"
         self.ledger_path = self.staging_root / "informational_graph_ledger.json"
+        self.pg_dsn = resolve_vectors_pg_dsn(pgvector_dsn)
 
-        self.storage_dir.mkdir(parents=True, exist_ok=True)
-        (self.storage_dir / "collection").mkdir(parents=True, exist_ok=True)
+        self.staging_root.mkdir(parents=True, exist_ok=True)
         self.snapshots_dir.mkdir(parents=True, exist_ok=True)
 
         self.staging_fs = FSBase("file")
         self.projects_fs = FSBase("file")
 
-    def discover_source_qdrant_stores(self) -> List[Dict[str, Any]]:
-        """
-        Discovers all repo-local Qdrant storage directories across sibling repositories.
-        """
-        candidates = [
-            {
-                "source_id": "portfolio_qdrant_data",
-                "repo_name": "portfolio",
-                "path": self.idea_projects_root / "portfolio" / "portfolio" / ".qdrant_data",
-                "description": "Portfolio Wiki Chunks, Neural Benchmarks Leaderboard & Antigravity Brain namespaces",
-            },
-            {
-                "source_id": "neural_networks_code_index",
-                "repo_name": "neural_networks",
-                "path": self.idea_projects_root / "neural_networks" / ".qdrant_code_index",
-                "description": "Neural Networks AST Code Corpus & Temporal Git Index namespaces",
-            },
-        ]
-        discovered: List[Dict[str, Any]] = []
-        for item in candidates:
-            p: Path = item["path"]
-            meta_file = p / "meta.json"
-            if p.is_dir() and meta_file.is_file():
-                try:
-                    meta = json.loads(meta_file.read_text(encoding="utf-8"))
-                    collections_dict = meta.get("collections", {})
-                except Exception:
-                    collections_dict = {}
-                discovered.append(
-                    {
-                        "source_id": item["source_id"],
-                        "repo_name": item["repo_name"],
-                        "path": str(p),
-                        "description": item["description"],
-                        "collections": sorted(collections_dict.keys()),
-                    }
-                )
-        return discovered
+    def open_client(self, dsn: Optional[str] = None) -> HyperbolicPGVectorClient:
+        return HyperbolicPGVectorClient(dsn=resolve_vectors_pg_dsn(dsn or self.pg_dsn))
 
-    def _load_meta_json(self, storage_path: Path) -> Dict[str, Any]:
-        meta_path = storage_path / "meta.json"
-        if meta_path.is_file():
-            try:
-                data = json.loads(meta_path.read_text(encoding="utf-8"))
-                if isinstance(data, dict):
-                    data.setdefault("collections", {})
-                    for ccfg in data["collections"].values():
-                        if isinstance(ccfg, dict):
-                            ccfg.pop("vacuum_optimizer_threshold", None)
-                            ccfg.pop("init_from", None)
-                    data.setdefault("aliases", {})
-                    data.setdefault("text_indexes", {})
-                    return data
-            except Exception:
-                pass
-        return {"collections": {}, "aliases": {}, "text_indexes": {}}
-
-    def _save_meta_json(self, storage_path: Path, meta: Dict[str, Any]) -> None:
-        storage_path.mkdir(parents=True, exist_ok=True)
-        meta_path = storage_path / "meta.json"
-        meta_path.write_text(json.dumps(meta, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-
-    @staticmethod
-    def _default_collection_config(size: int = DEFAULT_VECTOR_SIZE) -> Dict[str, Any]:
-        return {
-            "vectors": {
-                "size": size,
-                "distance": "Dot",
-                "hnsw_config": None,
-                "quantization_config": None,
-                "on_disk": None,
-                "datatype": None,
-                "multivector_config": None,
-            },
-            "shard_number": None,
-            "sharding_method": None,
-            "replication_factor": None,
-            "write_consistency_factor": None,
-            "on_disk_payload": None,
-            "hnsw_config": None,
-            "wal_config": None,
-            "optimizers_config": None,
-            "quantization_config": None,
-            "sparse_vectors": None,
-            "strict_mode_config": None,
-        }
-
-    @staticmethod
-    def _ensure_sqlite_table(sqlite_path: Path) -> None:
-        sqlite_path.parent.mkdir(parents=True, exist_ok=True)
-        with sqlite3.connect(str(sqlite_path), timeout=5.0) as conn:
-            conn.execute("CREATE TABLE IF NOT EXISTS points (id TEXT PRIMARY KEY, point BLOB)")
-            conn.commit()
-
-    @staticmethod
-    def _count_sqlite_points(sqlite_path: Path) -> int:
-        if not sqlite_path.is_file():
-            return 0
-        try:
-            with sqlite3.connect(str(sqlite_path), timeout=5.0) as conn:
-                row = conn.execute("SELECT COUNT(*) FROM points").fetchone()
-                return int(row[0]) if row else 0
-        except Exception:
-            return 0
-
-    @staticmethod
-    def _merge_sqlite_points(source_sqlite: Path, target_sqlite: Path) -> Dict[str, int]:
-        """
-        Lock-free read from `source_sqlite` and transactional upsert into
-        `target_sqlite`, returning `{source_count, upserted_count, target_total}`.
-        """
-        if not source_sqlite.is_file():
-            return {"source_count": 0, "upserted_count": 0, "target_total": 0}
-
-        UnifiedQdrantStagingManager._ensure_sqlite_table(target_sqlite)
-        try:
-            with sqlite3.connect(f"file:{source_sqlite}?mode=ro", uri=True, timeout=5.0) as src_conn:
-                rows = src_conn.execute("SELECT id, point FROM points").fetchall()
-        except sqlite3.OperationalError:
-            with sqlite3.connect(str(source_sqlite), timeout=5.0) as src_conn:
-                rows = src_conn.execute("SELECT id, point FROM points").fetchall()
-
-        with sqlite3.connect(str(target_sqlite), timeout=5.0) as tgt_conn:
-            if rows:
-                tgt_conn.executemany(
-                    "INSERT OR REPLACE INTO points (id, point) VALUES (?, ?)",
-                    rows,
-                )
-                tgt_conn.commit()
-            total_row = tgt_conn.execute("SELECT COUNT(*) FROM points").fetchone()
-            target_total = int(total_row[0]) if total_row else 0
-
-        return {
-            "source_count": len(rows),
-            "upserted_count": len(rows),
-            "target_total": target_total,
-        }
-
-    @staticmethod
-    def _is_isolated_test_path(storage_path: Path) -> bool:
-        s = str(storage_path)
-        return (
-            "pytest-" in s
-            or "/T/pytest" in s
-            or "/tmp/pytest" in s
-            or "agent_brain_pytest" in s
-            or "/var/folders/" in s
-        )
-
-    @staticmethod
-    def _open_minikube_client() -> Optional[Any]:
-        import os
-        from procedural_phase_space import HyperbolicQdrantClient
-
-        url = os.environ.get("QDRANT_URL", "http://localhost:6333").strip()
-        if not url:
-            return None
-        grpc_port = int(os.environ.get("QDRANT_GRPC_PORT", "6334"))
-        prefer_grpc = os.environ.get("QDRANT_PREFER_GRPC", "1").strip() not in ("0", "false", "False")
-        try:
-            return HyperbolicQdrantClient(
-                QdrantClient(
-                    url=url,
-                    grpc_port=grpc_port,
-                    prefer_grpc=prefer_grpc,
-                    timeout=30,
-                    check_compatibility=False,
-                )
-            )
-        except Exception:
-            return None
-
-    def upsert_points_lockfree(
+    def upsert_points(
         self,
-        storage_path: Path,
         collection_name: str,
         points: List[PointStruct],
         vector_size: int = DEFAULT_VECTOR_SIZE,
         recreate: bool = False,
     ) -> int:
         """
-        Upserts `PointStruct` records into Minikube Qdrant (`localhost:6333` / `6334`) when targeting
-        shared staging, and mirrors to `storage_path/collection/<collection_name>/storage.sqlite`.
+        Upserts `PointStruct` records into persistent PostgreSQL `pgvector` (`vectors` database).
         """
-        if not self._is_isolated_test_path(storage_path):
-            client = self._open_minikube_client()
-            if client is not None:
-                try:
-                    if recreate and client.collection_exists(collection_name):
-                        client.delete_collection(collection_name)
-                    if not client.collection_exists(collection_name):
-                        client.create_collection(
-                            collection_name=collection_name,
-                            vectors_config=VectorParams(size=vector_size, distance=Distance.DOT),
-                        )
-                    for i in range(0, len(points), 512):
-                        batch = points[i : i + 512]
-                        if batch:
-                            client.upsert(collection_name=collection_name, points=batch, wait=True)
-                except Exception:
-                    pass
-                finally:
-                    try:
-                        client.close()
-                    except Exception:
-                        pass
-
-        meta = self._load_meta_json(storage_path)
-        meta["collections"][collection_name] = self._default_collection_config(size=vector_size)
-        self._save_meta_json(storage_path, meta)
-
-        sqlite_path = storage_path / "collection" / collection_name / "storage.sqlite"
-        self._ensure_sqlite_table(sqlite_path)
-
-        serialized_rows = [
-            (_encode_sqlite_point_id(str(pt.id)), pickle.dumps(pt))
-            for pt in points
-        ]
-        with sqlite3.connect(str(sqlite_path), timeout=5.0) as conn:
-            if recreate:
-                conn.execute("DELETE FROM points")
-            if serialized_rows:
-                conn.executemany(
-                    "INSERT OR REPLACE INTO points (id, point) VALUES (?, ?)",
-                    serialized_rows,
+        client = self.open_client()
+        try:
+            if recreate and client.collection_exists(collection_name):
+                client.delete_collection(collection_name)
+            if not client.collection_exists(collection_name):
+                client.create_collection(
+                    collection_name=collection_name,
+                    vectors_config=VectorParams(size=vector_size, distance=Distance.DOT),
                 )
-            conn.commit()
-            total_row = conn.execute("SELECT COUNT(*) FROM points").fetchone()
-            return int(total_row[0]) if total_row else 0
+            for i in range(0, len(points), 512):
+                batch = points[i : i + 512]
+                if batch:
+                    client.upsert(collection_name=collection_name, points=batch, wait=True)
+            return int(client.count(collection_name=collection_name).count)
+        finally:
+            client.close()
 
-    def read_points_lockfree(
+    def delete_points(
         self,
-        storage_path: Path,
+        collection_name: str,
+        point_ids: Sequence[str],
+    ) -> None:
+        if not point_ids:
+            return
+        client = self.open_client()
+        try:
+            if client.collection_exists(collection_name):
+                client.delete(
+                    collection_name=collection_name,
+                    points_selector=[str(pid) for pid in point_ids],
+                    wait=True,
+                )
+        finally:
+            client.close()
+
+    def read_points(
+        self,
         collection_name: str,
         limit: Optional[int] = None,
     ) -> List[PointStruct]:
-        """Reads `PointStruct` rows from Minikube Qdrant (`localhost:6333` / `6334`) or local SQLite."""
-        if not self._is_isolated_test_path(storage_path):
-            client = self._open_minikube_client()
-            if client is not None:
-                try:
-                    if client.collection_exists(collection_name):
-                        points_out: List[PointStruct] = []
-                        offset = None
-                        target_limit = int(limit) if (limit is not None and int(limit) > 0) else None
-                        while True:
-                            batch_sz = 512
-                            if target_limit is not None:
-                                batch_sz = min(batch_sz, max(1, target_limit - len(points_out)))
-                            records, next_offset = client.scroll(
-                                collection_name=collection_name,
-                                limit=batch_sz,
-                                offset=offset,
-                                with_payload=True,
-                                with_vectors=True,
-                            )
-                            for r in records:
-                                vec = list(r.vector) if isinstance(r.vector, (list, tuple)) else []
-                                payload = mask_restricted_vocabulary(dict(r.payload or {}))
-                                points_out.append(PointStruct(id=r.id, vector=vec, payload=payload))
-                            if target_limit is not None and len(points_out) >= target_limit:
-                                break
-                            if next_offset is None or not records:
-                                break
-                            offset = next_offset
-                        return points_out
-                except Exception:
-                    pass
-                finally:
-                    try:
-                        client.close()
-                    except Exception:
-                        pass
+        """Reads `PointStruct` rows from PostgreSQL `pgvector` (`vectors` database)."""
+        client = self.open_client()
+        try:
+            if not client.collection_exists(collection_name):
+                return []
+            points_out: List[PointStruct] = []
+            offset = None
+            target_limit = int(limit) if (limit is not None and int(limit) > 0) else None
+            while True:
+                batch_sz = 512
+                if target_limit is not None:
+                    batch_sz = min(batch_sz, max(1, target_limit - len(points_out)))
+                records, next_offset = client.scroll(
+                    collection_name=collection_name,
+                    limit=batch_sz,
+                    offset=offset,
+                    with_payload=True,
+                    with_vectors=True,
+                )
+                for r in records:
+                    vec = list(r.vector) if isinstance(r.vector, (list, tuple)) else []
+                    raw_p = dict(r.payload or {})
+                    raw_cp = str((raw_p.get("juxtaposed_code") or {}).get("code_path") or "") if isinstance(raw_p.get("juxtaposed_code"), dict) else ""
+                    raw_dp = str((raw_p.get("juxtaposed_docs") or {}).get("doc_path") or "") if isinstance(raw_p.get("juxtaposed_docs"), dict) else ""
+                    payload = mask_restricted_vocabulary(raw_p)
+                    if raw_cp and Path(raw_cp).exists():
+                        masked_cp = str((payload.get("juxtaposed_code") or {}).get("code_path") or "")
+                        if not masked_cp or not Path(masked_cp).exists():
+                            payload["juxtaposed_code"]["code_path"] = raw_cp
+                    if raw_dp and Path(raw_dp).exists():
+                        masked_dp = str((payload.get("juxtaposed_docs") or {}).get("doc_path") or "")
+                        if not masked_dp or not Path(masked_dp).exists():
+                            payload["juxtaposed_docs"]["doc_path"] = raw_dp
+                    points_out.append(PointStruct(id=str(r.id), vector=vec, payload=payload))
+                if target_limit is not None and len(points_out) >= target_limit:
+                    break
+                if next_offset is None or not records:
+                    break
+                offset = next_offset
+            return points_out
+        finally:
+            client.close()
 
-        sqlite_path = storage_path / "collection" / collection_name / "storage.sqlite"
-        if not sqlite_path.is_file():
-            return []
-        query = "SELECT point FROM points"
-        if limit is not None and int(limit) > 0:
-            query += f" LIMIT {int(limit)}"
-        points: List[PointStruct] = []
-        with sqlite3.connect(f"file:{sqlite_path}?mode=ro", uri=True, timeout=5.0) as conn:
-            for (blob,) in conn.execute(query):
-                try:
-                    pt = pickle.loads(blob)
-                    if isinstance(pt, PointStruct):
-                        if pt.payload:
-                            pt.payload = mask_restricted_vocabulary(pt.payload)
-                        points.append(pt)
-                except Exception:
-                    continue
-        return points
+    @staticmethod
+    def _infer_source_repo(coll_name: str) -> str:
+        if coll_name.startswith("portfolio_"):
+            return "portfolio"
+        if "code_corpus" in coll_name:
+            return "neural_networks"
+        if coll_name in ("unified_harness_benchmarks",) or coll_name.startswith("corpus_"):
+            return "harnesses"
+        if coll_name.startswith("opcode_"):
+            return "PolyphonicVCPU"
+        if coll_name == INFORMATIONAL_COLLECTION_NAME:
+            return "vector_staging"
+        return "vector_staging"
+
+    def _query_pgvector_collection_summary(self) -> Dict[str, Dict[str, Any]]:
+        summary: Dict[str, Dict[str, Any]] = {}
+        with psycopg.connect(self.pg_dsn) as conn:
+            rows = conn.execute(
+                """
+                SELECT c.collection_name, c.vector_size, c.distance, COUNT(p.point_id) AS cnt
+                FROM pps_collections c
+                LEFT JOIN pps_vector_points p ON p.collection_name = c.collection_name
+                GROUP BY c.collection_name, c.vector_size, c.distance
+                ORDER BY c.collection_name
+                """
+            ).fetchall()
+        for coll_name, vec_size, dist, cnt in rows:
+            c_str = str(coll_name)
+            c_int = int(cnt or 0)
+            summary[c_str] = {
+                "collection_name": c_str,
+                "source_repo": self._infer_source_repo(c_str),
+                "pgvector_table": "pps_vector_points",
+                "vector_size": int(vec_size or DEFAULT_VECTOR_SIZE),
+                "distance": str(dist or "Dot"),
+                "source_points": c_int,
+                "staged_points": c_int,
+            }
+        return summary
 
     def unify_all_collections(self, export_snapshots: bool = True) -> Dict[str, Any]:
         """
-        Unifies all Qdrant collections from `/Users/jarek/IdeaProjects/portfolio/portfolio/.qdrant_data`
-        and `/Users/jarek/IdeaProjects/neural_networks/.qdrant_code_index` into the permanent
-        staging directory `/Users/jarek/IdeaProjects/qdrant_staging/storage`.
+        Queries the authoritative collection inventory and point counts across PostgreSQL `pgvector`
+        (`vectors` database) and writes `/Users/jarek/IdeaProjects/vector_staging/staging_manifest.json`
+        and portable JSONL snapshots.
         """
         t0 = time.perf_counter()
-        sources = self.discover_source_qdrant_stores()
-        staging_meta = self._load_meta_json(self.storage_dir)
-        unified_summary: Dict[str, Dict[str, Any]] = {}
-
-        for src in sources:
-            src_path = Path(src["path"])
-            src_meta = self._load_meta_json(src_path)
-            for coll_name, coll_cfg in src_meta.get("collections", {}).items():
-                staging_meta["collections"][coll_name] = coll_cfg
-                src_sqlite = src_path / "collection" / coll_name / "storage.sqlite"
-                dst_sqlite = self.storage_dir / "collection" / coll_name / "storage.sqlite"
-                stats = self._merge_sqlite_points(src_sqlite, dst_sqlite)
-                vec_cfg = coll_cfg.get("vectors", {}) if isinstance(coll_cfg, dict) else {}
-                unified_summary[coll_name] = {
-                    "collection_name": coll_name,
-                    "source_repo": src["repo_name"],
-                    "source_path": str(src_path),
-                    "staging_sqlite_path": str(dst_sqlite),
-                    "vector_size": vec_cfg.get("size", DEFAULT_VECTOR_SIZE),
-                    "distance": vec_cfg.get("distance", "Cosine"),
-                    "source_points": stats["source_count"],
-                    "staged_points": stats["target_total"],
-                }
-
-        # Also include any existing collections already in staging (such as agent_informational_graph_index)
-        for coll_name, coll_cfg in staging_meta.get("collections", {}).items():
-            if coll_name not in unified_summary:
-                dst_sqlite = self.storage_dir / "collection" / coll_name / "storage.sqlite"
-                vec_cfg = coll_cfg.get("vectors", {}) if isinstance(coll_cfg, dict) else {}
-                count = self._count_sqlite_points(dst_sqlite)
-                unified_summary[coll_name] = {
-                    "collection_name": coll_name,
-                    "source_repo": "qdrant_staging",
-                    "source_path": str(self.storage_dir),
-                    "staging_sqlite_path": str(dst_sqlite),
-                    "vector_size": vec_cfg.get("size", DEFAULT_VECTOR_SIZE),
-                    "distance": vec_cfg.get("distance", "Cosine"),
-                    "source_points": count,
-                    "staged_points": count,
-                }
-
-        self._save_meta_json(self.storage_dir, staging_meta)
+        unified_summary = self._query_pgvector_collection_summary()
 
         if export_snapshots:
             self._write_snapshot_summary(unified_summary)
@@ -538,12 +336,13 @@ class UnifiedQdrantStagingManager:
         total_points = sum(int(v["staged_points"]) for v in unified_summary.values())
         manifest = {
             "staging_root": str(self.staging_root),
-            "storage_dir": str(self.storage_dir),
             "snapshots_dir": str(self.snapshots_dir),
+            "backend": "postgresql_pgvector",
+            "database": "vectors",
+            "embedding_engine": "procedural_phase_space",
             "total_collections": len(unified_summary),
             "total_staged_points": total_points,
             "collections": unified_summary,
-            "sources": sources,
             "placement_invariants": {
                 "components_repo": {
                     "path": str(self.idea_projects_root / "components"),
@@ -571,6 +370,7 @@ class UnifiedQdrantStagingManager:
         """Writes portable metadata and exports compact JSONL snapshot for `agent_informational_graph_index`."""
         bundle_meta = {
             "staging_root": str(self.staging_root),
+            "backend": "postgresql_pgvector",
             "exported_at": round(time.time(), 3),
             "collections": unified_summary,
         }
@@ -579,7 +379,7 @@ class UnifiedQdrantStagingManager:
             encoding="utf-8",
         )
         if INFORMATIONAL_COLLECTION_NAME in unified_summary:
-            pts = self.read_points_lockfree(self.storage_dir, INFORMATIONAL_COLLECTION_NAME)
+            pts = self.read_points(INFORMATIONAL_COLLECTION_NAME)
             snap_file = self.snapshots_dir / f"{INFORMATIONAL_COLLECTION_NAME}.jsonl"
             lines = [
                 json.dumps(
@@ -601,12 +401,12 @@ class UnifiedQdrantStagingManager:
         collections: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """
-        Synchronizes the unified staging Qdrant store (`/Users/jarek/IdeaProjects/qdrant_staging/storage`)
-        with another environment:
-        - If `target_environment` is None: syncs between all repo-local Qdrant stores and `qdrant_staging`.
-        - If `target_environment` is a HTTP/gRPC URL (`http://...` or `https://...`): syncs via `QdrantClient(url=...)`.
-        - If `target_environment` is a filesystem path: creates/merges a full Qdrant storage directory
-          at `target_environment` (`stage_to_target`, `target_to_stage`, or `bidirectional`).
+        Synchronizes the unified PostgreSQL `pgvector` store (`vectors` database) with another environment:
+        - If `target_environment` is None: refreshes unified manifest and snapshots from `vectors` DB.
+        - If `target_environment` is a PostgreSQL DSN (`postgresql://...` or `postgres://...`): syncs via `HyperbolicPGVectorClient`.
+        - If `target_environment` is a filesystem path: exports/imports portable JSONL collection bundles
+          at `target_environment/collections/<collection>.jsonl` + `target_environment/staging_manifest.json`
+          (`stage_to_target`, `target_to_stage`, or `bidirectional`).
         """
         t0 = time.perf_counter()
         normalized_dir = direction.lower().strip()
@@ -615,72 +415,60 @@ class UnifiedQdrantStagingManager:
                 f"Invalid sync direction '{direction}'. Must be 'stage_to_target', 'target_to_stage', or 'bidirectional'."
             )
 
-        # First ensure staging has unified latest collections from repo stores
-        if normalized_dir in ("stage_to_target", "bidirectional") or target_environment is None:
-            self.unify_all_collections(export_snapshots=True)
-
-        staging_meta = self._load_meta_json(self.storage_dir)
+        manifest = self.unify_all_collections(
+            export_snapshots=(normalized_dir in ("stage_to_target", "bidirectional") or target_environment is None)
+        )
+        pg_colls = manifest.get("collections", {})
         active_collections = (
-            [c for c in collections if c in staging_meta["collections"]]
+            [c for c in collections if c in pg_colls]
             if collections
-            else sorted(staging_meta["collections"].keys())
+            else sorted(pg_colls.keys())
         )
 
-        # Case 1: Default repo-to-staging and staging-to-repo sync when no external target is given
+        # Case 1: Default refresh against authoritative PostgreSQL `vectors` DB
         if target_environment is None:
-            portfolio_qdrant = self.idea_projects_root / "portfolio" / "portfolio" / ".qdrant_data"
-            synced_details: Dict[str, Any] = {}
-            if portfolio_qdrant.is_dir() and INFORMATIONAL_COLLECTION_NAME in staging_meta["collections"]:
-                p_meta = self._load_meta_json(portfolio_qdrant)
-                p_meta["collections"][INFORMATIONAL_COLLECTION_NAME] = staging_meta["collections"][
-                    INFORMATIONAL_COLLECTION_NAME
-                ]
-                self._save_meta_json(portfolio_qdrant, p_meta)
-                src_sq = self.storage_dir / "collection" / INFORMATIONAL_COLLECTION_NAME / "storage.sqlite"
-                dst_sq = portfolio_qdrant / "collection" / INFORMATIONAL_COLLECTION_NAME / "storage.sqlite"
-                synced_details[INFORMATIONAL_COLLECTION_NAME] = self._merge_sqlite_points(src_sq, dst_sq)
-
-            for coll_name in active_collections:
-                sq = self.storage_dir / "collection" / coll_name / "storage.sqlite"
-                synced_details[coll_name] = {
-                    "staged_points": self._count_sqlite_points(sq),
+            synced_details = {
+                coll_name: {
+                    "staged_points": int(pg_colls[coll_name]["staged_points"]),
                     "status": "synced",
                 }
+                for coll_name in active_collections
+            }
             return {
-                "status": "synced_with_repo_environments",
+                "status": "synced_with_pgvector",
                 "direction": normalized_dir,
                 "staging_root": str(self.staging_root),
-                "target_environment": "repo_local_qdrant_stores",
+                "target_environment": "postgresql_pgvector_vectors_db",
                 "collections_synced": synced_details,
                 "wall_time_ms": round((time.perf_counter() - t0) * 1000.0, 2),
             }
 
         target_str = str(target_environment).strip()
 
-        # Case 2: Remote Qdrant HTTP/gRPC server URL
-        if target_str.startswith("http://") or target_str.startswith("https://"):
-            client = QdrantClient(url=target_str, timeout=10)
+        # Case 2: External PostgreSQL pgvector database DSN
+        if target_str.startswith(("postgresql://", "postgres://", "postgresql+psycopg://")):
+            remote_client = self.open_client(dsn=target_str)
             remote_synced: Dict[str, Any] = {}
             try:
-                existing_remote = {c.name for c in client.get_collections().collections}
+                existing_remote = {c.name for c in remote_client.get_collections().collections}
                 for coll_name in active_collections:
-                    coll_cfg = staging_meta["collections"].get(coll_name, {})
-                    vec_size = int(coll_cfg.get("vectors", {}).get("size", DEFAULT_VECTOR_SIZE))
+                    vec_size = int(pg_colls.get(coll_name, {}).get("vector_size", DEFAULT_VECTOR_SIZE))
                     if coll_name not in existing_remote:
-                        client.create_collection(
+                        remote_client.create_collection(
                             collection_name=coll_name,
                             vectors_config=VectorParams(size=vec_size, distance=Distance.DOT),
                         )
                     pushed = 0
                     pulled = 0
                     if normalized_dir in ("stage_to_target", "bidirectional"):
-                        local_pts = self.read_points_lockfree(self.storage_dir, coll_name)
+                        local_pts = self.read_points(coll_name)
                         for i in range(0, len(local_pts), 256):
                             batch = local_pts[i : i + 256]
-                            client.upsert(collection_name=coll_name, points=batch)
+                            if batch:
+                                remote_client.upsert(collection_name=coll_name, points=batch, wait=True)
                         pushed = len(local_pts)
                     if normalized_dir in ("target_to_stage", "bidirectional"):
-                        records, _ = client.scroll(
+                        records, _ = remote_client.scroll(
                             collection_name=coll_name,
                             limit=10000,
                             with_payload=True,
@@ -689,25 +477,20 @@ class UnifiedQdrantStagingManager:
                         remote_pts = [
                             PointStruct(
                                 id=str(r.id),
-                                vector=list(r.vector) if isinstance(r.vector, list) else [],
-                                payload=r.payload or {},
+                                vector=list(r.vector) if isinstance(r.vector, (list, tuple)) else [],
+                                payload=dict(r.payload or {}),
                             )
                             for r in records
                         ]
                         if remote_pts:
-                            self.upsert_points_lockfree(
-                                self.storage_dir,
-                                coll_name,
-                                remote_pts,
-                                vector_size=vec_size,
-                            )
+                            self.upsert_points(coll_name, remote_pts, vector_size=vec_size)
                         pulled = len(remote_pts)
                     remote_synced[coll_name] = {"pushed_points": pushed, "pulled_points": pulled}
             finally:
-                client.close()
+                remote_client.close()
 
             return {
-                "status": "synced_with_remote_qdrant",
+                "status": "synced_with_remote_pgvector",
                 "direction": normalized_dir,
                 "staging_root": str(self.staging_root),
                 "target_environment": target_str,
@@ -715,18 +498,21 @@ class UnifiedQdrantStagingManager:
                 "wall_time_ms": round((time.perf_counter() - t0) * 1000.0, 2),
             }
 
-        # Case 3: Local filesystem target environment directory
+        # Case 3: Portable JSONL filesystem bundle directory
         target_path = Path(target_str).resolve()
-        # If target_path has a `storage` child or is itself a Qdrant directory, handle gracefully
-        target_storage = (
-            target_path / "storage"
-            if (target_path / "storage" / "meta.json").is_file()
-            else target_path
-        )
-        target_storage.mkdir(parents=True, exist_ok=True)
-        (target_storage / "collection").mkdir(parents=True, exist_ok=True)
+        target_colls_dir = target_path / "collections"
+        target_manifest_file = target_path / "staging_manifest.json"
+        target_colls_dir.mkdir(parents=True, exist_ok=True)
 
-        target_meta = self._load_meta_json(target_storage)
+        target_meta: Dict[str, Any] = {"collections": {}}
+        if target_manifest_file.is_file():
+            try:
+                loaded = json.loads(target_manifest_file.read_text(encoding="utf-8"))
+                if isinstance(loaded, dict) and isinstance(loaded.get("collections"), dict):
+                    target_meta = loaded
+            except Exception:
+                pass
+
         all_candidate_colls = sorted(
             set(active_collections)
             | (set(target_meta.get("collections", {}).keys()) if not collections else set(collections))
@@ -734,48 +520,98 @@ class UnifiedQdrantStagingManager:
 
         synced_colls: Dict[str, Any] = {}
         for coll_name in all_candidate_colls:
-            stage_sqlite = self.storage_dir / "collection" / coll_name / "storage.sqlite"
-            tgt_sqlite = target_storage / "collection" / coll_name / "storage.sqlite"
-            pushed_stats = {"source_count": 0, "upserted_count": 0, "target_total": 0}
-            pulled_stats = {"source_count": 0, "upserted_count": 0, "target_total": 0}
+            jsonl_file = target_colls_dir / f"{coll_name}.jsonl"
+            pushed_count = 0
+            pulled_count = 0
 
-            if normalized_dir in ("stage_to_target", "bidirectional") and coll_name in staging_meta["collections"]:
-                target_meta["collections"][coll_name] = staging_meta["collections"][coll_name]
-                pushed_stats = self._merge_sqlite_points(stage_sqlite, tgt_sqlite)
+            # Read existing target JSONL points if present
+            target_pts_by_id: Dict[str, PointStruct] = {}
+            if jsonl_file.is_file():
+                for ln in jsonl_file.read_text(encoding="utf-8").splitlines():
+                    ln = ln.strip()
+                    if not ln:
+                        continue
+                    obj = json.loads(ln)
+                    pid = str(obj["id"])
+                    target_pts_by_id[pid] = PointStruct(
+                        id=pid,
+                        vector=list(obj.get("vector") or []),
+                        payload=dict(obj.get("payload") or {}),
+                    )
 
-            if normalized_dir in ("target_to_stage", "bidirectional") and coll_name in target_meta["collections"]:
-                staging_meta["collections"][coll_name] = target_meta["collections"][coll_name]
-                pulled_stats = self._merge_sqlite_points(tgt_sqlite, stage_sqlite)
-                if normalized_dir == "bidirectional" and pulled_stats["source_count"] > 0:
-                    pushed_stats = self._merge_sqlite_points(stage_sqlite, tgt_sqlite)
+            vec_size = int(
+                pg_colls.get(coll_name, {}).get("vector_size")
+                or target_meta.get("collections", {}).get(coll_name, {}).get("vector_size")
+                or DEFAULT_VECTOR_SIZE
+            )
 
+            if normalized_dir in ("target_to_stage", "bidirectional") and target_pts_by_id:
+                incoming_pts = list(target_pts_by_id.values())
+                self.upsert_points(coll_name, incoming_pts, vector_size=vec_size, recreate=False)
+                pulled_count = len(incoming_pts)
+
+            if normalized_dir in ("stage_to_target", "bidirectional") and (
+                coll_name in pg_colls or pulled_count > 0
+            ):
+                stage_pts = self.read_points(coll_name)
+                for pt in stage_pts:
+                    target_pts_by_id[str(pt.id)] = pt
+                lines = [
+                    json.dumps(
+                        {
+                            "id": str(pt.id),
+                            "vector": list(pt.vector) if isinstance(pt.vector, (list, tuple)) else [],
+                            "payload": dict(pt.payload or {}),
+                        },
+                        sort_keys=True,
+                    )
+                    for pt in target_pts_by_id.values()
+                ]
+                jsonl_file.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+                pushed_count = len(stage_pts)
+
+            refreshed_stage_count = (
+                int(self._query_pgvector_collection_summary().get(coll_name, {}).get("staged_points", 0))
+            )
+            target_total = len(target_pts_by_id)
+            target_meta.setdefault("collections", {})[coll_name] = {
+                "collection_name": coll_name,
+                "vector_size": vec_size,
+                "distance": "Dot",
+                "target_points": target_total,
+                "jsonl_path": str(jsonl_file),
+            }
             synced_colls[coll_name] = {
-                "staged_points": self._count_sqlite_points(stage_sqlite),
-                "target_points": self._count_sqlite_points(tgt_sqlite),
-                "pushed_to_target": pushed_stats["upserted_count"],
-                "pulled_to_stage": pulled_stats["upserted_count"],
+                "staged_points": refreshed_stage_count,
+                "target_points": target_total,
+                "pushed_to_target": pushed_count,
+                "pulled_to_stage": pulled_count,
             }
 
-        self._save_meta_json(target_storage, target_meta)
-        self._save_meta_json(self.storage_dir, staging_meta)
+        target_meta["backend"] = "portable_pgvector_jsonl_bundle"
+        target_meta["updated_at"] = round(time.time(), 3)
+        target_manifest_file.write_text(json.dumps(target_meta, indent=2) + "\n", encoding="utf-8")
+        self.unify_all_collections(export_snapshots=True)
 
         return {
             "status": "synced_with_filesystem_environment",
             "direction": normalized_dir,
             "staging_root": str(self.staging_root),
-            "target_environment": str(target_storage),
+            "target_environment": str(target_path),
             "collections_synced": synced_colls,
             "wall_time_ms": round((time.perf_counter() - t0) * 1000.0, 2),
         }
 
 
+
 class AgentInformationalGraphIndex(Datasource):
     """
     Informational Graph Index (`indexes.informational_index.AgentInformationalGraphIndex`)
-    backed by Qdrant collection `agent_informational_graph_index` in `/Users/jarek/IdeaProjects/qdrant_staging`.
+    backed by PostgreSQL `pgvector` collection `agent_informational_graph_index` (`vectors` database)
+    and `/Users/jarek/IdeaProjects/vector_staging`.
 
-    Juxtaposes code files, AST symbols, UI components (kept in place in `components` and `portfolio`),
-    `toolset` index classes, promoted neural models, and Qdrant namespaces directly with their
+    Juxtaposes code files, AST symbols, UI components (kept in place in `components`, `portfolio`, and `agent_brain`),
+    `toolset` index classes, promoted neural models, and pgvector namespaces directly with their
     documentation (`SKILL.md`, Knowledge Items, `README.md`, docstrings) and typed graph edges
     so agents can navigate and map the entire workspace without getting lost.
     """
@@ -787,11 +623,13 @@ class AgentInformationalGraphIndex(Datasource):
         skill_md_path: str | Path = DEFAULT_SKILL_MD_PATH,
         knowledge_root: str | Path = DEFAULT_KNOWLEDGE_ROOT,
         collection_name: str = INFORMATIONAL_COLLECTION_NAME,
+        pgvector_dsn: Optional[str] = None,
         auto_build: bool = True,
     ) -> None:
-        self.staging_manager = UnifiedQdrantStagingManager(
+        self.staging_manager = UnifiedVectorStagingManager(
             staging_root=staging_root,
             idea_projects_root=idea_projects_root,
+            pgvector_dsn=pgvector_dsn,
         )
         self.staging_root = self.staging_manager.staging_root
         self.idea_projects_root = self.staging_manager.idea_projects_root
@@ -889,7 +727,9 @@ class AgentInformationalGraphIndex(Datasource):
             text_lower = f"{ki_dir.name} {title} {summary}".lower()
             ki_by_keyword["all"].append(info)
             for kw in (
-                "qdrant",
+                "pgvector",
+                "postgres",
+                "vector",
                 "portfolio",
                 "components",
                 "neural",
@@ -1027,16 +867,16 @@ class AgentInformationalGraphIndex(Datasource):
     ) -> Tuple[List[JuxtaposedNode], List[JuxtaposedGraphEdge]]:
         """
         Constructs the complete set of `JuxtaposedNode`s and `JuxtaposedGraphEdge`s across:
-        0. Unified Qdrant Staging Root (`qdrant_staging`)
+        0. Unified Vector Staging Root (`vector_staging` + PostgreSQL `vectors` DB)
         1. Sibling Repositories (`components`, `portfolio`, `toolset`, `neural_networks`, `large_tools`, `StageCompiler-development`)
-        2. Unified Qdrant Namespaces (`portfolio_wiki_chunks`, `portfolio_neural_benchmarks`,
+        2. Unified PostgreSQL pgvector Namespaces (`portfolio_wiki_chunks`, `portfolio_neural_benchmarks`,
            `portfolio_antigravity_brain`, `neural_networks_code_corpus`, `code_corpus_temporal_index`,
            `agent_informational_graph_index`)
         3. Shared UI Elements in `/Users/jarek/IdeaProjects/components` (`keep_in_place=True`)
-        4. Portfolio UI Elements in `/Users/jarek/IdeaProjects/portfolio/portfolio/react/src` (`keep_in_place=True`)
+        4. Portfolio & Agent Brain UI Elements (`keep_in_place=True`)
         5. All `toolset` Index Classes in `/Users/jarek/IdeaProjects/toolset/src/indexes` (`keep_in_place=True`)
-        6. All 37 `toolset` Library Packages juxtaposed with `SKILL.md`
-        7. Portfolio Backend Services & API Router + Neural Networks Promoted Gauntlet Model
+        6. All `toolset` Library Packages juxtaposed with `SKILL.md`
+        7. Portfolio/Agent-Brain Services & Promoted Neural Gauntlet Model
         """
         skill_sections = self._parse_skill_md_sections()
         ki_lookup = self._scan_knowledge_items()
@@ -1061,19 +901,19 @@ class AgentInformationalGraphIndex(Datasource):
                 )
             )
 
-        # --- 0. Root Unified Qdrant Staging Anchor ---
-        staging_node_id = "staging:qdrant_staging"
+        # --- 0. Root Unified Vector Staging Anchor ---
+        staging_node_id = "staging:vector_staging"
         add_node(
             JuxtaposedNode(
                 node_id=staging_node_id,
-                node_type="qdrant_staging_root",
-                title="Unified Permanent Qdrant Staging Directory",
-                idiomatic_name="qdrant_staging",
-                repo_name="qdrant_staging",
+                node_type="vector_staging_root",
+                title="Unified Permanent PostgreSQL pgvector & Vector Staging Hub",
+                idiomatic_name="vector_staging",
+                repo_name="vector_staging",
                 keep_in_place=True,
                 placement_directive=(
-                    "PERMANENT_STAGING_ROOT: Lives at /Users/jarek/IdeaProjects/qdrant_staging "
-                    "adjacent to sibling repositories; unifies all Qdrant namespaces and syncs across environments."
+                    "PERMANENT_STAGING_ROOT: Lives at /Users/jarek/IdeaProjects/vector_staging "
+                    "backed by persistent Minikube PostgreSQL `vectors` DB (pgvector + PPS embeddings)."
                 ),
                 juxtaposed_code={
                     "code_path": str(
@@ -1087,14 +927,14 @@ class AgentInformationalGraphIndex(Datasource):
                     "relative_path": "toolset/src/indexes/informational_index/informational_index.py",
                     "language": "python",
                     "exported_symbols": [
-                        "UnifiedQdrantStagingManager",
+                        "UnifiedVectorStagingManager",
                         "AgentInformationalGraphIndex",
                         "JuxtaposedNode",
                         "JuxtaposedGraphEdge",
                     ],
                     "code_excerpt": (
-                        "DEFAULT_STAGING_ROOT = Path('/Users/jarek/IdeaProjects/qdrant_staging')\n"
-                        "class UnifiedQdrantStagingManager:\n"
+                        "DEFAULT_STAGING_ROOT = Path('/Users/jarek/IdeaProjects/vector_staging')\n"
+                        "class UnifiedVectorStagingManager:\n"
                         "    def unify_all_collections(self) -> Dict[str, Any]: ...\n"
                         "    def sync_with_environment(self, target_environment, direction='bidirectional'): ..."
                     ),
@@ -1103,18 +943,18 @@ class AgentInformationalGraphIndex(Datasource):
                 juxtaposed_docs={
                     "doc_path": str(self.staging_manager.manifest_path),
                     "doc_type": "staging_manifest",
-                    "doc_section": "Unified Qdrant Staging & Cross-Environment Sync Architecture",
+                    "doc_section": "Unified PostgreSQL pgvector Staging & Cross-Environment Sync Architecture",
                     "doc_excerpt": (
-                        f"Unified Qdrant staging directory containing {unified_manifest.get('total_collections', 6)} "
-                        f"collections and {unified_manifest.get('total_staged_points', 0)} staged points across "
-                        "portfolio, neural_networks, and agent_informational_graph_index."
+                        f"Unified pgvector staging hub containing {unified_manifest.get('total_collections', 6)} "
+                        f"collections and {unified_manifest.get('total_staged_points', 0)} PPS-embedded points across "
+                        "portfolio, neural_networks, harnesses, and agent_informational_graph_index."
                     ),
-                    "related_ki_ids": [x["ki_id"] for x in ki_lookup.get("qdrant", [])[:4]],
+                    "related_ki_ids": [x["ki_id"] for x in ki_lookup.get("pgvector", [])[:4]],
                 },
-                qdrant_namespace=INFORMATIONAL_COLLECTION_NAME,
-                staging_path=str(self.staging_manager.storage_dir),
+                vector_namespace=INFORMATIONAL_COLLECTION_NAME,
+                staging_path=str(self.staging_root),
                 hierarchy_level=0,
-                tags=["qdrant", "staging", "sync", "unified", "wayfinding", "root"],
+                tags=["pgvector", "postgres", "staging", "sync", "unified", "wayfinding", "root"],
             )
         )
 
@@ -1123,7 +963,7 @@ class AgentInformationalGraphIndex(Datasource):
             (
                 "components",
                 "Shared React 19 & MUI v6 Meta-Components Library",
-                "INVARIANT: Keep /Users/jarek/IdeaProjects/components in place; consumed by portfolio frontend.",
+                "INVARIANT: Keep /Users/jarek/IdeaProjects/components in place; consumed by portfolio and agent_brain frontends.",
                 "components/src/index.ts",
                 "components/package.json",
                 "portfolio_wiki_chunks",
@@ -1147,8 +987,8 @@ class AgentInformationalGraphIndex(Datasource):
             (
                 "neural_networks",
                 "Cohesive-Manifold & Quantum-Inspired Neural Architectures + Promoted Gauntlet Model",
-                "INVARIANT: Keep /Users/jarek/IdeaProjects/neural_networks in place; promoted model in promoted/.",
-                "neural_networks/promoted/promoted_model.py",
+                "INVARIANT: Keep /Users/jarek/IdeaProjects/neural_networks and /Users/jarek/IdeaProjects/PolyphonicModel in place.",
+                "PolyphonicModel/promoted/promoted_model.py",
                 "neural_networks/README.md",
                 "neural_networks_code_corpus",
             ),
@@ -1156,7 +996,7 @@ class AgentInformationalGraphIndex(Datasource):
                 "large_tools",
                 "Large-Scale Auxiliary Engineering & Pipeline Utilities",
                 "INVARIANT: Sibling repository at /Users/jarek/IdeaProjects/large_tools.",
-                "large_tools",
+                "large_tools/PROJECT.md",
                 str(self.skill_md_path),
                 INFORMATIONAL_COLLECTION_NAME,
             ),
@@ -1164,8 +1004,8 @@ class AgentInformationalGraphIndex(Datasource):
                 "StageCompiler-development",
                 "StageCompiler Compiler & Symbolic Phase Language Development Repository",
                 "INVARIANT: Sibling repository at /Users/jarek/IdeaProjects/StageCompiler-development.",
-                "StageCompiler-development/README.md",
-                "StageCompiler-development/README.md",
+                "StageCompiler-development/AGENTS.md",
+                "StageCompiler-development/AGENTS.md",
                 INFORMATIONAL_COLLECTION_NAME,
             ),
         ]
@@ -1217,8 +1057,8 @@ class AgentInformationalGraphIndex(Datasource):
                             x["ki_id"] for x in ki_lookup.get(repo_name.split("_")[0].lower(), [])[:4]
                         ],
                     },
-                    qdrant_namespace=default_ns,
-                    staging_path=str(self.staging_manager.storage_dir / "collection" / default_ns),
+                    vector_namespace=default_ns,
+                    staging_path=f"pgvector://vectors/{default_ns}",
                     hierarchy_level=1,
                     tags=["repository", repo_name, "keep_in_place"],
                 )
@@ -1228,34 +1068,34 @@ class AgentInformationalGraphIndex(Datasource):
                 staging_node_id,
                 "UNIFIED_INTO_STAGING",
                 weight=1.0,
-                rationale=f"Repository {repo_name} indexes are unified in {self.staging_root}",
+                rationale=f"Repository {repo_name} indexes are unified in PostgreSQL vectors DB and {self.staging_root}",
             )
 
-        # --- 2. Unified Qdrant Namespaces (Collections) ---
+        # --- 2. Unified PostgreSQL pgvector Namespaces (Collections) ---
         namespace_docs = {
             "portfolio_wiki_chunks": (
                 "portfolio",
                 "Portfolio Dynamic Skill Wiki & Knowledge Item Chunks Namespace",
-                "portfolio/portfolio/python/portfoliolib/service/qdrant_graph_service.py",
-                "Stores lossless overlapping 384-D vector chunks of SKILL.md, 37 toolset modules, and Knowledge Items.",
+                "portfolio/portfolio/python/portfoliolib/service/postgres_graph_service.py",
+                "Stores lossless overlapping 384-D PPS vector chunks of SKILL.md, 37 toolset modules, and Knowledge Items.",
             ),
             "portfolio_neural_benchmarks": (
                 "portfolio",
                 "Neural Benchmarks Gauntlet Leaderboard & Promoted Model Namespace",
                 "toolset/src/benchmark_ledger/ledger.py",
-                "Stores all 25 gauntlet neural architecture models (with PolyphonicStageCompilerCascadeModel promoted at Rank #1 alongside CohesiveUnifiedMonadicCavityModel) and 12 benchmark tasks.",
+                "Stores all gauntlet neural architecture models (with PolyphonicStageCompilerCascadeModel promoted at Rank #1 alongside CohesiveUnifiedMonadicCavityModel) and 12 benchmark tasks.",
             ),
             "portfolio_antigravity_brain": (
                 "portfolio",
                 "Antigravity Agent Brain Conversations & Artifacts Namespace",
-                "portfolio/portfolio/python/portfoliolib/service/antigravity_brain_service.py",
+                "agent_brain/src/agent_brain/core/brain/antigravity_brain_service.py",
                 "Stores periodically indexed agent transcripts, user/agent turns, and markdown/mermaid artifacts via FSBase.",
             ),
             "neural_networks_code_corpus": (
                 "neural_networks",
                 "Neural Networks AST & Markdown Code Corpus Namespace",
                 "toolset/src/indexes/code_index/code_index.py",
-                "Stores 5,330+ AST-chunked Python modules, classes, functions, and tests from /Users/jarek/IdeaProjects/neural_networks.",
+                "Stores AST-chunked Python modules, classes, functions, and tests from /Users/jarek/IdeaProjects/neural_networks.",
             ),
             "code_corpus_temporal_index": (
                 "neural_networks",
@@ -1264,31 +1104,30 @@ class AgentInformationalGraphIndex(Datasource):
                 "Temporal git commit & evolution namespace associated with CodeCorpusIndex.",
             ),
             INFORMATIONAL_COLLECTION_NAME: (
-                "qdrant_staging",
+                "vector_staging",
                 "Agent Juxtaposed Code + Documentation Informational Graph Namespace",
                 "toolset/src/indexes/informational_index/informational_index.py",
-                "Maps and juxtaposes every repo, UI element, toolset index, module, and Qdrant namespace with its documentation and graph edges.",
+                "Maps and juxtaposes every repo, UI element, toolset index, module, and pgvector namespace with its documentation and graph edges.",
             ),
         }
 
         collections_manifest = unified_manifest.get("collections", {})
         for ns_name, (ns_repo, ns_title, ns_code_rel, ns_desc) in namespace_docs.items():
-            ns_node_id = f"qdrant_ns:{ns_name}"
+            ns_node_id = f"vector_ns:{ns_name}"
             coll_info = collections_manifest.get(ns_name, {})
-            staged_sqlite = self.staging_manager.storage_dir / "collection" / ns_name / "storage.sqlite"
             code_file = self.idea_projects_root / ns_code_rel
             syms, doc_str, excerpt, sha = self._extract_python_symbols_and_doc(code_file)
             add_node(
                 JuxtaposedNode(
                     node_id=ns_node_id,
-                    node_type="qdrant_namespace",
+                    node_type="vector_namespace",
                     title=ns_title,
                     idiomatic_name=ns_name,
                     repo_name=ns_repo,
                     keep_in_place=True,
                     placement_directive=(
-                        f"UNIFIED_STAGING_NAMESPACE: Source repo '{ns_repo}' collection '{ns_name}' "
-                        f"is permanently unified at {staged_sqlite} and syncable across environments."
+                        f"UNIFIED_PGVECTOR_NAMESPACE: Source repo '{ns_repo}' collection '{ns_name}' "
+                        "is permanently stored in Minikube PostgreSQL `vectors` DB (`pps_vector_points`)."
                     ),
                     juxtaposed_code={
                         "code_path": str(code_file),
@@ -1301,17 +1140,17 @@ class AgentInformationalGraphIndex(Datasource):
                     juxtaposed_docs={
                         "doc_path": str(self.staging_manager.manifest_path),
                         "doc_type": "staging_manifest",
-                        "doc_section": f"Qdrant Namespace: {ns_name}",
+                        "doc_section": f"PGVector Namespace: {ns_name}",
                         "doc_excerpt": (
                             f"{ns_desc} Staged points: {coll_info.get('staged_points', 'active')}. "
                             f"Vector dimension: {coll_info.get('vector_size', DEFAULT_VECTOR_SIZE)}."
                         ),
-                        "related_ki_ids": [x["ki_id"] for x in ki_lookup.get("qdrant", [])[:3]],
+                        "related_ki_ids": [x["ki_id"] for x in ki_lookup.get("pgvector", [])[:3]],
                     },
-                    qdrant_namespace=ns_name,
-                    staging_path=str(staged_sqlite),
+                    vector_namespace=ns_name,
+                    staging_path=f"pgvector://vectors/{ns_name}",
                     hierarchy_level=1,
-                    tags=["qdrant_namespace", ns_name, ns_repo, "staging"],
+                    tags=["vector_namespace", "pgvector", ns_name, ns_repo, "staging"],
                 )
             )
             add_edge(
@@ -1319,7 +1158,7 @@ class AgentInformationalGraphIndex(Datasource):
                 staging_node_id,
                 "UNIFIED_INTO_STAGING",
                 weight=1.0,
-                rationale=f"Collection {ns_name} is stored in unified staging directory {self.staging_manager.storage_dir}",
+                rationale=f"Collection {ns_name} is stored in unified PostgreSQL vectors DB",
             )
             if f"repo:{ns_repo}" in nodes_by_id:
                 add_edge(
@@ -1375,12 +1214,12 @@ class AgentInformationalGraphIndex(Datasource):
                             "doc_excerpt": (
                                 jsdoc
                                 or f"Reusable React 19 + MUI v6 meta-component `{comp_name}` exported from "
-                                "`/Users/jarek/IdeaProjects/components/src/index.ts` and consumed by `portfolio`."
+                                "`/Users/jarek/IdeaProjects/components/src/index.ts` and consumed by `portfolio` and `agent_brain`."
                             ),
                             "related_ki_ids": [x["ki_id"] for x in ki_lookup.get("components", [])[:3]],
                         },
-                        qdrant_namespace=INFORMATIONAL_COLLECTION_NAME,
-                        staging_path=str(self.staging_manager.storage_dir),
+                        vector_namespace=INFORMATIONAL_COLLECTION_NAME,
+                        staging_path=str(self.staging_root),
                         hierarchy_level=3,
                         tags=["ui_component", "components", "keep_in_place", comp_name.lower()],
                     )
@@ -1393,20 +1232,22 @@ class AgentInformationalGraphIndex(Datasource):
                     rationale=f"{comp_name} is permanently resident in /Users/jarek/IdeaProjects/components",
                 )
 
-        # --- 4. Portfolio UI Elements in /Users/jarek/IdeaProjects/portfolio/portfolio/react/src (MUST STAY IN PLACE) ---
+        # --- 4. Portfolio & Agent Brain UI Elements (MUST STAY IN PLACE) ---
         portfolio_react_src = self.idea_projects_root / "portfolio" / "portfolio" / "react" / "src"
         portfolio_ui_files = list(sorted((portfolio_react_src / "components").glob("*.tsx")))
         if (portfolio_react_src / "App.tsx").is_file():
             portfolio_ui_files.insert(0, portfolio_react_src / "App.tsx")
 
         ui_to_namespace_map = {
-            "BenchmarksSection": "portfolio_neural_benchmarks",
-            "AntigravityBrainSection": "portfolio_antigravity_brain",
-            "WikiArchitectureSection": "portfolio_wiki_chunks",
-            "QdrantGraphSection": "portfolio_wiki_chunks",
-            "ToolsetGridSection": "portfolio_wiki_chunks",
-            "SourceInspectorDrawer": "portfolio_wiki_chunks",
-            "HeroHeader": "portfolio_wiki_chunks",
+            "MlExamplesSection": "portfolio_neural_benchmarks",
+            "ModelsView": "portfolio_neural_benchmarks",
+            "BrainView": "portfolio_antigravity_brain",
+            "PromotedView": "portfolio_neural_benchmarks",
+            "DataPipelineSection": "portfolio_wiki_chunks",
+            "OcrPipelineSection": "portfolio_wiki_chunks",
+            "OverviewSection": "portfolio_wiki_chunks",
+            "SettingsSection": "portfolio_wiki_chunks",
+            "SocialMediaSection": "portfolio_wiki_chunks",
             "App": "portfolio_wiki_chunks",
         }
 
@@ -1419,16 +1260,9 @@ class AgentInformationalGraphIndex(Datasource):
             backing_ns = ui_to_namespace_map.get(comp_name, "portfolio_wiki_chunks")
 
             ui_doc_notes = {
-                "BenchmarksSection": (
-                    "Renders the Neural Benchmarks Leaderboard with the promoted gauntlet model "
-                    "(`PolyphonicStageCompilerCascadeModel` / `Cohesive-Manifold Unified Monadic Cavity`) "
-                    "pinned at Rank #1 in a compact quarter-inch (0.26in) pseudo-column row layout "
-                    "with metrics (Accuracy, Best Val Loss, Latency, Speedup, Params) and zero badges."
-                ),
-                "AntigravityBrainSection": (
-                    "Renders the Antigravity Brain live conversation tabs using the shared `AsyncChatWindow` "
-                    "single-card component with clean timestamps, collapsible agent thoughts, bottom-sticky "
-                    "auto-refresh pause on scroll-up, and artifact modals."
+                "MlExamplesSection": (
+                    "Renders the Portfolio ML & Neural Benchmarks overview backed by PostgreSQL pgvector "
+                    "(`portfolio_neural_benchmarks`) with PPS hyperbolic embeddings."
                 ),
                 "ThreeJsBackground": (
                     "Renders the Spinor Strut Lattice (SSL-SDF) real-time 3D Signed Distance Field "
@@ -1478,10 +1312,8 @@ class AgentInformationalGraphIndex(Datasource):
                         "doc_excerpt": ui_doc_notes,
                         "related_ki_ids": [x["ki_id"] for x in ki_lookup.get("portfolio", [])[:3]],
                     },
-                    qdrant_namespace=backing_ns,
-                    staging_path=str(
-                        self.staging_manager.storage_dir / "collection" / backing_ns / "storage.sqlite"
-                    ),
+                    vector_namespace=backing_ns,
+                    staging_path=f"pgvector://vectors/{backing_ns}",
                     hierarchy_level=3,
                     tags=["ui_component", "portfolio", "keep_in_place", comp_name.lower(), *extra_ui_tags],
                 )
@@ -1495,12 +1327,11 @@ class AgentInformationalGraphIndex(Datasource):
             )
             add_edge(
                 node_id,
-                f"qdrant_ns:{backing_ns}",
+                f"vector_ns:{backing_ns}",
                 "INDEXED_IN_NAMESPACE",
                 weight=0.95,
-                rationale=f"UI element {comp_name} visualizes data from Qdrant namespace {backing_ns}",
+                rationale=f"UI element {comp_name} visualizes data from pgvector namespace {backing_ns}",
             )
-            # Link any imported shared components from `/Users/jarek/IdeaProjects/components`
             for shared_node_id, shared_node in list(nodes_by_id.items()):
                 if shared_node.repo_name == "components" and shared_node.idiomatic_name in raw_tsx:
                     add_edge(
@@ -1510,6 +1341,72 @@ class AgentInformationalGraphIndex(Datasource):
                         weight=0.95,
                         rationale=f"Portfolio {comp_name} imports shared component {shared_node.idiomatic_name} from /Users/jarek/IdeaProjects/components",
                     )
+
+        # Register key Agent Brain UI views (`ModelsView`, `BrainView`, `PromotedView`) that consume pgvector namespaces & AsyncChatWindow
+        agent_brain_views_dir = self.idea_projects_root / "agent_brain" / "ui" / "src" / "views"
+        for view_stem, view_ns, view_desc in (
+            (
+                "ModelsView",
+                "portfolio_neural_benchmarks",
+                "Renders the Neural Benchmarks Leaderboard with the promoted gauntlet model pinned at Rank #1.",
+            ),
+            (
+                "BrainView",
+                "portfolio_antigravity_brain",
+                "Renders Antigravity Brain conversation tabs using shared AsyncChatWindow.",
+            ),
+            (
+                "PromotedView",
+                "portfolio_neural_benchmarks",
+                "Renders pgvector provenance, PromotedModelHarness source, FSBase explorer, and live WebSocket chat via AsyncChatWindow.",
+            ),
+        ):
+            v_file = agent_brain_views_dir / f"{view_stem}.tsx"
+            if not v_file.is_file():
+                continue
+            v_node_id = f"ui:portfolio:{view_stem}"
+            syms, jsdoc, excerpt, sha = self._extract_tsx_symbols_and_excerpt(v_file)
+            rel_p = str(v_file.relative_to(self.idea_projects_root))
+            add_node(
+                JuxtaposedNode(
+                    node_id=v_node_id,
+                    node_type="ui_component",
+                    title=f"Workbench UI View: {view_stem}",
+                    idiomatic_name=view_stem,
+                    repo_name="portfolio",
+                    keep_in_place=True,
+                    placement_directive=f"INVARIANT: Keep UI view in place at {v_file}.",
+                    juxtaposed_code={
+                        "code_path": str(v_file),
+                        "relative_path": rel_p,
+                        "language": "tsx",
+                        "exported_symbols": syms or [view_stem],
+                        "code_excerpt": excerpt,
+                        "sha256": sha,
+                    },
+                    juxtaposed_docs={
+                        "doc_path": str(self.idea_projects_root / "portfolio" / "portfolio" / "settings.yaml"),
+                        "doc_type": "settings_yaml",
+                        "doc_section": f"UI View: {view_stem}",
+                        "doc_excerpt": jsdoc or view_desc,
+                        "related_ki_ids": [x["ki_id"] for x in ki_lookup.get("portfolio", [])[:3]],
+                    },
+                    vector_namespace=view_ns,
+                    staging_path=f"pgvector://vectors/{view_ns}",
+                    hierarchy_level=3,
+                    tags=["ui_component", "portfolio", "agent_brain", "keep_in_place", view_stem.lower()],
+                )
+            )
+            add_edge(v_node_id, "repo:portfolio", "RESIDES_IN_REPO", weight=1.0, rationale=f"{view_stem} in {rel_p}")
+            add_edge(v_node_id, f"vector_ns:{view_ns}", "INDEXED_IN_NAMESPACE", weight=0.95, rationale=f"{view_stem} visualizes {view_ns}")
+            if "ui:components:AsyncChatWindow" in nodes_by_id and view_stem in ("BrainView", "PromotedView"):
+                add_edge(
+                    v_node_id,
+                    "ui:components:AsyncChatWindow",
+                    "CONSUMES_UI_PACKAGE",
+                    weight=0.95,
+                    rationale=f"{view_stem} streams chat via shared AsyncChatWindow",
+                )
 
         # --- 5. All Toolset Index Classes in /Users/jarek/IdeaProjects/toolset/src/indexes (KEEP IN PLACE) ---
         indexes_dir = self.idea_projects_root / "toolset" / "src" / "indexes"
@@ -1548,7 +1445,7 @@ class AgentInformationalGraphIndex(Datasource):
                         keep_in_place=True,
                         placement_directive=(
                             f"INVARIANT: Keep index implementation in place at {py_file} "
-                            "and unify its Qdrant backing store via /Users/jarek/IdeaProjects/qdrant_staging."
+                            "and unify its pgvector backing store via PostgreSQL `vectors` DB."
                         ),
                         juxtaposed_code={
                             "code_path": str(py_file),
@@ -1570,10 +1467,8 @@ class AgentInformationalGraphIndex(Datasource):
                             ).strip()[:900],
                             "related_ki_ids": [x["ki_id"] for x in ki_lookup.get("indexes", [])[:4]],
                         },
-                        qdrant_namespace=backing_ns,
-                        staging_path=str(
-                            self.staging_manager.storage_dir / "collection" / backing_ns / "storage.sqlite"
-                        ),
+                        vector_namespace=backing_ns,
+                        staging_path=f"pgvector://vectors/{backing_ns}",
                         hierarchy_level=2,
                         tags=["toolset_index", "indexes", sub_dir.name, primary_cls.lower(), "keep_in_place"],
                     )
@@ -1587,10 +1482,10 @@ class AgentInformationalGraphIndex(Datasource):
                 )
                 add_edge(
                     idx_node_id,
-                    f"qdrant_ns:{backing_ns}",
+                    f"vector_ns:{backing_ns}",
                     "INDEXED_IN_NAMESPACE",
                     weight=0.95,
-                    rationale=f"Index {primary_cls} is indexed/backed by Qdrant namespace {backing_ns}",
+                    rationale=f"Index {primary_cls} is indexed/backed by pgvector namespace {backing_ns}",
                 )
                 add_edge(
                     idx_node_id,
@@ -1664,10 +1559,8 @@ class AgentInformationalGraphIndex(Datasource):
                             ).strip()[:900],
                             "related_ki_ids": [x["ki_id"] for x in ki_lookup.get("toolset", [])[:3]],
                         },
-                        qdrant_namespace=backing_ns,
-                        staging_path=str(
-                            self.staging_manager.storage_dir / "collection" / backing_ns / "storage.sqlite"
-                        ),
+                        vector_namespace=backing_ns,
+                        staging_path=f"pgvector://vectors/{backing_ns}",
                         hierarchy_level=2,
                         tags=["toolset_module", pkg_name, "skill_md", "keep_in_place"],
                     )
@@ -1681,7 +1574,7 @@ class AgentInformationalGraphIndex(Datasource):
                 )
                 add_edge(
                     mod_node_id,
-                    f"qdrant_ns:{backing_ns}",
+                    f"vector_ns:{backing_ns}",
                     "INDEXED_IN_NAMESPACE",
                     weight=0.9,
                     rationale=f"Package {pkg_name} documentation and AST chunks are indexed in {backing_ns}",
@@ -1689,28 +1582,23 @@ class AgentInformationalGraphIndex(Datasource):
 
         # --- 7. Promoted Neural Gauntlet Model & Separated Architecture Packages (Cross-Repo Wayfinding) ---
         promoted_model_path = (
-            self.idea_projects_root / "neural_networks" / "promoted" / "promoted_model.py"
+            self.idea_projects_root / "PolyphonicModel" / "promoted" / "promoted_model.py"
         )
-        promoted_manifest_path = (
-            self.idea_projects_root / "neural_networks" / "promoted" / "promoted_manifest.json"
-        )
+        if not promoted_model_path.is_file():
+            promoted_model_path = (
+                self.idea_projects_root / "neural_networks" / "promoted" / "promoted_model.py"
+            )
+        promoted_manifest_path = promoted_model_path.parent / "promoted_manifest.json"
         promoted_harness_path = (
             self.idea_projects_root
-            / "agent_brain"
+            / "harnesses"
             / "src"
-            / "agent_brain"
-            / "harness"
+            / "agent_harnesses"
             / "model_harness"
             / "core.py"
         )
         if not promoted_harness_path.is_file():
-            promoted_harness_path = (
-                self.idea_projects_root / "neural_networks" / "src" / "model_harness" / "core.py"
-            )
-        if not promoted_harness_path.is_file():
-            promoted_harness_path = (
-                self.idea_projects_root / "neural_networks" / "promoted" / "harness.py"
-            )
+            promoted_harness_path = promoted_model_path
         if promoted_model_path.is_file():
             prom_manifest: Dict[str, Any] = {}
             if promoted_manifest_path.is_file():
@@ -1718,110 +1606,139 @@ class AgentInformationalGraphIndex(Datasource):
                     prom_manifest = json.loads(promoted_manifest_path.read_text(encoding="utf-8"))
                 except Exception:
                     prom_manifest = {}
-            prom_cls = str(
-                prom_manifest.get("class_name") or "PolyphonicStageCompilerCascadeModel"
+            prom_cls = mask_restricted_string(
+                str(prom_manifest.get("class_name") or "PolyphonicStageCompilerCascadeModel")
             )
-            prom_title = str(
-                prom_manifest.get("model_name")
-                or "PolyphonicStageCompilerCascadeModel (Stage-1 Compiler + ISA Spectral-AST Gate + Cohesive-Manifold Wave Cascade)"
+            prom_title = mask_restricted_string(
+                str(
+                    prom_manifest.get("model_name")
+                    or "PolyphonicStageCompilerCascadeModel (Stage-1 Compiler + ISA Spectral-AST Gate + Cohesive-Manifold Wave Cascade)"
+                )
             )
             syms, doc_str, excerpt, sha = self._extract_python_symbols_and_doc(promoted_model_path)
             h_syms, h_doc, _h_excerpt, _ = self._extract_python_symbols_and_doc(promoted_harness_path)
-            prom_node_id = f"model:neural_networks:{prom_cls}"
-            add_node(
-                JuxtaposedNode(
-                    node_id=prom_node_id,
-                    node_type="promoted_model",
-                    title=f"{prom_title} (Promoted #1 Gauntlet Model)",
-                    idiomatic_name=prom_cls,
-                    repo_name="neural_networks",
-                    keep_in_place=True,
-                    placement_directive=(
-                        f"INVARIANT: Keep promoted gauntlet model files in {promoted_model_path.parent} "
-                        "and pin at Rank #1 in portfolio_neural_benchmarks."
-                    ),
-                    juxtaposed_code={
-                        "code_path": str(promoted_model_path),
-                        "relative_path": "neural_networks/promoted/promoted_model.py",
-                        "language": "python",
-                        "exported_symbols": list(dict.fromkeys([prom_cls] + syms + h_syms))
-                        or [prom_cls, "PromotedModelHarness"],
-                        "code_excerpt": excerpt,
-                        "sha256": sha,
-                    },
-                    juxtaposed_docs={
-                        "doc_path": str(promoted_harness_path),
-                        "doc_type": "docstring",
-                        "doc_section": "Promoted Gauntlet Winner Architecture & Harness",
-                        "doc_excerpt": f"{doc_str}\n\n{h_doc}".strip()[:850],
-                        "related_ki_ids": [x["ki_id"] for x in ki_lookup.get("neural", [])[:3]],
-                    },
-                    qdrant_namespace="portfolio_neural_benchmarks",
-                    staging_path=str(
-                        self.staging_manager.storage_dir
-                        / "collection"
-                        / "portfolio_neural_benchmarks"
-                        / "storage.sqlite"
-                    ),
-                    hierarchy_level=2,
-                    tags=[
-                        "promoted_model",
-                        "gauntlet",
-                        "stage_compiler",
-                        "cohesive_manifold",
-                        "PinnedRank1",
-                        "neural_networks",
-                    ],
+            promoted_specs: list[tuple[str, str]] = [(prom_cls, prom_title)]
+            if prom_cls != "PolyphonicStageCompilerCascadeModel":
+                promoted_specs.append(
+                    (
+                        "PolyphonicStageCompilerCascadeModel",
+                        "PolyphonicStageCompilerCascadeModel (Stage-1 Compiler + ISA Spectral-AST Gate + Cohesive-Manifold Wave Cascade)",
+                    )
                 )
-            )
-            add_edge(
-                prom_node_id,
-                "repo:neural_networks",
-                "RESIDES_IN_REPO",
-                weight=1.0,
-                rationale="Promoted gauntlet model lives in /Users/jarek/IdeaProjects/neural_networks/promoted",
-            )
-            add_edge(
-                prom_node_id,
-                "module:toolset:benchmark_ledger",
-                "WAYFINDING_NEXT_HOP",
-                weight=1.0,
-                rationale="BenchmarkLedger loads promoted_manifest.json via FSBase and pins it at Rank #1",
-            )
-            add_edge(
-                "module:toolset:benchmark_ledger",
-                "ui:portfolio:BenchmarksSection",
-                "WAYFINDING_NEXT_HOP",
-                weight=1.0,
-                rationale="BenchmarksSection.tsx renders the pinned promoted model in quarter-inch pseudo-column rows",
-            )
-            add_edge(
-                prom_node_id,
-                "qdrant_ns:portfolio_neural_benchmarks",
-                "INDEXED_IN_NAMESPACE",
-                weight=1.0,
-                rationale="Indexed alongside all 25 gauntlet models in portfolio_neural_benchmarks",
-            )
+            for spec_cls, spec_title in promoted_specs:
+                prom_node_id = f"model:neural_networks:{spec_cls}"
+                add_node(
+                    JuxtaposedNode(
+                        node_id=prom_node_id,
+                        node_type="promoted_model",
+                        title=f"{spec_title} (Promoted #1 Gauntlet Model)",
+                        idiomatic_name=spec_cls,
+                        repo_name="neural_networks",
+                        keep_in_place=True,
+                        placement_directive=(
+                            f"INVARIANT: Keep promoted gauntlet model files in {promoted_model_path.parent} "
+                            "and pin at Rank #1 in portfolio_neural_benchmarks."
+                        ),
+                        juxtaposed_code={
+                            "code_path": str(promoted_model_path),
+                            "relative_path": str(promoted_model_path.relative_to(self.idea_projects_root)),
+                            "language": "python",
+                            "exported_symbols": list(dict.fromkeys([spec_cls] + syms + h_syms))
+                            or [spec_cls, "PromotedModelHarness"],
+                            "code_excerpt": excerpt,
+                            "sha256": sha,
+                        },
+                        juxtaposed_docs={
+                            "doc_path": str(promoted_harness_path),
+                            "doc_type": "docstring",
+                            "doc_section": "Promoted Gauntlet Winner Architecture & Harness",
+                            "doc_excerpt": f"{doc_str}\n\n{h_doc}".strip()[:850],
+                            "related_ki_ids": [x["ki_id"] for x in ki_lookup.get("neural", [])[:3]],
+                        },
+                        vector_namespace="portfolio_neural_benchmarks",
+                        staging_path="pgvector://vectors/portfolio_neural_benchmarks",
+                        hierarchy_level=2,
+                        tags=[
+                            "promoted_model",
+                            "gauntlet",
+                            "stage_compiler",
+                            "cohesive_manifold",
+                            "PinnedRank1",
+                            "neural_networks",
+                        ],
+                    )
+                )
+                add_edge(
+                    prom_node_id,
+                    "repo:neural_networks",
+                    "RESIDES_IN_REPO",
+                    weight=1.0,
+                    rationale=f"Promoted gauntlet model lives in {promoted_model_path.parent}",
+                )
+                add_edge(
+                    prom_node_id,
+                    "module:toolset:benchmark_ledger",
+                    "WAYFINDING_NEXT_HOP",
+                    weight=1.0,
+                    rationale="BenchmarkLedger loads promoted_manifest.json via FSBase and pins it at Rank #1",
+                )
+                add_edge(
+                    prom_node_id,
+                    "vector_ns:portfolio_neural_benchmarks",
+                    "INDEXED_IN_NAMESPACE",
+                    weight=1.0,
+                    rationale="Indexed alongside all gauntlet models in portfolio_neural_benchmarks",
+                )
+            for target_bench_ui in ("ui:portfolio:ModelsView", "ui:portfolio:MlExamplesSection"):
+                if target_bench_ui in nodes_by_id:
+                    add_edge(
+                        "module:toolset:benchmark_ledger",
+                        target_bench_ui,
+                        "WAYFINDING_NEXT_HOP",
+                        weight=1.0,
+                        rationale=f"{target_bench_ui} renders the pinned promoted model from portfolio_neural_benchmarks",
+                    )
 
         # Dedicated nodes for separated `stage_compiler` and `monadic_cavity` packages
+        sc_model_file = (
+            self.idea_projects_root
+            / "PolyphonicModel"
+            / "src"
+            / "models"
+            / "phaselang_compiler"
+            / "phaselang_compiler_model.py"
+        )
+        sc_bench_file = (
+            self.idea_projects_root
+            / "PolyphonicModel"
+            / "src"
+            / "models"
+            / "phaselang_compiler"
+            / "benchmark_phaselang_compiler.py"
+        )
+        mc_model_file = (
+            self.idea_projects_root
+            / "MonadicCavity"
+            / "src"
+            / "monadic_cavity"
+            / "monadic_cavity_models.py"
+        )
+        mc_bench_file = (
+            self.idea_projects_root
+            / "PolyphonicModel"
+            / "src"
+            / "models"
+            / "monadic_cavity"
+            / "benchmark_monadic_cavity.py"
+        )
         neural_arch_specs = [
             (
                 "model_pkg:neural_networks:stage_compiler",
                 "neural_architecture_package",
-                "StageCompiler Cohesive Compiler Cascade Package (src/models/stage_compiler)",
+                "StageCompiler Cohesive Compiler Cascade Package",
                 "stage_compiler",
-                self.idea_projects_root
-                / "neural_networks"
-                / "src"
-                / "models"
-                / "stage_compiler"
-                / "stage_compiler_model.py",
-                self.idea_projects_root
-                / "neural_networks"
-                / "src"
-                / "models"
-                / "stage_compiler"
-                / "benchmark_stage_compiler.py",
+                sc_model_file,
+                sc_bench_file,
                 [
                     "stage_compiler",
                     "PolyphonicStageCompilerCascadeModel",
@@ -1833,20 +1750,10 @@ class AgentInformationalGraphIndex(Datasource):
             (
                 "model_pkg:neural_networks:monadic_cavity",
                 "neural_architecture_package",
-                "Monadic Cavity Architecture Package (src/models/monadic_cavity)",
+                "Monadic Cavity Architecture Package",
                 "monadic_cavity",
-                self.idea_projects_root
-                / "neural_networks"
-                / "src"
-                / "models"
-                / "monadic_cavity"
-                / "monadic_cavity_models.py",
-                self.idea_projects_root
-                / "neural_networks"
-                / "src"
-                / "models"
-                / "monadic_cavity"
-                / "benchmark_monadic_cavity.py",
+                mc_model_file,
+                mc_bench_file,
                 [
                     "monadic_cavity",
                     "CohesiveUnifiedMonadicCavityModel",
@@ -1858,20 +1765,10 @@ class AgentInformationalGraphIndex(Datasource):
             (
                 "model:neural_networks:CohesiveUnifiedMonadicCavityModel",
                 "neural_architecture_package",
-                "Cohesive-Manifold Unified Monadic Cavity (src/models/monadic_cavity)",
+                "Cohesive-Manifold Unified Monadic Cavity",
                 "CohesiveUnifiedMonadicCavityModel",
-                self.idea_projects_root
-                / "neural_networks"
-                / "src"
-                / "models"
-                / "monadic_cavity"
-                / "monadic_cavity_models.py",
-                self.idea_projects_root
-                / "neural_networks"
-                / "src"
-                / "models"
-                / "monadic_cavity"
-                / "benchmark_monadic_cavity.py",
+                mc_model_file,
+                mc_bench_file,
                 ["monadic_cavity", "cohesive_manifold", "vcpu", "neural_networks"],
             ),
         ]
@@ -1916,13 +1813,8 @@ class AgentInformationalGraphIndex(Datasource):
                         "doc_excerpt": f"{a_doc}\n\n{b_doc}".strip()[:850],
                         "related_ki_ids": [x["ki_id"] for x in ki_lookup.get("neural", [])[:3]],
                     },
-                    qdrant_namespace="portfolio_neural_benchmarks",
-                    staging_path=str(
-                        self.staging_manager.storage_dir
-                        / "collection"
-                        / "portfolio_neural_benchmarks"
-                        / "storage.sqlite"
-                    ),
+                    vector_namespace="portfolio_neural_benchmarks",
+                    staging_path="pgvector://vectors/portfolio_neural_benchmarks",
                     hierarchy_level=2,
                     tags=arch_tags,
                 )
@@ -1943,27 +1835,27 @@ class AgentInformationalGraphIndex(Datasource):
             )
             add_edge(
                 arch_node_id,
-                "qdrant_ns:portfolio_neural_benchmarks",
+                "vector_ns:portfolio_neural_benchmarks",
                 "INDEXED_IN_NAMESPACE",
                 weight=1.0,
                 rationale=f"{arch_idiomatic} is indexed in portfolio_neural_benchmarks",
             )
             add_edge(
                 arch_node_id,
-                "qdrant_ns:neural_networks_code_corpus",
+                "vector_ns:neural_networks_code_corpus",
                 "INDEXED_IN_NAMESPACE",
                 weight=0.95,
                 rationale=f"{rel_arch} AST chunks are indexed in neural_networks_code_corpus",
             )
 
         # Link key cross-repo wayfinding hops for Antigravity Brain and Wiki
-        if "ui:portfolio:AntigravityBrainSection" in nodes_by_id and "ui:components:AsyncChatWindow" in nodes_by_id:
+        if "ui:portfolio:BrainView" in nodes_by_id:
             add_edge(
-                "qdrant_ns:portfolio_antigravity_brain",
-                "ui:portfolio:AntigravityBrainSection",
+                "vector_ns:portfolio_antigravity_brain",
+                "ui:portfolio:BrainView",
                 "WAYFINDING_NEXT_HOP",
                 weight=1.0,
-                rationale="AntigravityBrainSection queries portfolio_antigravity_brain and renders conversations in AsyncChatWindow",
+                rationale="BrainView queries portfolio_antigravity_brain and renders conversations in AsyncChatWindow",
             )
         if "index:toolset:informational_index" in nodes_by_id:
             add_edge(
@@ -2028,14 +1920,14 @@ class AgentInformationalGraphIndex(Datasource):
                 1,
                 ["design", "cohesive", "rns_register", "hypervisor", "memory", "spec"],
             ),
-            # Compiler Pipeline (Stages 2..4: Stage-0 Bootstrap -> Stage-1 Ingress/Parser/Symbols/MCC/vCPU/Emitter/Linker -> Mach-O)
+            # Compiler Pipeline (Stages 2..4)
             (
                 "compiler:stage_compiler:stage0_bootstrap",
                 "compiler_stage",
-                "StageCompiler Stage-0 Bootstrap Compiler (stage0/compiler_v2.py)",
+                "StageCompiler Stage-0 Bootstrap Compiler (stage0/compile.py)",
                 "stage0_compiler_v2",
                 "large_tools",
-                self.idea_projects_root / "large_tools" / "stage-compiler" / "stage0" / "compiler_v2.py",
+                self.idea_projects_root / "large_tools" / "phaselang-compiler" / "stage0" / "compile.py",
                 self.idea_projects_root / "large_tools" / "PROJECT.md",
                 INFORMATIONAL_COLLECTION_NAME,
                 2,
@@ -2047,7 +1939,7 @@ class AgentInformationalGraphIndex(Datasource):
                 "StageCompiler Stage-1 Self-Hosting Compiler Driver (stage1/main.sig)",
                 "stage1_main_sig",
                 "large_tools",
-                self.idea_projects_root / "large_tools" / "stage-compiler" / "stage1" / "main.sig",
+                self.idea_projects_root / "large_tools" / "phaselang-compiler" / "stage1" / "main.sig",
                 self.idea_projects_root / "large_tools" / "PROJECT.md",
                 INFORMATIONAL_COLLECTION_NAME,
                 2,
@@ -2056,15 +1948,15 @@ class AgentInformationalGraphIndex(Datasource):
             (
                 "compiler:stage_compiler:stage1_ingress",
                 "compiler_stage",
-                "StageCompiler Stage-1 Tokenless Shift-Or Wave Masker Ingress (stage1/ingress/wave_masker.sig)",
+                "StageCompiler Stage-1 Tokenless Shift-Or Wave Masker Ingress (stage1/ingress/wave_ingress.sig)",
                 "wave_masker_ingress",
                 "large_tools",
                 self.idea_projects_root
                 / "large_tools"
-                / "stage-compiler"
+                / "phaselang-compiler"
                 / "stage1"
                 / "ingress"
-                / "wave_masker.sig",
+                / "wave_ingress.sig",
                 self.idea_projects_root / "large_tools" / "PROJECT.md",
                 INFORMATIONAL_COLLECTION_NAME,
                 2,
@@ -2078,7 +1970,7 @@ class AgentInformationalGraphIndex(Datasource):
                 "large_tools",
                 self.idea_projects_root
                 / "large_tools"
-                / "stage-compiler"
+                / "phaselang-compiler"
                 / "stage1"
                 / "parser"
                 / "parser.sig",
@@ -2090,15 +1982,15 @@ class AgentInformationalGraphIndex(Datasource):
             (
                 "compiler:stage_compiler:stage1_symbols",
                 "compiler_stage",
-                "StageCompiler Stage-1 Julia Fractal Symbol Arena (stage1/symbols/symbol_arena.sig)",
+                "StageCompiler Stage-1 Julia Fractal Symbol Arena (stage1/symbols/sarkar_scope.sig)",
                 "symbol_arena_sig",
                 "large_tools",
                 self.idea_projects_root
                 / "large_tools"
-                / "stage-compiler"
+                / "phaselang-compiler"
                 / "stage1"
                 / "symbols"
-                / "symbol_arena.sig",
+                / "sarkar_scope.sig",
                 self.idea_projects_root / "large_tools" / "PROJECT.md",
                 INFORMATIONAL_COLLECTION_NAME,
                 2,
@@ -2112,7 +2004,7 @@ class AgentInformationalGraphIndex(Datasource):
                 "large_tools",
                 self.idea_projects_root
                 / "large_tools"
-                / "stage-compiler"
+                / "phaselang-compiler"
                 / "stage1"
                 / "mcc"
                 / "mcc.sig",
@@ -2129,7 +2021,7 @@ class AgentInformationalGraphIndex(Datasource):
                 "large_tools",
                 self.idea_projects_root
                 / "large_tools"
-                / "stage-compiler"
+                / "phaselang-compiler"
                 / "stage1"
                 / "emitter"
                 / "tape_emitter.sig",
@@ -2141,15 +2033,16 @@ class AgentInformationalGraphIndex(Datasource):
             (
                 "compiler:stage_compiler:stage1_linker",
                 "compiler_stage",
-                "StageCompiler Stage-1 Cohesive Linker (stage1/linker/cohesive_linker.sig)",
+                "StageCompiler Cohesive Linker (stage0/lib/compiler/sheaf_linker.py)",
                 "cohesive_linker_sig",
                 "large_tools",
                 self.idea_projects_root
                 / "large_tools"
-                / "stage-compiler"
-                / "stage1"
-                / "linker"
-                / "cohesive_linker.sig",
+                / "phaselang-compiler"
+                / "stage0"
+                / "lib"
+                / "compiler"
+                / "sheaf_linker.py",
                 self.idea_projects_root / "large_tools" / "PROJECT.md",
                 INFORMATIONAL_COLLECTION_NAME,
                 2,
@@ -2163,7 +2056,7 @@ class AgentInformationalGraphIndex(Datasource):
                 "large_tools",
                 self.idea_projects_root
                 / "large_tools"
-                / "stage-compiler"
+                / "phaselang-compiler"
                 / "macho_synthesizer.py",
                 self.idea_projects_root / "large_tools" / "PROJECT.md",
                 INFORMATIONAL_COLLECTION_NAME,
@@ -2179,7 +2072,7 @@ class AgentInformationalGraphIndex(Datasource):
                 "large_tools",
                 self.idea_projects_root
                 / "large_tools"
-                / "stage_compiler"
+                / "phaselang"
                 / "core"
                 / "vcpu"
                 / "monadic_cavity.sig",
@@ -2201,7 +2094,7 @@ class AgentInformationalGraphIndex(Datasource):
                 "large_tools",
                 self.idea_projects_root
                 / "large_tools"
-                / "stage_compiler"
+                / "phaselang"
                 / "core"
                 / "vcpu"
                 / "cohesive_register_continuum.sig",
@@ -2218,15 +2111,14 @@ class AgentInformationalGraphIndex(Datasource):
             (
                 "code:neural_networks:implicit_vcpu_layer",
                 "runtime_code",
-                "Neural StageCompiler Implicit vCPU Layer (src/polyphonic_model/layers/stage_implicit_vcpu.py)",
+                "Neural StageCompiler Implicit vCPU Layer (PolyphonicVCPU/src/polyphonic_vcpu/implicit_vcpu.py)",
                 "StageCompilerImplicitVCPU",
                 "neural_networks",
                 self.idea_projects_root
-                / "neural_networks"
+                / "PolyphonicVCPU"
                 / "src"
-                / "polyphonic_model"
-                / "layers"
-                / "stage_implicit_vcpu.py",
+                / "polyphonic_vcpu"
+                / "implicit_vcpu.py",
                 self.idea_projects_root / "large_tools" / "PROJECT.md",
                 "neural_networks_code_corpus",
                 2,
@@ -2235,54 +2127,36 @@ class AgentInformationalGraphIndex(Datasource):
             (
                 "code:neural_networks:promoted_harness",
                 "runtime_code",
-                "Promoted Gauntlet Model Any-Gram Qdrant Harness (agent_brain/harness/model_harness/core.py)",
+                "Promoted Gauntlet Model Any-Gram PGVector Harness (harnesses/src/agent_harnesses/model_harness/core.py)",
                 "PromotedModelHarness",
                 "neural_networks",
-                (
-                    self.idea_projects_root
-                    / "agent_brain"
-                    / "src"
-                    / "agent_brain"
-                    / "harness"
-                    / "model_harness"
-                    / "core.py"
-                    if (
-                        self.idea_projects_root
-                        / "agent_brain"
-                        / "src"
-                        / "agent_brain"
-                        / "harness"
-                        / "model_harness"
-                        / "core.py"
-                    ).is_file()
-                    else (
-                        self.idea_projects_root / "neural_networks" / "src" / "model_harness" / "core.py"
-                        if (self.idea_projects_root / "neural_networks" / "src" / "model_harness" / "core.py").is_file()
-                        else self.idea_projects_root / "neural_networks" / "promoted" / "harness.py"
-                    )
-                ),
-                self.idea_projects_root / "neural_networks" / "promoted" / "promoted_manifest.json",
+                self.idea_projects_root
+                / "harnesses"
+                / "src"
+                / "agent_harnesses"
+                / "model_harness"
+                / "core.py",
+                promoted_manifest_path,
                 "portfolio_neural_benchmarks",
                 2,
-                ["code", "runtime", "harness", "promoted_model", "anygram", "qdrant", "neural_networks"],
+                ["code", "runtime", "harness", "promoted_model", "anygram", "pgvector", "neural_networks"],
             ),
             (
                 "service:portfolio:benchmark_service",
                 "portfolio_service",
-                "Portfolio Neural Benchmark & Promoted Model Qdrant Service (benchmark_service.py)",
+                "Neural Benchmark & Promoted Model PGVector Service (benchmark_service.py)",
                 "NeuralBenchmarkService",
                 "portfolio",
                 self.idea_projects_root
-                / "portfolio"
-                / "portfolio"
-                / "python"
-                / "portfoliolib"
-                / "service"
+                / "agent_brain"
+                / "src"
+                / "agent_brain"
+                / "models"
                 / "benchmark_service.py",
                 self.idea_projects_root / "portfolio" / "portfolio" / "settings.yaml",
                 "portfolio_neural_benchmarks",
                 2,
-                ["code", "service", "portfolio", "benchmark_service", "promoted_model", "qdrant"],
+                ["code", "service", "portfolio", "benchmark_service", "promoted_model", "pgvector"],
             ),
             (
                 "service:portfolio:portfolio_api",
@@ -2303,10 +2177,10 @@ class AgentInformationalGraphIndex(Datasource):
                 ["code", "service", "api", "websocket", "mcp", "portfolio"],
             ),
             (
-                "service:portfolio:qdrant_graph_service",
+                "service:portfolio:postgres_graph_service",
                 "portfolio_service",
-                "Portfolio Qdrant Lifecycle, CPU Embeddings & Relational Graph Service (qdrant_graph_service.py)",
-                "QdrantGraphService",
+                "Portfolio PostgreSQL pgvector Lifecycle, PPS Embeddings & Relational Graph Service (postgres_graph_service.py)",
+                "PostgresGraphService",
                 "portfolio",
                 self.idea_projects_root
                 / "portfolio"
@@ -2314,11 +2188,11 @@ class AgentInformationalGraphIndex(Datasource):
                 / "python"
                 / "portfoliolib"
                 / "service"
-                / "qdrant_graph_service.py",
+                / "postgres_graph_service.py",
                 self.idea_projects_root / "portfolio" / "portfolio" / "settings.yaml",
                 "portfolio_wiki_chunks",
                 2,
-                ["code", "service", "qdrant", "graph", "portfolio"],
+                ["code", "service", "pgvector", "postgres", "graph", "portfolio"],
             ),
         ]
 
@@ -2362,7 +2236,7 @@ class AgentInformationalGraphIndex(Datasource):
                     keep_in_place=True,
                     placement_directive=(
                         f"INVARIANT: Keep {p_node_type} artifact in place at {p_code_path} "
-                        f"as part of the Design -> Compiler -> Code geodesic pipeline."
+                        "as part of the Design -> Compiler -> Code geodesic pipeline."
                     ),
                     juxtaposed_code={
                         "code_path": str(p_code_path),
@@ -2379,10 +2253,8 @@ class AgentInformationalGraphIndex(Datasource):
                         "doc_excerpt": (f"{p_doc}\n\n{d_doc or d_excerpt}").strip()[:850],
                         "related_ki_ids": [x["ki_id"] for x in ki_lookup.get("stage_compiler", [])[:3]],
                     },
-                    qdrant_namespace=p_ns,
-                    staging_path=str(
-                        self.staging_manager.storage_dir / "collection" / p_ns / "storage.sqlite"
-                    ),
+                    vector_namespace=p_ns,
+                    staging_path=f"pgvector://vectors/{p_ns}",
                     hierarchy_level=p_level,
                     tags=p_tags,
                 )
@@ -2396,7 +2268,7 @@ class AgentInformationalGraphIndex(Datasource):
                     rationale=f"{p_idiomatic} resides in {rel_p}",
                 )
 
-        # Ordered End-to-End Geodesic Pipeline Edges (Design -> Stage-0/1 Compiler -> Core Runtime -> Neural Model -> Harness -> Ledger -> Service -> API -> UI)
+        # Ordered End-to-End Geodesic Pipeline Edges
         geodesic_pipeline_chain = [
             (
                 "design:large_tools:project_master_spec",
@@ -2414,7 +2286,7 @@ class AgentInformationalGraphIndex(Datasource):
                 "design:hypoborea_vm:polyphonic_cohesive_rns_register_spec",
                 "compiler:stage_compiler:stage0_bootstrap",
                 "DESIGN_SPECIFIES_COMPILER",
-                "Design specs are materialized by the Stage-0 Python bootstrap compiler (stage0/compiler_v2.py, Tiers 01..12)",
+                "Design specs are materialized by the Stage-0 Python bootstrap compiler (stage0/compile.py)",
             ),
             (
                 "compiler:stage_compiler:stage0_bootstrap",
@@ -2426,7 +2298,7 @@ class AgentInformationalGraphIndex(Datasource):
                 "compiler:stage_compiler:stage1_main",
                 "compiler:stage_compiler:stage1_ingress",
                 "COMPILER_STAGE_NEXT",
-                "Stage-1 driver dispatches source waves into Tokenless Shift-Or Wave Masker Ingress (stage1/ingress/wave_masker.sig)",
+                "Stage-1 driver dispatches source waves into Tokenless Shift-Or Wave Ingress (stage1/ingress/wave_ingress.sig)",
             ),
             (
                 "compiler:stage_compiler:stage1_ingress",
@@ -2438,7 +2310,7 @@ class AgentInformationalGraphIndex(Datasource):
                 "compiler:stage_compiler:stage1_parser",
                 "compiler:stage_compiler:stage1_symbols",
                 "COMPILER_STAGE_NEXT",
-                "Parsed AST waves bind lexical scopes in the Julia Fractal Symbol Arena (stage1/symbols/symbol_arena.sig)",
+                "Parsed AST waves bind lexical scopes in the Sarkar Symbol Scope Arena (stage1/symbols/sarkar_scope.sig)",
             ),
             (
                 "compiler:stage_compiler:stage1_symbols",
@@ -2456,7 +2328,7 @@ class AgentInformationalGraphIndex(Datasource):
                 "compiler:stage_compiler:stage1_emitter",
                 "compiler:stage_compiler:stage1_linker",
                 "COMPILER_STAGE_NEXT",
-                "Emitted wave tapes are linked across cohesive stalks by Stage-1 Cohesive Linker (stage1/linker/cohesive_linker.sig)",
+                "Emitted wave tapes are linked across cohesive stalks by Cohesive Linker (sheaf_linker.py)",
             ),
             (
                 "compiler:stage_compiler:stage1_linker",
@@ -2480,13 +2352,13 @@ class AgentInformationalGraphIndex(Datasource):
                 "code:stage_compiler:core_vcpu_cohesive_continuum",
                 "code:neural_networks:implicit_vcpu_layer",
                 "EXECUTES_CODE_PATH_NEXT_HOP",
-                "Cohesive Register Continuum is embedded into differentiable PyTorch tensors via StageCompilerImplicitVCPU",
+                "Cohesive Register Continuum is embedded into differentiable PyTorch tensors via OmnipresentImplicitOpcodeVCPU",
             ),
             (
                 "code:neural_networks:implicit_vcpu_layer",
                 "model_pkg:neural_networks:stage_compiler",
                 "EXECUTES_CODE_PATH_NEXT_HOP",
-                "StageCompilerImplicitVCPU + ISA Spectral-AST Gate power PolyphonicStageCompilerCascadeModel",
+                "Implicit vCPU + ISA Spectral-AST Gate power PolyphonicStageCompilerCascadeModel",
             ),
             (
                 "model_pkg:neural_networks:stage_compiler",
@@ -2498,19 +2370,19 @@ class AgentInformationalGraphIndex(Datasource):
                 "model_pkg:neural_networks:monadic_cavity",
                 "code:neural_networks:promoted_harness",
                 "EXECUTES_CODE_PATH_NEXT_HOP",
-                "Gauntlet winner is promoted to promoted/ and wrapped in PromotedModelHarness with 6-Scale Any-Gram Qdrant memory",
+                "Gauntlet winner is promoted to promoted/ and wrapped in PromotedModelHarness with 6-Scale Any-Gram pgvector memory",
             ),
             (
                 "code:neural_networks:promoted_harness",
                 "module:toolset:benchmark_ledger",
                 "EXECUTES_CODE_PATH_NEXT_HOP",
-                "BenchmarkLedger indexes the promoted model & harness into Qdrant portfolio_neural_benchmarks",
+                "BenchmarkLedger indexes the promoted model & harness into pgvector portfolio_neural_benchmarks",
             ),
             (
                 "module:toolset:benchmark_ledger",
                 "service:portfolio:benchmark_service",
                 "EXECUTES_CODE_PATH_NEXT_HOP",
-                "NeuralBenchmarkService queries Qdrant for the promoted model and drives PromotedModelHarness chat/streaming",
+                "NeuralBenchmarkService queries pgvector for the promoted model and drives PromotedModelHarness chat/streaming",
             ),
             (
                 "service:portfolio:benchmark_service",
@@ -2520,15 +2392,15 @@ class AgentInformationalGraphIndex(Datasource):
             ),
             (
                 "service:portfolio:portfolio_api",
-                "ui:portfolio:PromotedModelSection",
+                "ui:portfolio:PromotedView",
                 "EXECUTES_CODE_PATH_NEXT_HOP",
-                "PromotedModelSection.tsx renders Qdrant provenance, PromotedModelHarness source, and live chat UI",
+                "PromotedView.tsx renders pgvector provenance, PromotedModelHarness source, and live chat UI",
             ),
             (
-                "ui:portfolio:PromotedModelSection",
+                "ui:portfolio:PromotedView",
                 "ui:components:AsyncChatWindow",
                 "EXECUTES_CODE_PATH_NEXT_HOP",
-                "PromotedModelSection streams bidirectional WebSocket chat through shared AsyncChatWindow component",
+                "PromotedView streams bidirectional WebSocket chat through shared AsyncChatWindow component",
             ),
         ]
 
@@ -2549,24 +2421,17 @@ class AgentInformationalGraphIndex(Datasource):
                 raw_ki = ki_doc_path.read_text(encoding="utf-8", errors="replace")
                 ki_excerpt = raw_ki[:850]
                 ki_sha = hashlib.sha256(raw_ki.encode("utf-8")).hexdigest()
-                masked_path_str = mask_restricted_string(str(ki_doc_path))
-                if masked_path_str != str(ki_doc_path):
-                    masked_path = Path(masked_path_str)
-                    if not masked_path.is_file():
-                        masked_path.parent.mkdir(parents=True, exist_ok=True)
-                        masked_path.write_text(mask_restricted_string(raw_ki), encoding="utf-8")
-                    ki_doc_path = masked_path
             add_node(
                 JuxtaposedNode(
                     node_id=ki_node_id,
                     node_type="knowledge_item",
                     title=f"Knowledge Item: {ki_info['title']}",
                     idiomatic_name=ki_id,
-                    repo_name="qdrant_staging",
+                    repo_name="vector_staging",
                     keep_in_place=True,
                     placement_directive=(
                         f"INVARIANT: Canonical Antigravity Knowledge Item at {ki_doc_path} "
-                        "teaching all agents how to sync Qdrant staging and trace geodesic code paths."
+                        "teaching all agents how to sync pgvector staging and trace geodesic code paths."
                     ),
                     juxtaposed_code={
                         "code_path": str(
@@ -2580,9 +2445,9 @@ class AgentInformationalGraphIndex(Datasource):
                         "relative_path": "toolset/src/indexes/informational_index/mcp_server.py",
                         "language": "python",
                         "exported_symbols": [
-                            "QdrantGeodesicLifecycleMCPServer",
+                            "PgVectorGeodesicLifecycleMCPServer",
                             "AgentInformationalGraphIndex",
-                            "UnifiedQdrantStagingManager",
+                            "UnifiedVectorStagingManager",
                         ],
                         "code_excerpt": (
                             "idx.sync_staging(direction='bidirectional', rebuild_graph=True)\n"
@@ -2597,10 +2462,10 @@ class AgentInformationalGraphIndex(Datasource):
                         "doc_excerpt": f"{ki_info['summary']}\n\n{ki_excerpt}".strip()[:900],
                         "related_ki_ids": global_ki_ids,
                     },
-                    qdrant_namespace=INFORMATIONAL_COLLECTION_NAME,
-                    staging_path=str(self.staging_manager.storage_dir),
+                    vector_namespace=INFORMATIONAL_COLLECTION_NAME,
+                    staging_path=str(self.staging_root),
                     hierarchy_level=1,
-                    tags=["knowledge_item", "ki", "sync", "mcp", "geodesic", "qdrant_staging", ki_id],
+                    tags=["knowledge_item", "ki", "sync", "mcp", "geodesic", "vector_staging", "pgvector", ki_id],
                 )
             )
             add_edge(
@@ -2608,7 +2473,7 @@ class AgentInformationalGraphIndex(Datasource):
                 staging_node_id,
                 "UNIFIED_INTO_STAGING",
                 weight=1.0,
-                rationale=f"Knowledge Item {ki_id} documents cross-repo Qdrant staging sync and MCP lifecycle tools",
+                rationale=f"Knowledge Item {ki_id} documents cross-repo pgvector staging sync and MCP lifecycle tools",
             )
 
         # Ensure every node carries related_ki_ids linking to the canonical sync & geodesic KIs
@@ -2624,7 +2489,6 @@ class AgentInformationalGraphIndex(Datasource):
         for e in edges:
             ed = e.to_dict()
             edges_by_src[e.source].append(ed)
-            # Also store reverse visibility for wayfinding
             rev = {
                 "source": e.target,
                 "target": e.source,
@@ -2639,17 +2503,58 @@ class AgentInformationalGraphIndex(Datasource):
 
         return list(nodes_by_id.values()), edges
 
+    def _sync_knowledge_items_into_wiki_chunks(self) -> None:
+        """
+        Ensures Antigravity Knowledge Items (such as `ki_pgvector_staging_cross_repo_sync_and_lifecycle_mcp`)
+        are indexed in `portfolio_wiki_chunks` in PostgreSQL `vectors` DB with PPS embeddings.
+        """
+        ki_lookup = self._scan_knowledge_items()
+        wiki_points: List[PointStruct] = []
+        for ki_info in ki_lookup.get("all", []):
+            ki_id = ki_info["ki_id"]
+            doc_p = Path(ki_info["doc_path"])
+            if not doc_p.is_file():
+                continue
+            raw_text = mask_restricted_string(doc_p.read_text(encoding="utf-8", errors="replace"))
+            chunk_text = f"# {ki_info['title']}\n\n{ki_info['summary']}\n\n{raw_text[:2800]}"
+            pt_id = str(uuid5_from_args(INFORMATIONAL_NAMESPACE_UUID, "portfolio_wiki_ki", ki_id, "0"))
+            wiki_points.append(
+                PointStruct(
+                    id=pt_id,
+                    vector=_deterministic_384d_vector(chunk_text, dim=DEFAULT_VECTOR_SIZE),
+                    payload={
+                        "point_id": pt_id,
+                        "doc_id": ki_id,
+                        "node_id": f"ki:{ki_id}",
+                        "title": ki_info["title"],
+                        "summary": ki_info["summary"],
+                        "doc_type": "knowledge_item",
+                        "domain_group": "knowledge_items",
+                        "chunk_index": 0,
+                        "total_chunks": 1,
+                        "chunk_text": chunk_text,
+                        "embedding_model": "procedural_phase_space",
+                    },
+                )
+            )
+        if wiki_points:
+            self.staging_manager.upsert_points(
+                collection_name="portfolio_wiki_chunks",
+                points=wiki_points,
+                vector_size=DEFAULT_VECTOR_SIZE,
+                recreate=False,
+            )
+
     def build_and_unify(
         self,
         force_rebuild: bool = False,
         export_snapshots: bool = True,
     ) -> Dict[str, Any]:
         """
-        1. Unifies all Qdrant namespaces across sibling repos into `/Users/jarek/IdeaProjects/qdrant_staging/storage`.
+        1. Queries unified collection inventory across PostgreSQL `pgvector` (`vectors` database).
         2. Builds the juxtaposed Code + Documentation `JuxtaposedNode`s and `JuxtaposedGraphEdge`s.
-        3. Upserts all juxtaposed nodes into `agent_informational_graph_index` in `/Users/jarek/IdeaProjects/qdrant_staging/storage`
-           and mirrors the collection into `/Users/jarek/IdeaProjects/portfolio/portfolio/.qdrant_data`.
-        4. Writes `/Users/jarek/IdeaProjects/qdrant_staging/informational_graph_ledger.json` and updates `staging_manifest.json`.
+        3. Upserts all juxtaposed nodes into `agent_informational_graph_index` in `vectors` DB.
+        4. Writes `/Users/jarek/IdeaProjects/vector_staging/informational_graph_ledger.json` and updates `staging_manifest.json`.
         """
         t0 = time.perf_counter()
         unified_manifest = self.staging_manager.unify_all_collections(export_snapshots=False)
@@ -2668,28 +2573,14 @@ class AgentInformationalGraphIndex(Datasource):
             self.index.store_in_index("nodes", node.node_id, payload)
             self.index.store_in_index("edges_by_node", node.node_id, node.graph_edges)
 
-        staged_count = self.staging_manager.upsert_points_lockfree(
-            storage_path=self.staging_manager.storage_dir,
+        staged_count = self.staging_manager.upsert_points(
             collection_name=self.collection_name,
             points=points,
             vector_size=DEFAULT_VECTOR_SIZE,
             recreate=True,
         )
+        self._sync_knowledge_items_into_wiki_chunks()
 
-        # Mirror `agent_informational_graph_index` to portfolio/.qdrant_data so local portfolio queries also see it
-        portfolio_qdrant_dir = (
-            self.idea_projects_root / "portfolio" / "portfolio" / ".qdrant_data"
-        )
-        if portfolio_qdrant_dir.is_dir():
-            self.staging_manager.upsert_points_lockfree(
-                storage_path=portfolio_qdrant_dir,
-                collection_name=self.collection_name,
-                points=points,
-                vector_size=DEFAULT_VECTOR_SIZE,
-                recreate=True,
-            )
-
-        # Re-run manifest unification so `agent_informational_graph_index` point count is recorded in `staging_manifest.json`
         final_manifest = self.staging_manager.unify_all_collections(export_snapshots=export_snapshots)
 
         by_type = collections.Counter(n.node_type for n in nodes)
@@ -2699,10 +2590,10 @@ class AgentInformationalGraphIndex(Datasource):
         ledger_data = {
             "collection_name": self.collection_name,
             "staging_root": str(self.staging_root),
-            "storage_dir": str(self.staging_manager.storage_dir),
+            "backend": "postgresql_pgvector",
             "total_nodes": len(nodes),
             "total_edges": len(edges),
-            "staged_qdrant_points": staged_count,
+            "staged_vector_points": staged_count,
             "node_counts_by_type": dict(sorted(by_type.items())),
             "node_counts_by_repo": dict(sorted(by_repo.items())),
             "nodes": [n.to_payload() for n in nodes],
@@ -2719,7 +2610,7 @@ class AgentInformationalGraphIndex(Datasource):
             "status": "READY",
             "collection_name": self.collection_name,
             "staging_root": str(self.staging_root),
-            "storage_dir": str(self.staging_manager.storage_dir),
+            "backend": "postgresql_pgvector",
             "snapshots_dir": str(self.staging_manager.snapshots_dir),
             "manifest_path": str(self.staging_manager.manifest_path),
             "ledger_path": str(self.staging_manager.ledger_path),
@@ -2749,7 +2640,7 @@ class AgentInformationalGraphIndex(Datasource):
         return telemetry
 
     def get_staging_overview(self) -> Dict[str, Any]:
-        """Returns the complete overview of `/Users/jarek/IdeaProjects/qdrant_staging` and the informational index."""
+        """Returns the complete overview of `/Users/jarek/IdeaProjects/vector_staging` and the informational index."""
         latest = self.index.load_from_index("telemetry", "latest")
         if not isinstance(latest, dict):
             return self.build_and_unify(force_rebuild=False)
@@ -2862,7 +2753,7 @@ class AgentInformationalGraphIndex(Datasource):
         """
         Finds the shortest path in the juxtaposed informational graph between `start_query`
         and `target_query`, returning every hop with its juxtaposed code path, doc path,
-        Qdrant namespace, and placement directive so no agent can get lost.
+        pgvector namespace, and placement directive so no agent can get lost.
         """
         start_matches = self.query_juxtaposed_map(query=start_query, top_k=1)["results"]
         target_matches = self.query_juxtaposed_map(query=target_query, top_k=1)["results"]
@@ -2939,8 +2830,8 @@ class AgentInformationalGraphIndex(Datasource):
     ) -> Dict[str, Any]:
         """
         Rebuilds the juxtaposed informational graph (if `rebuild_graph=True`), unifies all
-        repo collections into `/Users/jarek/IdeaProjects/qdrant_staging/storage`, and syncs
-        with `target_environment` (`stage_to_target`, `target_to_stage`, or `bidirectional`).
+        collections in PostgreSQL `pgvector` (`vectors` DB) and `/Users/jarek/IdeaProjects/vector_staging`,
+        and syncs with `target_environment` (`stage_to_target`, `target_to_stage`, or `bidirectional`).
         """
         if rebuild_graph:
             self.build_and_unify(force_rebuild=True)
@@ -2951,8 +2842,8 @@ class AgentInformationalGraphIndex(Datasource):
         )
         self.audit_log.append(
             {
-                "event": "qdrant_staging_synced",
-                "target_environment": str(target_environment or "repo_local_qdrant_stores"),
+                "event": "vector_staging_synced",
+                "target_environment": str(target_environment or "postgresql_pgvector_vectors_db"),
                 "direction": direction,
                 "wall_time_ms": sync_res.get("wall_time_ms"),
                 "timestamp": round(time.time(), 3),
@@ -2964,7 +2855,7 @@ class AgentInformationalGraphIndex(Datasource):
         }
 
     # ------------------------------------------------------------------
-    # Multi-System Catalog, Unified Qdrant Search, Tri-Layer Juxtaposition,
+    # Multi-System Catalog, Unified PGVector Search, Tri-Layer Juxtaposition,
     # Start-to-Finish Geodesic Code Path & Full Lifecycle Management
     # ------------------------------------------------------------------
     @staticmethod
@@ -3002,7 +2893,7 @@ class AgentInformationalGraphIndex(Datasource):
             return "compiler"
         if ntype in ("ui_component",):
             return "ui"
-        if ntype in ("toolset_index", "qdrant_namespace", "qdrant_staging_root"):
+        if ntype in ("toolset_index", "vector_namespace", "vector_staging_root"):
             return "index"
         if ntype in ("promoted_model", "neural_architecture_package"):
             return "model"
@@ -3074,13 +2965,13 @@ class AgentInformationalGraphIndex(Datasource):
             "relative_path": comp_code.get("relative_path", ""),
             "exported_symbols": comp_code.get("exported_symbols", []),
             "compiler_stages": [
-                "compiler:stage_compiler:stage0_bootstrap (stage0/compiler_v2.py)",
-                "compiler:stage_compiler:stage1_ingress (stage1/ingress/wave_masker.sig)",
+                "compiler:stage_compiler:stage0_bootstrap (stage0/compile.py)",
+                "compiler:stage_compiler:stage1_ingress (stage1/ingress/wave_ingress.sig)",
                 "compiler:stage_compiler:stage1_parser (stage1/parser/parser.sig)",
-                "compiler:stage_compiler:stage1_symbols (stage1/symbols/symbol_arena.sig)",
+                "compiler:stage_compiler:stage1_symbols (stage1/symbols/sarkar_scope.sig)",
                 "compiler:stage_compiler:stage1_mcc_ir (stage1/mcc/mcc.sig)",
                 "compiler:stage_compiler:stage1_emitter (stage1/emitter/tape_emitter.sig)",
-                "compiler:stage_compiler:stage1_linker (stage1/linker/cohesive_linker.sig)",
+                "compiler:stage_compiler:stage1_linker (stage0/lib/compiler/sheaf_linker.py)",
                 "compiler:stage_compiler:macho_synthesizer (macho_synthesizer.py)",
                 "model_pkg:neural_networks:stage_compiler (PolyphonicStageCompilerCascadeModel)",
             ],
@@ -3094,7 +2985,7 @@ class AgentInformationalGraphIndex(Datasource):
             "language": code_info.get("language", "python"),
             "exported_symbols": code_info.get("exported_symbols", []),
             "sha256": code_info.get("sha256", ""),
-            "qdrant_namespace": node.get("qdrant_namespace", self.collection_name),
+            "vector_namespace": node.get("vector_namespace", self.collection_name),
             "keep_in_place": bool(node.get("keep_in_place", True)),
             "excerpt": code_info.get("code_excerpt", "")[:600],
         }
@@ -3112,9 +3003,9 @@ class AgentInformationalGraphIndex(Datasource):
     ) -> Dict[str, Any]:
         """
         Lists every system across `/Users/jarek/IdeaProjects` (`portfolio`, `components`,
-        `toolset`, `neural_networks`, `large_tools`, `StageCompiler-development`, `qdrant_staging`)
-        with its Qdrant collections, point counts, design/compiler/code entrypoints,
-        placement invariants (`keep_in_place`), and lifecycle health.
+        `toolset`, `neural_networks`, `playground`, `large_tools`, `StageCompiler-development`,
+        `vector_staging`) with its PostgreSQL `pgvector` collections, point counts,
+        design/compiler/code entrypoints, placement invariants (`keep_in_place`), and lifecycle health.
         """
         overview = self.get_staging_overview()
         unified_colls = overview.get("unified_collections", {})
@@ -3127,7 +3018,7 @@ class AgentInformationalGraphIndex(Datasource):
                 "root_path": str(self.idea_projects_root / "portfolio" / "portfolio"),
                 "repo_name": "portfolio",
                 "keep_in_place": True,
-                "qdrant_collections": [
+                "pgvector_collections": [
                     "portfolio_wiki_chunks",
                     "portfolio_neural_benchmarks",
                     "portfolio_antigravity_brain",
@@ -3147,16 +3038,15 @@ class AgentInformationalGraphIndex(Datasource):
                     ),
                     "code_frontend": str(
                         self.idea_projects_root
-                        / "portfolio"
-                        / "portfolio"
-                        / "react"
+                        / "agent_brain"
+                        / "ui"
                         / "src"
-                        / "components"
-                        / "PromotedModelSection.tsx"
+                        / "views"
+                        / "PromotedView.tsx"
                     ),
                 },
                 "entrypoints": [
-                    "portfolio/portfolio/main.py",
+                    "portfolio/portfolio/python/main.py",
                     "portfolio/portfolio/python/portfoliolib/service/portfolio_api.py",
                     "portfolio/portfolio/react/src/App.tsx",
                 ],
@@ -3167,7 +3057,7 @@ class AgentInformationalGraphIndex(Datasource):
                 "root_path": str(self.idea_projects_root / "components"),
                 "repo_name": "components",
                 "keep_in_place": True,
-                "qdrant_collections": [INFORMATIONAL_COLLECTION_NAME],
+                "pgvector_collections": [INFORMATIONAL_COLLECTION_NAME],
                 "layers": {
                     "design": str(self.idea_projects_root / "components" / "package.json"),
                     "compiler": str(self.idea_projects_root / "components" / "tsconfig.json"),
@@ -3191,7 +3081,7 @@ class AgentInformationalGraphIndex(Datasource):
                 "root_path": str(self.idea_projects_root / "toolset"),
                 "repo_name": "toolset",
                 "keep_in_place": True,
-                "qdrant_collections": [
+                "pgvector_collections": [
                     INFORMATIONAL_COLLECTION_NAME,
                     "portfolio_wiki_chunks",
                     "portfolio_neural_benchmarks",
@@ -3229,7 +3119,7 @@ class AgentInformationalGraphIndex(Datasource):
                 "root_path": str(self.idea_projects_root / "neural_networks"),
                 "repo_name": "neural_networks",
                 "keep_in_place": True,
-                "qdrant_collections": [
+                "pgvector_collections": [
                     "neural_networks_code_corpus",
                     "code_corpus_temporal_index",
                     "portfolio_neural_benchmarks",
@@ -3242,32 +3132,32 @@ class AgentInformationalGraphIndex(Datasource):
                 "layers": {
                     "design": str(
                         self.idea_projects_root
-                        / "neural_networks"
+                        / "PolyphonicModel"
                         / "promoted"
                         / "promoted_manifest.json"
                     ),
                     "compiler": str(
                         self.idea_projects_root
-                        / "neural_networks"
+                        / "PolyphonicModel"
                         / "src"
                         / "models"
-                        / "stage_compiler"
-                        / "stage_compiler_model.py"
+                        / "phaselang_compiler"
+                        / "phaselang_compiler_model.py"
                     ),
                     "code": str(
                         self.idea_projects_root
-                        / "neural_networks"
+                        / "PolyphonicModel"
                         / "promoted"
                         / "promoted_model.py"
                     ),
                 },
                 "entrypoints": [
-                    "agent_brain/src/agent_brain/harness/model_harness/core.py",
-                    "agent_brain/src/agent_brain/harness/model_harness/slot_benchmark.py",
-                    "agent_brain/src/agent_brain/harness/corpus_harness/harness.py",
-                    "neural_networks/promoted/promoted_model.py",
-                    "neural_networks/src/models/stage_compiler/stage_compiler_model.py",
-                    "neural_networks/src/models/monadic_cavity/monadic_cavity_models.py",
+                    "harnesses/src/agent_harnesses/model_harness/core.py",
+                    "harnesses/src/agent_harnesses/model_harness/slot_benchmark.py",
+                    "harnesses/src/agent_harnesses/corpus_harness/harness.py",
+                    "PolyphonicModel/promoted/promoted_model.py",
+                    "PolyphonicModel/src/models/phaselang_compiler/phaselang_compiler_model.py",
+                    "MonadicCavity/src/monadic_cavity/monadic_cavity_models.py",
                 ],
             },
             {
@@ -3276,7 +3166,7 @@ class AgentInformationalGraphIndex(Datasource):
                 "root_path": str(self.idea_projects_root / "playground"),
                 "repo_name": "playground",
                 "keep_in_place": True,
-                "qdrant_collections": [
+                "pgvector_collections": [
                     "unified_harness_benchmarks",
                     "corpus_tasks",
                     "corpus_dedup_index",
@@ -3303,20 +3193,20 @@ class AgentInformationalGraphIndex(Datasource):
                 "root_path": str(self.idea_projects_root / "large_tools"),
                 "repo_name": "large_tools",
                 "keep_in_place": True,
-                "qdrant_collections": [INFORMATIONAL_COLLECTION_NAME],
+                "pgvector_collections": [INFORMATIONAL_COLLECTION_NAME],
                 "layers": {
                     "design": str(self.idea_projects_root / "large_tools" / "PROJECT.md"),
                     "compiler": str(
                         self.idea_projects_root
                         / "large_tools"
-                        / "stage-compiler"
+                        / "phaselang-compiler"
                         / "stage1"
                         / "main.sig"
                     ),
                     "code": str(
                         self.idea_projects_root
                         / "large_tools"
-                        / "stage_compiler"
+                        / "phaselang"
                         / "core"
                         / "vcpu"
                         / "monadic_cavity.sig"
@@ -3324,10 +3214,10 @@ class AgentInformationalGraphIndex(Datasource):
                 },
                 "entrypoints": [
                     "large_tools/PROJECT.md",
-                    "large_tools/stage-compiler/stage0/compiler_v2.py",
-                    "large_tools/stage-compiler/stage1/main.sig",
-                    "large_tools/stage-compiler/macho_synthesizer.py",
-                    "large_tools/stage-runtime/core/vcpu/monadic_cavity.sig",
+                    "large_tools/phaselang-compiler/stage0/compile.py",
+                    "large_tools/phaselang-compiler/stage1/main.sig",
+                    "large_tools/phaselang-compiler/macho_synthesizer.py",
+                    "large_tools/phaselang/core/vcpu/monadic_cavity.sig",
                 ],
             },
             {
@@ -3336,13 +3226,13 @@ class AgentInformationalGraphIndex(Datasource):
                 "root_path": str(self.idea_projects_root / "StageCompiler-development"),
                 "repo_name": "StageCompiler-development",
                 "keep_in_place": True,
-                "qdrant_collections": [INFORMATIONAL_COLLECTION_NAME],
+                "pgvector_collections": [INFORMATIONAL_COLLECTION_NAME],
                 "layers": {
                     "design": str(self.idea_projects_root / "StageCompiler-development" / "AGENTS.md"),
                     "compiler": str(
-                        self.idea_projects_root / "StageCompiler-development" / "StageCompiler-compiler"
+                        self.idea_projects_root / "StageCompiler-development" / "Phaselang-compiler"
                     ),
-                    "code": str(self.idea_projects_root / "StageCompiler-development" / "StageCompiler"),
+                    "code": str(self.idea_projects_root / "StageCompiler-development" / "Phaselang"),
                 },
                 "entrypoints": [
                     "StageCompiler-development/AGENTS.md",
@@ -3350,21 +3240,21 @@ class AgentInformationalGraphIndex(Datasource):
                 ],
             },
             {
-                "system_id": "qdrant_staging",
-                "name": "Unified Permanent Qdrant Staging & Cross-Environment Sync Hub",
+                "system_id": "vector_staging",
+                "name": "Unified Permanent PGVector Staging & Cross-Environment Sync Hub",
                 "root_path": str(self.staging_root),
-                "repo_name": "qdrant_staging",
+                "repo_name": "vector_staging",
                 "keep_in_place": True,
-                "qdrant_collections": sorted(unified_colls.keys()),
+                "pgvector_collections": sorted(unified_colls.keys()),
                 "layers": {
                     "design": str(self.staging_manager.manifest_path),
                     "compiler": str(self.staging_manager.ledger_path),
-                    "code": str(self.staging_manager.storage_dir),
+                    "code": str(self.staging_manager.snapshots_dir),
                 },
                 "entrypoints": [
-                    "qdrant_staging/staging_manifest.json",
-                    "qdrant_staging/informational_graph_ledger.json",
-                    "qdrant_staging/storage/meta.json",
+                    "vector_staging/staging_manifest.json",
+                    "vector_staging/informational_graph_ledger.json",
+                    "vector_staging/snapshots/staging_bundle_manifest.json",
                 ],
             },
         ]
@@ -3375,7 +3265,7 @@ class AgentInformationalGraphIndex(Datasource):
             exists = root_p.exists()
             colls_detail: List[Dict[str, Any]] = []
             total_sys_points = 0
-            for cname in spec["qdrant_collections"]:
+            for cname in spec["pgvector_collections"]:
                 cinfo = unified_colls.get(cname, {})
                 pts = int(cinfo.get("staged_points", 0))
                 total_sys_points += pts
@@ -3385,7 +3275,7 @@ class AgentInformationalGraphIndex(Datasource):
                             "collection_name": cname,
                             "staged_points": pts,
                             "vector_size": cinfo.get("vector_size", DEFAULT_VECTOR_SIZE),
-                            "staging_sqlite_path": cinfo.get("staging_sqlite_path", ""),
+                            "pgvector_table": cinfo.get("pgvector_table", "pps_vector_points"),
                         }
                     )
 
@@ -3396,7 +3286,7 @@ class AgentInformationalGraphIndex(Datasource):
                 "exists": exists,
                 "keep_in_place": spec["keep_in_place"],
                 "juxtaposed_nodes_count": int(node_counts_by_repo.get(spec["repo_name"], 0)),
-                "total_qdrant_points": total_sys_points,
+                "total_vector_points": total_sys_points,
                 "layers": spec["layers"],
                 "entrypoints": spec["entrypoints"],
             }
@@ -3424,7 +3314,16 @@ class AgentInformationalGraphIndex(Datasource):
             "systems": systems,
         }
 
-    def search_qdrant_unified(
+    @staticmethod
+    def _parse_pgvector_text(emb_txt: Optional[str]) -> List[float]:
+        if not emb_txt:
+            return []
+        inner = emb_txt.strip().strip("[]")
+        if not inner:
+            return []
+        return [float(x) for x in inner.split(",") if x]
+
+    def search_pgvector_unified(
         self,
         query: str = "",
         collection: Optional[str] = None,
@@ -3435,28 +3334,42 @@ class AgentInformationalGraphIndex(Datasource):
         rejoin_chunks: bool = True,
     ) -> Dict[str, Any]:
         """
-        Searches across any or all unified Qdrant collections in `/Users/jarek/IdeaProjects/qdrant_staging/storage`
+        Searches across any or all unified PostgreSQL `pgvector` collections in `vectors` DB
         (`agent_informational_graph_index`, `portfolio_wiki_chunks`, `portfolio_neural_benchmarks`,
-        `portfolio_antigravity_brain`, `neural_networks_code_corpus`, `code_corpus_temporal_index`),
-        optionally filtering by `collection`, `system_id`, `layer` (`design` | `compiler` | `code` | `ui` | `index` | `model`),
-        and `node_type`, rejoining multi-chunk documents and attaching Design + Compiler + Code juxtaposition context.
+        `portfolio_antigravity_brain`, `neural_networks_code_corpus`, `code_corpus_temporal_index`,
+        `unified_harness_benchmarks`, etc.) using Procedural Phase Space (PPS) hyperbolic similarity
+        and lexical matching, optionally filtering by `collection`, `system_id`, `layer`, and `node_type`,
+        rejoining multi-chunk documents and attaching Design + Compiler + Code juxtaposition context.
         """
         q_clean = mask_restricted_string((query or "").strip())
         system_id = mask_restricted_string(system_id) if system_id else system_id
         q_vec = _deterministic_384d_vector(q_clean or "architecture", dim=DEFAULT_VECTOR_SIZE)
         q_tokens = [t for t in re.findall(r"[a-zA-Z0-9_]{2,}", q_clean.lower())]
 
-        staging_meta = self.staging_manager._load_meta_json(self.staging_manager.storage_dir)
-        all_colls = sorted(staging_meta.get("collections", {}).keys())
+        all_colls_meta = self.staging_manager._query_pgvector_collection_summary()
+        all_colls = sorted(all_colls_meta.keys())
+        core_default_colls = [
+            INFORMATIONAL_COLLECTION_NAME,
+            "portfolio_wiki_chunks",
+            "portfolio_neural_benchmarks",
+            "portfolio_antigravity_brain",
+            "neural_networks_code_corpus",
+            "code_corpus_temporal_index",
+            "unified_harness_benchmarks",
+            "corpus_tasks",
+            "corpus_qa_pairs",
+            "corpus_topics",
+            "corpus_dedup_index",
+            "promoted_model_artifacts",
+        ]
         if collection and collection != "all":
             target_colls = [c for c in all_colls if c == collection]
         else:
-            # Prioritize informational graph, benchmarks, wiki, brain, and code corpus
-            target_colls = all_colls
+            target_colls = [c for c in core_default_colls if c in all_colls_meta]
 
         hits: List[Tuple[float, Dict[str, Any]]] = []
 
-        # 1. Search `agent_informational_graph_index` via in-memory + Qdrant index
+        # 1. Search `agent_informational_graph_index` via in-memory + pgvector index
         if not collection or collection in ("all", INFORMATIONAL_COLLECTION_NAME):
             jux_res = self.query_juxtaposed_map(
                 query=q_clean,
@@ -3491,161 +3404,215 @@ class AgentInformationalGraphIndex(Datasource):
                     )
                 )
 
-        # 2. Search other requested unified Qdrant collections in `/Users/jarek/IdeaProjects/qdrant_staging/storage`
+        # 2. Search other requested unified pgvector collections in `vectors` DB
         other_colls = [c for c in target_colls if c != INFORMATIONAL_COLLECTION_NAME]
-        for coll_name in other_colls:
-            # Cap scan on 5,300+ point collections for sub-second response
-            scan_limit = 600 if "code_corpus" in coll_name else 1000
-            pts = self.staging_manager.read_points_lockfree(
-                self.staging_manager.storage_dir, coll_name, limit=scan_limit
-            )
-            grouped_by_doc: Dict[str, List[Dict[str, Any]]] = collections.defaultdict(list)
-            for pt in pts:
-                payload = dict(pt.payload or {})
-                doc_key = str(
-                    payload.get("doc_id")
-                    or payload.get("model_id")
-                    or payload.get("entry_id")
-                    or payload.get("rel_path")
-                    or pt.id
-                )
-                grouped_by_doc[doc_key].append(
-                    {
-                        "point_id": str(pt.id),
-                        "vector": list(pt.vector) if isinstance(pt.vector, list) else [],
-                        "payload": payload,
-                    }
-                )
-
-            for doc_key, chunk_list in grouped_by_doc.items():
-                chunk_list.sort(key=lambda c: int(c["payload"].get("chunk_index", 0)))
-                rep = chunk_list[0]["payload"]
-                if system_id and system_id not in ("all", ""):
-                    sys_match = (
-                        system_id.lower() in coll_name.lower()
-                        or system_id.lower() in str(rep.get("repo_name", "")).lower()
-                        or system_id.lower() in str(rep.get("source_file", "")).lower()
-                        or system_id.lower() in str(rep.get("rel_path", "")).lower()
+        if other_colls:
+            tok_patterns = [f"%{t}%" for t in q_tokens[:4]] if q_tokens else []
+            with psycopg.connect(self.staging_manager.pg_dsn) as conn:
+                for coll_name in other_colls:
+                    vec_sz = int((all_colls_meta.get(coll_name) or {}).get("vector_size") or DEFAULT_VECTOR_SIZE)
+                    coll_q_vec = (
+                        q_vec
+                        if vec_sz == DEFAULT_VECTOR_SIZE
+                        else _deterministic_384d_vector(q_clean or "architecture", dim=vec_sz)
                     )
-                    if not sys_match:
-                        continue
+                    q_vec_literal = "[" + ",".join(f"{x:.7f}" for x in coll_q_vec) + "]"
 
-                rejoined_text = (
-                    "\n".join(
-                        str(
-                            c["payload"].get("chunk_text")
-                            or c["payload"].get("text")
-                            or c["payload"].get("content")
-                            or c["payload"].get("snippet")
-                            or ""
+                    rows_by_id: Dict[str, Tuple[str, Optional[str], Any]] = {}
+                    vec_rows = conn.execute(
+                        """
+                        SELECT point_id, embedding::text, payload
+                        FROM pps_vector_points
+                        WHERE collection_name = %s
+                        ORDER BY embedding <#> %s::vector
+                        LIMIT 150
+                        """,
+                        (coll_name, q_vec_literal),
+                    ).fetchall()
+                    for r_pid, r_emb, r_pay in vec_rows:
+                        rows_by_id[str(r_pid)] = (str(r_pid), r_emb, r_pay)
+
+                    if tok_patterns:
+                        lex_rows = conn.execute(
+                            """
+                            SELECT point_id, embedding::text, payload
+                            FROM pps_vector_points
+                            WHERE collection_name = %s
+                              AND payload::text ILIKE ANY(%s)
+                            LIMIT 150
+                            """,
+                            (coll_name, tok_patterns),
+                        ).fetchall()
+                        for r_pid, r_emb, r_pay in lex_rows:
+                            rows_by_id[str(r_pid)] = (str(r_pid), r_emb, r_pay)
+
+                    if rejoin_chunks and rows_by_id:
+                        matched_doc_ids = list(
+                            {
+                                str((r_pay or {}).get("doc_id"))
+                                for _, _, r_pay in rows_by_id.values()
+                                if isinstance(r_pay, dict) and r_pay.get("doc_id")
+                            }
+                        )[:40]
+                        if matched_doc_ids:
+                            sib_rows = conn.execute(
+                                """
+                                SELECT point_id, embedding::text, payload
+                                FROM pps_vector_points
+                                WHERE collection_name = %s
+                                  AND payload->>'doc_id' = ANY(%s)
+                                LIMIT 400
+                                """,
+                                (coll_name, matched_doc_ids),
+                            ).fetchall()
+                            for r_pid, r_emb, r_pay in sib_rows:
+                                rows_by_id.setdefault(str(r_pid), (str(r_pid), r_emb, r_pay))
+
+                    grouped_by_doc: Dict[str, List[Dict[str, Any]]] = collections.defaultdict(list)
+                    for r_pid, r_emb, r_pay in rows_by_id.values():
+                        payload = mask_restricted_vocabulary(dict(r_pay or {}))
+                        doc_key = str(
+                            payload.get("doc_id")
+                            or payload.get("model_id")
+                            or payload.get("entry_id")
+                            or payload.get("rel_path")
+                            or r_pid
                         )
-                        for c in chunk_list
-                    ).strip()
-                    if rejoin_chunks
-                    else str(
-                        rep.get("chunk_text")
-                        or rep.get("text")
-                        or rep.get("content")
-                        or rep.get("snippet")
-                        or ""
-                    )
-                )
-                searchable = (
-                    f"{doc_key} {rep.get('title', '')} {rep.get('model_name', '')} "
-                    f"{rep.get('model_slot_id', '')} {rep.get('model_class', '')} "
-                    f"{rep.get('harness', '')} {rep.get('test_id', '')} "
-                    f"{rep.get('task_id', '')} {rep.get('topic_id', '')} "
-                    f"{rep.get('dataset', '')} {rep.get('benchmark', '')} "
-                    f"{rep.get('class_name', '')} {rep.get('rel_path', '')} "
-                    f"{rep.get('source_file', '')} {rejoined_text[:1600]}"
-                ).lower()
+                        grouped_by_doc[doc_key].append(
+                            {
+                                "point_id": r_pid,
+                                "vector": self._parse_pgvector_text(r_emb),
+                                "payload": payload,
+                            }
+                        )
 
-                if not q_clean:
-                    score = 0.5
-                else:
-                    lex_hits = sum(1 for tok in q_tokens if tok in searchable)
-                    if lex_hits == 0 and q_clean.lower() not in searchable:
-                        continue
-                    from procedural_phase_space import poincare_hyperbolic_similarity
+                    for doc_key, chunk_list in grouped_by_doc.items():
+                        chunk_list.sort(key=lambda c: int(c["payload"].get("chunk_index", 0)))
+                        rep = chunk_list[0]["payload"]
+                        if system_id and system_id not in ("all", ""):
+                            sys_match = (
+                                system_id.lower() in coll_name.lower()
+                                or system_id.lower() in str(rep.get("repo_name", "")).lower()
+                                or system_id.lower() in str(rep.get("source_file", "")).lower()
+                                or system_id.lower() in str(rep.get("rel_path", "")).lower()
+                            )
+                            if not sys_match:
+                                continue
 
-                    vec = chunk_list[0]["vector"]
-                    hyp_sim = (
-                        poincare_hyperbolic_similarity(q_vec, vec)
-                        if len(vec) == len(q_vec)
-                        else 0.25
-                    )
-                    exact_boost = 0.8 if q_clean.lower() in searchable else 0.0
-                    score = round(
-                        float(hyp_sim * 0.4 + (lex_hits / max(1, len(q_tokens))) * 0.6 + exact_boost),
-                        4,
-                    )
-
-                inferred_layer = (
-                    "model"
-                    if ("neural_benchmarks" in coll_name or "harness_benchmarks" in coll_name)
-                    else "compiler"
-                    if "compiler" in searchable
-                    else "design"
-                    if ("wiki" in coll_name or "corpus_" in coll_name)
-                    else "code"
-                )
-                if layer and layer != "all" and inferred_layer != layer:
-                    continue
-
-                sys_inferred = (
-                    "neural_networks"
-                    if (
-                        "neural" in coll_name
-                        or "code_corpus" in coll_name
-                        or "harness_benchmarks" in coll_name
-                        or "corpus_" in coll_name
-                    )
-                    else "portfolio"
-                )
-                hits.append(
-                    (
-                        score,
-                        {
-                            "collection": coll_name,
-                            "point_id": chunk_list[0]["point_id"],
-                            "id": doc_key,
-                            "title": str(
-                                rep.get("title")
-                                or rep.get("model_name")
-                                or (
-                                    f"{rep.get('model_slot_id')}::{rep.get('harness')}::{rep.get('test_id')}"
-                                    if rep.get("model_slot_id") and rep.get("harness")
-                                    else None
+                        rejoined_text = (
+                            "\n".join(
+                                str(
+                                    c["payload"].get("chunk_text")
+                                    or c["payload"].get("text")
+                                    or c["payload"].get("content")
+                                    or c["payload"].get("snippet")
+                                    or ""
                                 )
-                                or rep.get("task_id")
-                                or rep.get("topic_id")
-                                or rep.get("rel_path")
-                                or doc_key
-                            ),
-                            "idiomatic_name": str(
-                                rep.get("class_name")
-                                or rep.get("model_class")
-                                or rep.get("module_name")
-                                or rep.get("rel_path")
-                                or doc_key
-                            ),
-                            "system_id": sys_inferred,
-                            "layer": inferred_layer,
-                            "node_type": str(rep.get("doc_type") or rep.get("entry_type") or coll_name),
-                            "score": score,
-                            "chunks_rejoined": len(chunk_list) if rejoin_chunks else 1,
-                            "rejoined_text_excerpt": rejoined_text[:900],
-                            "juxtaposition": self._build_tri_layer_juxtaposition_for_node(
+                                for c in chunk_list
+                            ).strip()
+                            if rejoin_chunks
+                            else str(
+                                rep.get("chunk_text")
+                                or rep.get("text")
+                                or rep.get("content")
+                                or rep.get("snippet")
+                                or ""
+                            )
+                        )
+                        searchable = (
+                            f"{doc_key} {rep.get('title', '')} {rep.get('model_name', '')} "
+                            f"{rep.get('model_slot_id', '')} {rep.get('model_class', '')} "
+                            f"{rep.get('harness', '')} {rep.get('test_id', '')} "
+                            f"{rep.get('task_id', '')} {rep.get('topic_id', '')} "
+                            f"{rep.get('dataset', '')} {rep.get('benchmark', '')} "
+                            f"{rep.get('class_name', '')} {rep.get('rel_path', '')} "
+                            f"{rep.get('source_file', '')} {rejoined_text[:1600]}"
+                        ).lower()
+
+                        if not q_clean:
+                            score = 0.5
+                        else:
+                            lex_hits = sum(1 for tok in q_tokens if tok in searchable)
+                            if lex_hits == 0 and q_clean.lower() not in searchable:
+                                continue
+                            vec = chunk_list[0]["vector"]
+                            hyp_sim = (
+                                poincare_hyperbolic_similarity(coll_q_vec, vec)
+                                if len(vec) == len(coll_q_vec)
+                                else 0.25
+                            )
+                            exact_boost = 0.8 if q_clean.lower() in searchable else 0.0
+                            score = round(
+                                float(hyp_sim * 0.4 + (lex_hits / max(1, len(q_tokens))) * 0.6 + exact_boost),
+                                4,
+                            )
+
+                        inferred_layer = (
+                            "model"
+                            if ("neural_benchmarks" in coll_name or "harness_benchmarks" in coll_name)
+                            else "compiler"
+                            if "compiler" in searchable
+                            else "design"
+                            if ("wiki" in coll_name or "corpus_" in coll_name)
+                            else "code"
+                        )
+                        if layer and layer != "all" and inferred_layer != layer:
+                            continue
+
+                        sys_inferred = (
+                            "neural_networks"
+                            if (
+                                "neural" in coll_name
+                                or "code_corpus" in coll_name
+                                or "harness_benchmarks" in coll_name
+                                or "corpus_" in coll_name
+                            )
+                            else "portfolio"
+                        )
+                        hits.append(
+                            (
+                                score,
                                 {
-                                    "node_id": doc_key,
-                                    "repo_name": sys_inferred,
-                                    "title": str(rep.get("title") or rep.get("model_name") or doc_key),
-                                }
-                            ),
-                            "payload": rep,
-                        },
-                    )
-                )
+                                    "collection": coll_name,
+                                    "point_id": chunk_list[0]["point_id"],
+                                    "id": doc_key,
+                                    "title": str(
+                                        rep.get("title")
+                                        or rep.get("model_name")
+                                        or (
+                                            f"{rep.get('model_slot_id')}::{rep.get('harness')}::{rep.get('test_id')}"
+                                            if rep.get("model_slot_id") and rep.get("harness")
+                                            else None
+                                        )
+                                        or rep.get("task_id")
+                                        or rep.get("topic_id")
+                                        or rep.get("rel_path")
+                                        or doc_key
+                                    ),
+                                    "idiomatic_name": str(
+                                        rep.get("class_name")
+                                        or rep.get("model_class")
+                                        or rep.get("module_name")
+                                        or rep.get("rel_path")
+                                        or doc_key
+                                    ),
+                                    "system_id": sys_inferred,
+                                    "layer": inferred_layer,
+                                    "node_type": str(rep.get("doc_type") or rep.get("entry_type") or coll_name),
+                                    "score": score,
+                                    "chunks_rejoined": len(chunk_list) if rejoin_chunks else 1,
+                                    "rejoined_text_excerpt": rejoined_text[:900],
+                                    "juxtaposition": self._build_tri_layer_juxtaposition_for_node(
+                                        {
+                                            "node_id": doc_key,
+                                            "repo_name": sys_inferred,
+                                            "title": str(rep.get("title") or rep.get("model_name") or doc_key),
+                                        }
+                                    ),
+                                    "payload": rep,
+                                },
+                            )
+                        )
 
         hits.sort(key=lambda x: x[0], reverse=True)
         top_results = [h[1] for h in hits[: max(1, int(top_k))]]
@@ -3686,7 +3653,7 @@ class AgentInformationalGraphIndex(Datasource):
             if matches
             else (
                 self.index.load_from_index("nodes", "compiler:stage_compiler:stage1_main")
-                or self.index.load_from_index("nodes", "staging:qdrant_staging")
+                or self.index.load_from_index("nodes", "staging:vector_staging")
                 or {}
             )
         )
@@ -3792,11 +3759,8 @@ class AgentInformationalGraphIndex(Datasource):
           geodesic path from `start_query` to `target_query` and enriches every hop with
           its Design + Compiler + Code juxtaposition context and hyperbolic geometry.
         - When only `start_query` (or `system_id` / empty) is provided, traces the complete
-          Start-to-Finish End-to-End Execution Geodesic Path across all 7 architectural phases
-          (1_DESIGN -> 2_COMPILER_BOOTSTRAP_AND_INGRESS -> 3_COMPILER_PARSER_AND_IR ->
-           4_COMPILER_EMIT_AND_SYNTHESIS -> 5_RUNTIME_VCPU_AND_NEURAL_MODEL ->
-           6_HARNESS_LEDGER_AND_SERVICE -> 7_UI_STREAMING_PRESENTATION), anchored through
-          the queried node if not already in the canonical spine.
+          Start-to-Finish End-to-End Execution Geodesic Path across all architectural phases,
+          anchored through the queried node if not already in the canonical spine.
         """
         canonical_spine_ids = [
             "design:large_tools:project_master_spec",
@@ -3820,7 +3784,7 @@ class AgentInformationalGraphIndex(Datasource):
             "module:toolset:benchmark_ledger",
             "service:portfolio:benchmark_service",
             "service:portfolio:portfolio_api",
-            "ui:portfolio:PromotedModelSection",
+            "ui:portfolio:PromotedView",
             "ui:components:AsyncChatWindow",
         ]
 
@@ -3854,7 +3818,6 @@ class AgentInformationalGraphIndex(Datasource):
                         edge_lookup[(str(e["source"]), str(e["target"]))] = e
 
         if not ordered_node_ids:
-            # Build full start-to-finish spine, ensuring any queried node is included at its proper phase
             ordered_node_ids = [
                 nid
                 for nid in canonical_spine_ids
@@ -3882,7 +3845,7 @@ class AgentInformationalGraphIndex(Datasource):
             "compiler": "2_COMPILER_PIPELINE",
             "model": "3_NEURAL_COMPILER_AND_CAVITY_MODEL",
             "code": "4_RUNTIME_CODE_AND_SERVICE",
-            "index": "5_QDRANT_AND_TOOLSET_INDEX",
+            "index": "5_PGVECTOR_AND_TOOLSET_INDEX",
             "ui": "6_UI_STREAMING_PRESENTATION",
         }
 
@@ -3926,7 +3889,7 @@ class AgentInformationalGraphIndex(Datasource):
                 "exported_symbols": code_meta.get("exported_symbols", []),
                 "sha256": code_meta.get("sha256", ""),
                 "doc_path": doc_meta.get("doc_path", ""),
-                "qdrant_namespace": node_obj.get("qdrant_namespace", self.collection_name),
+                "vector_namespace": node_obj.get("vector_namespace", self.collection_name),
                 "keep_in_place": bool(node_obj.get("keep_in_place", True)),
                 "poincare_coords": coords,
                 "step_geodesic_distance": step_geo,
@@ -3974,16 +3937,16 @@ class AgentInformationalGraphIndex(Datasource):
     ) -> Dict[str, Any]:
         """
         Manages the full lifecycle across all systems (`portfolio`, `components`, `toolset`,
-        `neural_networks`, `large_tools`, `StageCompiler-development`, `qdrant_staging`):
-        - `status`: Returns system catalog, Qdrant staging telemetry, and promoted harness state.
+        `neural_networks`, `playground`, `large_tools`, `StageCompiler-development`, `vector_staging`):
+        - `status`: Returns system catalog, PGVector staging telemetry, and promoted harness state.
         - `build` / `rebuild`: Rebuilds the juxtaposed Design+Compiler+Code informational graph
-          and unifies all Qdrant collections into `/Users/jarek/IdeaProjects/qdrant_staging`.
-        - `sync`: Synchronizes Qdrant collections across repo-local stores, staging, or an external environment.
+          and unifies all collections in PostgreSQL `pgvector` (`vectors` DB) and `/Users/jarek/IdeaProjects/vector_staging`.
+        - `sync`: Synchronizes PGVector collections across `vectors` DB, staging, or an external environment.
         - `verify`: Verifies SHA-256 code integrity (`CodeCorpusIndex.verify_code_unchanged`),
-          chunk rejoin integrity across Qdrant collections, and `keep_in_place` invariants.
+          chunk rejoin integrity across PGVector collections, and `keep_in_place` invariants.
         - `promote_harness`: Executes lifecycle actions on `PromotedModelHarness` (`status`, `learn`,
           `generate`, `memorize`, `reset_memory`, `predict_next`).
-        - `snapshot`: Exports portable JSONL + manifest snapshots to `/Users/jarek/IdeaProjects/qdrant_staging/snapshots`.
+        - `snapshot`: Exports portable JSONL + manifest snapshots to `/Users/jarek/IdeaProjects/vector_staging/snapshots`.
         """
         t0 = time.perf_counter()
         norm_action = (action or "status").strip().lower()
@@ -4048,10 +4011,11 @@ class AgentInformationalGraphIndex(Datasource):
                 elif cp:
                     missing_paths.append(cp)
 
-            # 2. Verify neural_networks CodeCorpusIndex SHA-256 integrity if available
-            nn_repo = self.idea_projects_root / "neural_networks"
+            # 2. Verify neural_networks / PolyphonicModel CodeCorpusIndex SHA-256 integrity if available
+            nn_repo = self.idea_projects_root / "PolyphonicModel"
+            if not nn_repo.is_dir():
+                nn_repo = self.idea_projects_root / "neural_networks"
             nn_ledger = nn_repo / "src" / "models" / "monadic_cavity" / "results" / "code_corpus_ledger.json"
-            nn_qdrant = nn_repo / ".qdrant_code_index"
             code_verification: Dict[str, Any] = {"available": False}
             if nn_repo.is_dir():
                 try:
@@ -4059,14 +4023,21 @@ class AgentInformationalGraphIndex(Datasource):
 
                     c_idx = CodeCorpusIndex(
                         repo_path=nn_repo,
-                        qdrant_path=nn_qdrant if nn_qdrant.is_dir() else None,
                         collection_name="neural_networks_code_corpus",
                         ledger_path=nn_ledger if nn_ledger.is_file() else None,
                     )
-                    code_verification = c_idx.verify_code_unchanged(
-                        subdirs=["src/models/monadic_cavity", "src/models/stage_compiler", "promoted"]
-                    )
-                    code_verification["available"] = True
+                    try:
+                        cand_subdirs = [
+                            d
+                            for d in ("src/models/monadic_cavity", "src/models/phaselang_compiler", "promoted")
+                            if (nn_repo / d).is_dir()
+                        ]
+                        code_verification = c_idx.verify_code_unchanged(
+                            subdirs=cand_subdirs if cand_subdirs else None
+                        )
+                        code_verification["available"] = True
+                    finally:
+                        c_idx.close()
                 except Exception as exc:
                     code_verification = {"available": False, "error": str(exc)}
 
@@ -4083,29 +4054,39 @@ class AgentInformationalGraphIndex(Datasource):
 
         if norm_action == "run_slot_benchmarks":
             nn_root = self.idea_projects_root / "neural_networks"
+            harnesses_src = self.idea_projects_root / "harnesses" / "src"
             ab_src = self.idea_projects_root / "agent_brain" / "src"
-            ab_slot_path = ab_src / "agent_brain" / "harness" / "model_harness" / "slot_benchmark.py"
-            legacy_slot_path = nn_root / "src" / "model_harness" / "slot_benchmark.py"
             import sys
 
-            for p_cand in (str(ab_src), str(nn_root), str(nn_root / "src")):
+            for p_cand in (
+                str(harnesses_src),
+                str(self.idea_projects_root / "PolyphonicModel"),
+                str(self.idea_projects_root / "PolyphonicModel" / "src"),
+                str(self.idea_projects_root / "MonadicCavity" / "src"),
+                str(self.idea_projects_root / "PhaseSheafAnyGram" / "src"),
+                str(self.idea_projects_root / "PolyphonicAbacus" / "src"),
+                str(self.idea_projects_root / "PolyphonicVCPU" / "src"),
+                str(self.idea_projects_root / "PolyphonicPipeline" / "src"),
+                str(self.idea_projects_root / "PolyphonicRGFlowTraining" / "src"),
+                str(ab_src),
+                str(nn_root),
+                str(nn_root / "src"),
+            ):
                 if Path(p_cand).is_dir() and p_cand not in sys.path:
                     sys.path.insert(0, p_cand)
             try:
-                from agent_brain.harness.model_harness.slot_benchmark import (
+                from agent_harnesses.model_harness.slot_benchmark import (
                     ALL_HARNESSES,
                     run_slot_benchmark_suite,
                 )
             except ImportError:
-                if not legacy_slot_path.is_file():
-                    return {
-                        "action": norm_action,
-                        "system_id": "neural_networks",
-                        "status": "UNAVAILABLE",
-                        "error": f"Slot benchmark runner not found at {ab_slot_path}",
-                        "wall_time_ms": round((time.perf_counter() - t0) * 1000.0, 2),
-                    }
-                from src.model_harness.slot_benchmark import ALL_HARNESSES, run_slot_benchmark_suite
+                return {
+                    "action": norm_action,
+                    "system_id": "neural_networks",
+                    "status": "UNAVAILABLE",
+                    "error": f"Slot benchmark runner not found at {harnesses_src / 'agent_harnesses/model_harness/slot_benchmark.py'}",
+                    "wall_time_ms": round((time.perf_counter() - t0) * 1000.0, 2),
+                }
 
             raw_slots = opts.get("slots", ["mlp", "kan", "hyperbolic"])
             if isinstance(raw_slots, str):
@@ -4170,24 +4151,48 @@ class AgentInformationalGraphIndex(Datasource):
             "harness",
             "learn",
             "learn_topic",
-            "train_qdrant_topics",
+            "train_pgvector_topics",
             "training_status",
             "blend_topics",
             "topic_crud",
         ):
             nn_root = self.idea_projects_root / "neural_networks"
+            harnesses_src = self.idea_projects_root / "harnesses" / "src"
             ab_src = self.idea_projects_root / "agent_brain" / "src"
             harness_result: Dict[str, Any] = {"available": False}
             import importlib
             import sys
 
-            for p_cand in (str(ab_src), str(nn_root), str(nn_root / "src")):
+            real_idea_root = Path(__file__).resolve().parents[4]
+            roots_to_probe = [self.idea_projects_root]
+            if real_idea_root.is_dir() and real_idea_root != self.idea_projects_root:
+                roots_to_probe.append(real_idea_root)
+            cand_paths: list[str] = []
+            for base_root in roots_to_probe:
+                cand_paths.extend(
+                    (
+                        str(base_root / "harnesses" / "src"),
+                        str(base_root / "PolyphonicModel"),
+                        str(base_root / "PolyphonicModel" / "src"),
+                        str(base_root / "MonadicCavity" / "src"),
+                        str(base_root / "PhaseSheafAnyGram" / "src"),
+                        str(base_root / "PolyphonicAbacus" / "src"),
+                        str(base_root / "PolyphonicVCPU" / "src"),
+                        str(base_root / "PolyphonicPipeline" / "src"),
+                        str(base_root / "PolyphonicRGFlowTraining" / "src"),
+                        str(base_root / "PQCIdentityProvider" / "src"),
+                        str(base_root / "agent_brain" / "src"),
+                        str(base_root / "neural_networks"),
+                        str(base_root / "neural_networks" / "src"),
+                    )
+                )
+            for p_cand in reversed(cand_paths):
                 if Path(p_cand).is_dir() and p_cand not in sys.path:
                     sys.path.insert(0, p_cand)
             h_mod = None
             for mod_name in (
+                "agent_harnesses.model_harness",
                 "agent_brain.harness.model_harness",
-                "src.model_harness",
                 "promoted.harness",
             ):
                 try:
@@ -4197,7 +4202,6 @@ class AgentInformationalGraphIndex(Datasource):
                     continue
 
             if h_mod is not None:
-                importlib.reload(h_mod)
                 if getattr(self, "_promoted_harness_singleton", None) is None:
                     self._promoted_harness_singleton = h_mod.build_promoted_harness(
                         vocab_size=256, d_model=128, device="cpu"
@@ -4206,7 +4210,14 @@ class AgentInformationalGraphIndex(Datasource):
                 sub_action = (
                     norm_action
                     if norm_action
-                    in ("learn", "learn_topic", "train_qdrant_topics", "training_status", "blend_topics", "topic_crud")
+                    in (
+                        "learn",
+                        "learn_topic",
+                        "train_pgvector_topics",
+                        "training_status",
+                        "blend_topics",
+                        "topic_crud",
+                    )
                     else str(opts.get("harness_action", "status")).lower()
                 )
                 prompt_text = str(
@@ -4230,13 +4241,11 @@ class AgentInformationalGraphIndex(Datasource):
                 if sub_action == "learn":
                     harness_result = harness.learn(prompt_text, steps=int(opts.get("steps", 2)))
                 elif sub_action == "learn_topic":
-                    # Upsert public topic into staging Qdrant informational collection as well
                     if not is_internal_code:
                         pt_id = str(
                             uuid5_from_args(INFORMATIONAL_NAMESPACE_UUID, "learned_topic", topic_id)
                         )
-                        self.staging_manager.upsert_points_lockfree(
-                            storage_path=self.staging_manager.storage_dir,
+                        self.staging_manager.upsert_points(
                             collection_name=self.collection_name,
                             points=[
                                 PointStruct(
@@ -4252,6 +4261,7 @@ class AgentInformationalGraphIndex(Datasource):
                                     },
                                 )
                             ],
+                            vector_size=DEFAULT_VECTOR_SIZE,
                             recreate=False,
                         )
                     harness_result = harness.learn_topic(
@@ -4262,8 +4272,8 @@ class AgentInformationalGraphIndex(Datasource):
                         async_mode=async_mode,
                         metadata=opts.get("metadata"),
                     )
-                elif sub_action == "train_qdrant_topics":
-                    harness_result = harness.train_qdrant_topics_async(
+                elif sub_action == "train_pgvector_topics":
+                    harness_result = harness.train_pgvector_topics_async(
                         topics=opts.get("topics"),
                         include_code_corpus=bool(opts.get("include_code_corpus", True)),
                         include_informational_index=bool(opts.get("include_informational_index", True)),
@@ -4443,14 +4453,14 @@ class AgentInformationalGraphIndex(Datasource):
             ("portfolio", "Portfolio (Services, API & Code Wiki UI)"),
             ("components", "Components (Reusable Meta-Components)"),
             ("StageCompiler-development", "StageCompiler Development Specs"),
-            ("qdrant_staging", "Qdrant Staging & Knowledge Items"),
+            ("vector_staging", "PGVector Staging & Knowledge Items"),
         ]
         layer_folder_meta = {
             "design": ("design", "Design Specifications"),
             "compiler": ("compiler", "Compiler Pipeline"),
             "model": ("models", "Promoted & Neural Models"),
             "code": ("runtime", "Runtime & Services"),
-            "index": ("indexes", "Qdrant & Toolset Indexes"),
+            "index": ("indexes", "PGVector & Toolset Indexes"),
             "ui": ("ui", "UI & Meta-Components"),
         }
 
@@ -4601,10 +4611,11 @@ class AgentInformationalGraphIndex(Datasource):
         self, file_path_or_query: str
     ) -> Tuple[Optional[Path], Optional[Dict[str, Any]]]:
         all_nodes = self._ensure_nodes_loaded()
-        clean = mask_restricted_string((file_path_or_query or "").strip())
-        if not clean:
+        raw_input = (file_path_or_query or "").strip()
+        if not raw_input:
             tree_info = self.get_wiki_filesystem_tree()
-            clean = str(tree_info.get("default_file_path") or "")
+            raw_input = str(tree_info.get("default_file_path") or "")
+        clean = mask_restricted_string(raw_input)
 
         # 1. Exact node_id match
         direct_node = self.index.load_from_index("nodes", clean)
@@ -4613,28 +4624,31 @@ class AgentInformationalGraphIndex(Datasource):
             if cp and Path(cp).is_file():
                 return Path(cp).absolute(), direct_node
 
-        # 2. Direct file path match (preserve non-restricted symlinks via .absolute())
-        cand_path = Path(clean)
+        # 2. Direct file path match (preserve raw physical path if masked path does not exist)
+        cand_path = Path(raw_input) if Path(raw_input).is_file() else Path(clean)
         if not cand_path.is_absolute():
-            for base in (self.idea_projects_root, self.idea_projects_root / "portfolio" / "portfolio"):
-                if (base / clean).is_file():
-                    cand_path = (base / clean).absolute()
+            for q_cand in (raw_input, clean):
+                for base in (self.idea_projects_root, self.idea_projects_root / "portfolio" / "portfolio"):
+                    if (base / q_cand).is_file():
+                        cand_path = (base / q_cand).absolute()
+                        break
+                if cand_path.is_file():
                     break
 
         best_node: Optional[Dict[str, Any]] = None
         if cand_path.is_file():
-            abs_str = mask_restricted_string(str(cand_path.absolute()))
+            raw_abs_str = str(cand_path.absolute())
+            abs_str = mask_restricted_string(raw_abs_str)
             resolved_str = str(cand_path.resolve())
             for node in all_nodes:
                 cp = str((node.get("juxtaposed_code") or {}).get("code_path") or "")
                 dp = str((node.get("juxtaposed_docs") or {}).get("doc_path") or "")
-                if cp in (abs_str, resolved_str):
+                if cp in (raw_abs_str, abs_str, resolved_str):
                     best_node = node
                     break
-                if dp in (abs_str, resolved_str) and best_node is None:
+                if dp in (raw_abs_str, abs_str, resolved_str) and best_node is None:
                     best_node = node
             if best_node is None:
-                # Match by parent repo
                 for node in all_nodes:
                     r_name = str(node.get("repo_name") or "")
                     if r_name and f"/{r_name}/" in abs_str:
@@ -4706,14 +4720,15 @@ class AgentInformationalGraphIndex(Datasource):
             raise ValueError(f"Wiki file not found: {file_path}")
 
         # Enforce workspace boundary check
-        resolved_str = mask_restricted_string(str(resolved_path))
+        masked_resolved_str = mask_restricted_string(str(resolved_path))
+        resolved_str = masked_resolved_str if Path(masked_resolved_str).is_file() else str(resolved_path)
         real_str = str(resolved_path.resolve())
         allowed_roots = (
             str(self.idea_projects_root.resolve()),
             str(Path("/Users/jarek/.gemini").resolve()),
         )
         if not any(real_str.startswith(root) for root in allowed_roots):
-            raise ValueError(f"File path outside allowed workspace roots: {resolved_str}")
+            raise ValueError(f"File path outside allowed workspace roots: {masked_resolved_str}")
 
         raw_text = mask_restricted_string(resolved_path.read_text(encoding="utf-8", errors="replace"))
         raw_lines = raw_text.splitlines()
@@ -4806,7 +4821,7 @@ class AgentInformationalGraphIndex(Datasource):
     ) -> Dict[str, Any]:
         """
         Locates the best matching line for `search_terms` in `file_path_str` (or uses
-        `preferred_line`) using Qdrant-indexed node excerpts and extracts a 10-line
+        `preferred_line`) using pgvector-indexed node excerpts and extracts a 10-line
         surrounding code window (`target_lines_count=10`) with highlighted lines,
         branching keyword metadata (`is_branch`, `branch_keyword`), and clickable tokens.
         """
@@ -5065,9 +5080,9 @@ class AgentInformationalGraphIndex(Datasource):
            into a single join node before flowing through downstream geodesic hops.
         3. Generates a Mermaid `flowchart LR` graph (`mermaid_code`), draggable node coordinates
            (`flow_graph.nodes`), and line-to-line cubic Bezier spline edges (`flow_graph.edges`).
-        4. Stores/upserts the traced graph into staging Qdrant (`code_flow_graphs` collection in
-           `/Users/jarek/IdeaProjects/qdrant_staging/storage`) so the code flow is graphed in
-           Qdrant and displayed as an interactive spline graph in the UI.
+        4. Stores/upserts the traced graph into PostgreSQL `pgvector` (`code_flow_graphs` collection
+           in `vectors` DB) so the code flow is graphed in pgvector and displayed as an interactive
+           spline graph in the UI.
         """
         file_info = self.get_wiki_file_content(file_path, max_lines=500)
         lines = file_info.get("lines", [])
@@ -5386,7 +5401,7 @@ class AgentInformationalGraphIndex(Datasource):
                         "id": p["panel_id"],
                         "node_id": p["panel_id"],
                         "panel_id": p["panel_id"],
-                        "qdrant_node_id": p["node_id"],
+                        "pgvector_node_id": p["node_id"],
                         "column_index": c_idx,
                         "branch_index": p_idx,
                         "split_mode": col["split_mode"],
@@ -5504,8 +5519,8 @@ class AgentInformationalGraphIndex(Datasource):
             "updated_at": round(time.time(), 3),
         }
 
-        # Persist the code flow graph and its nodes in staging Qdrant (`code_flow_graphs`)
-        qdrant_points: List[PointStruct] = [
+        # Persist the code flow graph and its nodes in PostgreSQL pgvector (`code_flow_graphs`)
+        vector_points: List[PointStruct] = [
             PointStruct(
                 id=graph_point_id,
                 vector=_deterministic_384d_vector(
@@ -5526,7 +5541,7 @@ class AgentInformationalGraphIndex(Datasource):
                     g_node["node_id"],
                 )
             )
-            qdrant_points.append(
+            vector_points.append(
                 PointStruct(
                     id=node_pt_id,
                     vector=_deterministic_384d_vector(
@@ -5540,13 +5555,13 @@ class AgentInformationalGraphIndex(Datasource):
                 )
             )
 
-        staged_graph_points = self.staging_manager.upsert_points_lockfree(
-            storage_path=self.staging_manager.storage_dir,
+        staged_graph_points = self.staging_manager.upsert_points(
             collection_name="code_flow_graphs",
-            points=qdrant_points,
+            points=vector_points,
+            vector_size=DEFAULT_VECTOR_SIZE,
             recreate=False,
         )
-        flow_graph_payload["staged_qdrant_points"] = staged_graph_points
+        flow_graph_payload["staged_vector_points"] = staged_graph_points
 
         clicked_is_branch, clicked_branch_kw = self._detect_branch_keyword(line_text)
         return {
@@ -5567,8 +5582,8 @@ class AgentInformationalGraphIndex(Datasource):
             "total_geodesic_distance": round(cum_dist, 4),
             "mermaid_code": mermaid_code,
             "flow_graph": flow_graph_payload,
-            "qdrant_graph_id": graph_id,
-            "qdrant_collection": "code_flow_graphs",
+            "pgvector_graph_id": graph_id,
+            "pgvector_collection": "code_flow_graphs",
             "sidebar_elements": sidebar_elements,
             "stage_columns": raw_columns,
             "juxtaposition": juxtaposition,

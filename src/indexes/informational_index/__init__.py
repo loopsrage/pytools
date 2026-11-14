@@ -9,12 +9,12 @@ from indexes.informational_index.informational_index import (
     AgentInformationalGraphIndex,
     JuxtaposedGraphEdge,
     JuxtaposedNode,
-    UnifiedQdrantStagingManager,
+    UnifiedVectorStagingManager,
 )
 from indexes.informational_index.mcp_server import (
     MCP_SERVER_NAME,
     MCP_SERVER_VERSION,
-    QdrantGeodesicLifecycleMCPServer,
+    PgVectorGeodesicLifecycleMCPServer,
 )
 
 __all__ = [
@@ -26,8 +26,8 @@ __all__ = [
     "AgentInformationalGraphIndex",
     "JuxtaposedGraphEdge",
     "JuxtaposedNode",
-    "UnifiedQdrantStagingManager",
+    "UnifiedVectorStagingManager",
     "MCP_SERVER_NAME",
     "MCP_SERVER_VERSION",
-    "QdrantGeodesicLifecycleMCPServer",
+    "PgVectorGeodesicLifecycleMCPServer",
 ]

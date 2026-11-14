@@ -74,7 +74,7 @@ MODULE_TO_DEFAULT_KI: dict[str, str] = {
     "queue_controller": "ki_queue_controller",
     "service_controller": "ki_service_controller",
     "thread_safe": "ki_thread_safe_index_index",
-    "benchmark_ledger": "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history",
+    "benchmark_ledger": "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_pgvector_history",
     "application_controller": "ki_application_controller_requires_toolset_web",
     "indexes": "ki_indexes_typed_thread_safe_registries",
     "settings": "ki_settings_settings_helper_settings_fssettings",
@@ -225,7 +225,7 @@ class AntigravityBrainEntry(BaseModel):
     code_blocks: list[AntigravityBrainCodeBlock] = Field(default_factory=list)
 
 
-class AntigravityBrainQdrantDocument(BaseModel):
+class AntigravityBrainVectorDocument(BaseModel):
     doc_id: str
     entry_id: str
     conversation_id: str
@@ -254,7 +254,7 @@ class AntigravityBrainQdrantDocument(BaseModel):
 
 class AntigravityBrainLedger:
     """
-    Thread-safe Antigravity Agent Brain scanner, parser, and Qdrant document builder built on
+    Thread-safe Antigravity Agent Brain scanner, parser, and PGVector document builder built on
     toolset's `FSBase(filesystem="file")`, `PeriodicProducer`, `QueueController`, `Index`, and `TsList`.
 
     - Quickly discovers and incrementally reads `/Users/jarek/.gemini/antigravity-cli/brain/<uuid>`
@@ -288,7 +288,7 @@ class AntigravityBrainLedger:
         self.fs = FSBase(filesystem="file")
         self._lock = threading.RLock()
         self._index = Index()
-        for ns in ("ENTRIES", "CONV_SIGS", "ARTIFACT_SIGS", "META", "QDRANT_DOCS"):
+        for ns in ("ENTRIES", "CONV_SIGS", "ARTIFACT_SIGS", "META", "VECTOR_DOCS"):
             self._index.new(ns)
         self._sync_events = TsList()
         self._last_global_sig: str = ""
@@ -744,7 +744,7 @@ class AntigravityBrainLedger:
         code_blocks: list[AntigravityBrainCodeBlock],
     ) -> list[AntigravityBrainEntry]:
         """
-        Partitions a conversation's User and Agent messages into chronological Qdrant-indexed
+        Partitions a conversation's User and Agent messages into chronological PGVector-indexed
         entries so each conversation tab streams the User and Agent text in chronological order.
         """
         turn_blocks = [b for b in code_blocks if b.block_type in ("USER_REQUEST", "AGENT_RESPONSE")]
@@ -1680,9 +1680,9 @@ class AntigravityBrainLedger:
         except Exception:
             pass
 
-    def build_qdrant_documents(self) -> list[AntigravityBrainQdrantDocument]:
+    def build_vector_documents(self) -> list[AntigravityBrainVectorDocument]:
         """
-        Builds Qdrant-ready documents (`AntigravityBrainQdrantDocument`) with full relational
+        Builds PGVector-ready documents (`AntigravityBrainVectorDocument`) with full relational
         metadata (where to find files, related modules/KIs/models/conversations, and structured
         code blocks) for vector + lexical indexing.
         """
@@ -1692,7 +1692,7 @@ class AntigravityBrainLedger:
                 self.scan_and_build(force=False)
                 entries = self._index.load_from_index("META", "ENTRIES_LIST") or []
 
-            docs: list[AntigravityBrainQdrantDocument] = []
+            docs: list[AntigravityBrainVectorDocument] = []
             for e in entries:
                 md_lines = [
                     f"# {e.title}",
@@ -1729,7 +1729,7 @@ class AntigravityBrainLedger:
                     md_lines.append(f"```{cb.language}\n{cb.code[:900]}\n```")
 
                 docs.append(
-                    AntigravityBrainQdrantDocument(
+                    AntigravityBrainVectorDocument(
                         doc_id=e.entry_id,
                         entry_id=e.entry_id,
                         conversation_id=e.conversation_id,
@@ -1791,55 +1791,46 @@ class AntigravityBrainLedger:
         )
         return self._periodic_producer, self._periodic_queue
 
-    def sync_to_qdrant(
+    def sync_to_pgvector(
         self,
-        qdrant_path: str | Path = "/Users/jarek/IdeaProjects/qdrant_staging/storage",
+        pgvector_dsn: str | None = None,
         collection_name: str = "portfolio_antigravity_brain",
-        embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2",
+        embedding_model: str = "procedural_phase_space",
         chunk_size: int = 380,
         chunk_overlap: int = 64,
-        qdrant_client: Any | None = None,
+        pgvector_client: Any | None = None,
+        ephemeral: bool | None = None,
     ) -> dict[str, Any]:
         """
-        Incrementally indexes changed Antigravity Brain documents directly into Qdrant
-        (`portfolio_antigravity_brain`) and `/Users/jarek/IdeaProjects/qdrant_staging/storage`
-        via `UnifiedQdrantStagingManager`.
+        Incrementally indexes changed Antigravity Brain documents directly into Minikube PostgreSQL
+        pgvector (`portfolio_antigravity_brain` in `vectors` DB) via `HyperbolicPGVectorClient`
+        using Procedural Phase Space (PPS) embeddings.
         """
-        from indexes.informational_index import (
-            DEFAULT_STAGING_ROOT,
-            UnifiedQdrantStagingManager,
-        )
-        from qdrant_client import QdrantClient
-        from qdrant_client.models import (
+        from procedural_phase_space import (
             Distance,
             FieldCondition,
             Filter,
+            HyperbolicPGVectorClient,
             MatchValue,
             PointStruct,
             VectorParams,
+            embed_phase_space_text,
         )
 
         with self._lock:
             t0 = time.perf_counter()
-            overview = self.scan_and_build(force=False)
-            docs = self.build_qdrant_documents()
-            staging_mgr = UnifiedQdrantStagingManager(staging_root=DEFAULT_STAGING_ROOT)
-            q_path = Path(qdrant_path).resolve()
+            self.scan_and_build(force=False)
+            docs = self.build_vector_documents()
 
             owns_client = False
-            client = qdrant_client
+            client = pgvector_client
             if client is None:
-                q_path.mkdir(parents=True, exist_ok=True)
-                try:
-                    from procedural_phase_space import HyperbolicQdrantClient
-
-                    client = HyperbolicQdrantClient(QdrantClient(path=str(q_path)))
-                    owns_client = True
-                except Exception:
-                    client = None
+                is_eph = bool(ephemeral) if ephemeral is not None else False
+                client = HyperbolicPGVectorClient(dsn=pgvector_dsn, c=1.0, ephemeral=is_eph)
+                owns_client = True
 
             try:
-                if client is not None and not client.collection_exists(collection_name):
+                if not client.collection_exists(collection_name):
                     client.create_collection(
                         collection_name=collection_name,
                         vectors_config=VectorParams(size=384, distance=Distance.DOT),
@@ -1854,20 +1845,17 @@ class AntigravityBrainLedger:
                     meta_sha256 = hashlib.sha256(
                         ("v4|" + full_text + "|" + json.dumps(doc.json_metadata, sort_keys=True)).encode("utf-8")
                     ).hexdigest()
-                    prev_sha = self._index.load_from_index("QDRANT_DOCS", doc.doc_id)
+                    prev_sha = self._index.load_from_index("VECTOR_DOCS", doc.doc_id)
                     if prev_sha == meta_sha256:
                         continue
 
-                    try:
-                        client.delete(
-                            collection_name=collection_name,
-                            points_selector=Filter(
-                                must=[FieldCondition(key="doc_id", match=MatchValue(value=doc.doc_id))]
-                            ),
-                        )
-                    except Exception:
-                        pass
-                    self._index.store_in_index("QDRANT_DOCS", doc.doc_id, meta_sha256)
+                    client.delete(
+                        collection_name=collection_name,
+                        points_selector=Filter(
+                            must=[FieldCondition(key="doc_id", match=MatchValue(value=doc.doc_id))]
+                        ),
+                    )
+                    self._index.store_in_index("VECTOR_DOCS", doc.doc_id, meta_sha256)
 
                     text_len = len(full_text)
                     chunks: list[dict[str, Any]] = [
@@ -1943,8 +1931,6 @@ class AntigravityBrainLedger:
                         )
 
                 if changed_records:
-                    from procedural_phase_space import embed_phase_space_text
-
                     raw_vecs = [
                         embed_phase_space_text(t, dim=384, normalize=False)
                         for t in embed_inputs
@@ -1957,67 +1943,33 @@ class AntigravityBrainLedger:
                         )
                         for rec, vec in zip(changed_records, raw_vecs)
                     ]
-                    if client is not None:
-                        client.upsert(collection_name=collection_name, points=points)
-                    else:
-                        staging_mgr.upsert_points_lockfree(
-                            storage_path=q_path,
-                            collection_name=collection_name,
-                            points=points,
-                            vector_size=384,
-                        )
-                    if qdrant_client is None and not collection_name.startswith("test_"):
-                        if q_path != staging_mgr.storage_dir and staging_mgr.storage_dir.parent.is_dir():
-                            staging_mgr.upsert_points_lockfree(
-                                storage_path=staging_mgr.storage_dir,
-                                collection_name=collection_name,
-                                points=points,
-                                vector_size=384,
-                            )
-                        agent_brain_qdrant = Path(
-                            "/Users/jarek/IdeaProjects/agent_brain/data/.qdrant_options"
-                        )
-                        if q_path != agent_brain_qdrant and agent_brain_qdrant.is_dir():
-                            staging_mgr.upsert_points_lockfree(
-                                storage_path=agent_brain_qdrant,
-                                collection_name=collection_name,
-                                points=points,
-                                vector_size=384,
-                            )
+                    client.upsert(collection_name=collection_name, points=points)
 
-                if client is not None:
-                    col_info = client.get_collection(collection_name)
-                    pt_count = int(col_info.points_count or 0)
-                else:
-                    pt_count = staging_mgr._count_sqlite_points(
-                        q_path / "collection" / collection_name / "storage.sqlite"
-                    )
+                col_info = client.get_collection(collection_name)
+                pt_count = int(col_info.points_count or 0)
                 return {
                     "status": "SYNCED",
                     "collection_name": collection_name,
                     "total_documents": len(docs),
                     "changed_chunks_upserted": len(changed_records),
-                    "qdrant_point_count": pt_count,
+                    "vector_point_count": pt_count,
                     "duration_ms": round((time.perf_counter() - t0) * 1000.0, 2),
                 }
             finally:
                 if owns_client and client is not None:
-                    try:
-                        client.close()
-                    except Exception:
-                        pass
+                    client.close()
 
 
-def sync_antigravity_brain_to_qdrant(
+def sync_antigravity_brain_to_pgvector(
     brain_root: str | Path = "/Users/jarek/.gemini/antigravity-cli/brain",
     ledger_path: str | Path = "/Users/jarek/IdeaProjects/agent_brain/data/antigravity_brain_ledger.json",
-    qdrant_path: str | Path = "/Users/jarek/IdeaProjects/qdrant_staging/storage",
+    pgvector_dsn: str | None = None,
     collection_name: str = "portfolio_antigravity_brain",
-    qdrant_client: Any | None = None,
+    pgvector_client: Any | None = None,
 ) -> dict[str, Any]:
     ledger = AntigravityBrainLedger(brain_root=brain_root, ledger_path=ledger_path)
-    return ledger.sync_to_qdrant(
-        qdrant_path=qdrant_path,
+    return ledger.sync_to_pgvector(
+        pgvector_dsn=pgvector_dsn,
         collection_name=collection_name,
-        qdrant_client=qdrant_client,
+        pgvector_client=pgvector_client,
     )

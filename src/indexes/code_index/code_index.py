@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import atexit
 import datetime as dt
 import hashlib
 import heapq
@@ -39,7 +40,6 @@ DEFAULT_EXCLUDE_DIRS: frozenset[str] = frozenset(
         "node_modules",
         "dist",
         "build",
-        ".qdrant_data",
         ".idea",
         "checkpoints",
     }
@@ -297,12 +297,12 @@ def _parse_python_ast_metadata(source: str, rel_path: str) -> dict[str, Any]:
 
 class CodeCorpusIndex(Datasource):
     """
-    Reusable FSBase + Qdrant Temporal Code Corpus Index with:
-      1. Qdrant SHA-256 payload index lookup BEFORE saving (`has_sha256_in_qdrant` / `search_sha256_in_qdrant`)
+    Reusable FSBase + PostgreSQL pgvector Temporal Code Corpus Index with:
+      1. PGVector SHA-256 payload index lookup BEFORE saving (`has_sha256_in_pgvector` / `search_sha256_in_pgvector`)
          so embeddings and writes only occur when code actually changes.
       2. Full CRUD operations (`create_file` / `upsert_file`, `get_file`, `get_by_sha256`,
          `update_file`, `delete_file`, `list_files`, `rejoin_file`).
-      3. Temporal version history tracking (`TEMPORAL_HISTORY` + Qdrant `temporal_version` / `previous_sha256`)
+      3. Temporal version history tracking (`TEMPORAL_HISTORY` + PGVector `temporal_version` / `previous_sha256`)
          and `verify_code_unchanged()` gate for benchmark/model promotion pipelines.
       4. AST Code Graph construction (`imports`, `inherits`, `calls`, `sibling_module`) with
          Poincare ball hyperbolic coordinates and `get_geodesic_code_trace(start, target)`
@@ -313,8 +313,8 @@ class CodeCorpusIndex(Datasource):
     def __init__(
         self,
         repo_path: str | Path,
-        qdrant_path: str | Path | None = None,
-        qdrant_client: Any | None = None,
+        pgvector_dsn: str | None = None,
+        pgvector_client: Any | None = None,
         collection_name: str = "code_corpus_temporal_index",
         ledger_path: str | Path | None = None,
         include_globs: tuple[str, ...] = ("*.py",),
@@ -323,13 +323,22 @@ class CodeCorpusIndex(Datasource):
         chunk_overlap: int = 80,
         curvature: float = 1.0,
         use_fast_hash_embeddings: bool = True,
-        embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2",
+        embedding_model: str = "procedural_phase_space",
+        ephemeral: bool | None = None,
+        use_pgvector: bool = True,
     ) -> None:
         super().__init__()
         self.repo_path = Path(repo_path).resolve()
-        self.qdrant_path = Path(qdrant_path).resolve() if qdrant_path is not None else None
-        self._external_client = qdrant_client
+        self.pgvector_dsn = pgvector_dsn
+        self._external_client = pgvector_client
+        self._owned_client: Any | None = None
         self.collection_name = collection_name
+        self.ephemeral = (
+            bool(ephemeral)
+            if ephemeral is not None
+            else (pgvector_client is None and collection_name.startswith("test_"))
+        )
+        self.use_pgvector = use_pgvector
         self.ledger_path = Path(ledger_path).resolve() if ledger_path is not None else None
         self.include_globs = include_globs
         self.exclude_dirs = exclude_dirs
@@ -357,7 +366,7 @@ class CodeCorpusIndex(Datasource):
             self._load_persisted_ledger()
 
     # ------------------------------------------------------------------
-    # Internal FSBase & Qdrant Client Helpers
+    # Internal FSBase & PGVector Client Helpers
     # ------------------------------------------------------------------
     def _read_text_via_fsbase(self, abs_path: Path) -> str:
         buf = io.BytesIO()
@@ -369,91 +378,58 @@ class CodeCorpusIndex(Datasource):
         buf = io.BytesIO(content.encode("utf-8"))
         self._fs.write(str(abs_path), buf)
 
-    def _open_qdrant_client(self) -> tuple[Any | None, bool]:
+    def _get_pgvector_client(self) -> Any | None:
         if self._external_client is not None:
-            return self._external_client, False
-        if self.qdrant_path is None:
-            return None, False
-        import os
-        import tempfile
-        from qdrant_client import QdrantClient
+            return self._external_client
+        if not self.use_pgvector:
+            return None
+        if self._owned_client is not None:
+            return self._owned_client
+        from procedural_phase_space import HyperbolicPGVectorClient
 
-        resolved_str = str(self.qdrant_path)
-        tmp_dir = str(Path(tempfile.gettempdir()).resolve())
-        is_temp = (
-            resolved_str.startswith(tmp_dir)
-            or "/pytest-" in resolved_str
-            or "/var/folders/" in resolved_str
-            or resolved_str.startswith("/tmp/")
-            or resolved_str.startswith("/private/tmp/")
+        self._owned_client = HyperbolicPGVectorClient(
+            dsn=self.pgvector_dsn,
+            c=self.curvature,
+            ephemeral=self.ephemeral,
         )
-        if not is_temp:
-            try:
-                url = os.environ.get("QDRANT_URL", "http://localhost:6333")
-                grpc_port = int(os.environ.get("QDRANT_GRPC_PORT", "6334"))
-                prefer_grpc = os.environ.get("QDRANT_PREFER_GRPC", "false").lower() in ("1", "true", "yes")
-                client = QdrantClient(
-                    url=url,
-                    grpc_port=grpc_port,
-                    prefer_grpc=prefer_grpc,
-                    check_compatibility=False,
-                )
-                return client, True
-            except Exception:
-                pass
+        atexit.register(self.close)
+        return self._owned_client
 
-        self.qdrant_path.mkdir(parents=True, exist_ok=True)
-        try:
-            client = QdrantClient(path=str(self.qdrant_path))
-            return client, True
-        except Exception:
-            return None, False
+    def close(self) -> None:
+        with self._lock:
+            if self._owned_client is not None:
+                try:
+                    self._owned_client.close()
+                finally:
+                    self._owned_client = None
+                    self._collection_ensured = False
 
     def _ensure_collection_and_sha256_index(self, client: Any) -> None:
         if getattr(self, "_collection_ensured", False):
             return
-        from qdrant_client.models import Distance, PayloadSchemaType, VectorParams
+        from procedural_phase_space import Distance, PayloadSchemaType, VectorParams
 
         if not client.collection_exists(self.collection_name):
             client.create_collection(
                 collection_name=self.collection_name,
-                vectors_config=VectorParams(size=384, distance=Distance.COSINE),
+                vectors_config=VectorParams(size=384, distance=Distance.DOT),
             )
-            inner_cls = type(getattr(client, "_client", None)).__name__
-            if "Local" not in inner_cls:
-                for field_name, schema_type in (
-                    ("sha256", PayloadSchemaType.KEYWORD),
-                    ("rel_path", PayloadSchemaType.KEYWORD),
-                    ("doc_type", PayloadSchemaType.KEYWORD),
-                    ("is_head", PayloadSchemaType.BOOL),
-                ):
-                    try:
-                        client.create_payload_index(
-                            collection_name=self.collection_name,
-                            field_name=field_name,
-                            field_schema=schema_type,
-                        )
-                    except Exception:
-                        pass
+            for field_name, schema_type in (
+                ("sha256", PayloadSchemaType.KEYWORD),
+                ("rel_path", PayloadSchemaType.KEYWORD),
+                ("doc_type", PayloadSchemaType.KEYWORD),
+                ("is_head", PayloadSchemaType.BOOL),
+            ):
+                client.create_payload_index(
+                    collection_name=self.collection_name,
+                    field_name=field_name,
+                    field_schema=schema_type,
+                )
         self._collection_ensured = True
 
     def _encode_texts(self, texts: list[str]) -> list[list[float]]:
         if not texts:
             return []
-        if not self.use_fast_hash_embeddings:
-            try:
-                from sentence_transformers import SentenceTransformer
-
-                model = SentenceTransformer(self.embedding_model, device="cpu", local_files_only=True)
-                arr = model.encode(
-                    texts,
-                    normalize_embeddings=True,
-                    show_progress_bar=False,
-                    convert_to_numpy=True,
-                )
-                return [[round(float(x), 6) for x in row.tolist()] for row in arr]
-            except Exception:
-                pass
         return [_deterministic_vector_384(t, dim=384) for t in texts]
 
     def _chunk_source(self, text: str) -> list[dict[str, Any]]:
@@ -472,9 +448,9 @@ class CodeCorpusIndex(Datasource):
         ]
 
     # ------------------------------------------------------------------
-    # Qdrant SHA-256 Pre-Save Lookup
+    # PGVector SHA-256 Pre-Save Lookup
     # ------------------------------------------------------------------
-    def search_sha256_in_qdrant(
+    def search_sha256_in_pgvector(
         self,
         sha256_hash: str,
         rel_path: str | None = None,
@@ -482,47 +458,37 @@ class CodeCorpusIndex(Datasource):
         client: Any | None = None,
     ) -> list[dict[str, Any]]:
         """
-        Searches the Qdrant `sha256` index for matching code points BEFORE saving.
-        Falls back to the thread-safe in-memory `SHA256_MAP` index when Qdrant is offline/locked.
+        Searches the PGVector `sha256` payload index for matching code points BEFORE saving.
+        Falls back to the thread-safe in-memory `SHA256_MAP` index when `use_pgvector=False`.
         """
-        from qdrant_client.models import FieldCondition, Filter, MatchValue
+        from procedural_phase_space import FieldCondition, Filter, MatchValue
 
-        owns = False
-        active_client = client
-        if active_client is None:
-            active_client, owns = self._open_qdrant_client()
+        active_client = client if client is not None else self._get_pgvector_client()
 
         matches: list[dict[str, Any]] = []
         if active_client is not None:
-            try:
-                self._ensure_collection_and_sha256_index(active_client)
-                must_conds = [
-                    FieldCondition(key="sha256", match=MatchValue(value=sha256_hash)),
-                ]
-                if rel_path is not None:
-                    must_conds.append(
-                        FieldCondition(key="rel_path", match=MatchValue(value=rel_path))
-                    )
-                if only_head:
-                    must_conds.append(
-                        FieldCondition(key="is_head", match=MatchValue(value=True))
-                    )
-                scrolled, _ = active_client.scroll(
-                    collection_name=self.collection_name,
-                    scroll_filter=Filter(must=must_conds),
-                    limit=64,
-                    with_payload=True,
-                    with_vectors=False,
+            self._ensure_collection_and_sha256_index(active_client)
+            must_conds = [
+                FieldCondition(key="sha256", match=MatchValue(value=sha256_hash)),
+            ]
+            if rel_path is not None:
+                must_conds.append(
+                    FieldCondition(key="rel_path", match=MatchValue(value=rel_path))
                 )
-                for pt in scrolled:
-                    if pt.payload:
-                        matches.append(dict(pt.payload))
-            finally:
-                if owns and hasattr(active_client, "close"):
-                    try:
-                        active_client.close()
-                    except Exception:
-                        pass
+            if only_head:
+                must_conds.append(
+                    FieldCondition(key="is_head", match=MatchValue(value=True))
+                )
+            scrolled, _ = active_client.scroll(
+                collection_name=self.collection_name,
+                scroll_filter=Filter(must=must_conds),
+                limit=64,
+                with_payload=True,
+                with_vectors=False,
+            )
+            for pt in scrolled:
+                if pt.payload:
+                    matches.append(dict(pt.payload))
 
         if not matches:
             cached = self._index.load_from_index("SHA256_MAP", sha256_hash)
@@ -535,16 +501,16 @@ class CodeCorpusIndex(Datasource):
                     matches.append(dict(item))
         return matches
 
-    def has_sha256_in_qdrant(
+    def has_sha256_in_pgvector(
         self,
         sha256_hash: str,
         rel_path: str | None = None,
         only_head: bool = True,
         client: Any | None = None,
     ) -> bool:
-        """Returns True if `sha256_hash` is already indexed in Qdrant (checked before saving)."""
+        """Returns True if `sha256_hash` is already indexed in PGVector (checked before saving)."""
         return len(
-            self.search_sha256_in_qdrant(
+            self.search_sha256_in_pgvector(
                 sha256_hash=sha256_hash,
                 rel_path=rel_path,
                 only_head=only_head,
@@ -562,17 +528,17 @@ class CodeCorpusIndex(Datasource):
         write_to_fs: bool = False,
         client: Any | None = None,
         rebuild_graph: bool = True,
-        skip_qdrant_sha_check: bool = False,
+        skip_pgvector_sha_check: bool = False,
     ) -> dict[str, Any]:
         """
         CREATE / UPDATE operation:
         1. Reads file via FSBase (or writes `content` to FSBase if `write_to_fs=True`).
-        2. Computes SHA-256 hash and queries Qdrant's `sha256` index BEFORE saving.
+        2. Computes SHA-256 hash and queries PGVector's `sha256` index BEFORE saving.
         3. If the SHA-256 hash already exists as head for `rel_path`, skips re-saving (`status="unchanged_sha256"`).
         4. Otherwise parses AST graph metadata, computes Poincare ball coordinates, increments
-           `temporal_version`, and upserts chunks into Qdrant and `Index`.
+           `temporal_version`, and upserts chunks into PGVector and `Index`.
         """
-        from qdrant_client.models import FieldCondition, Filter, MatchValue, PointStruct
+        from procedural_phase_space import FieldCondition, Filter, MatchValue, PointStruct
 
         with self._lock:
             norm_rel = rel_path.strip("/").replace("\\", "/")
@@ -590,216 +556,202 @@ class CodeCorpusIndex(Datasource):
             mtime_ns = int(stat.st_mtime_ns) if stat is not None else time.time_ns()
             sha256_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
 
-            owns = False
-            active_client = client
-            if active_client is None:
-                active_client, owns = self._open_qdrant_client()
+            active_client = client if client is not None else self._get_pgvector_client()
 
-            try:
-                # 1. Search Qdrant for SHA-256 hash BEFORE saving
-                existing_in_qdrant = (
-                    False
-                    if skip_qdrant_sha_check
-                    else self.has_sha256_in_qdrant(
-                        sha256_hash=sha256_hash,
-                        rel_path=norm_rel,
-                        only_head=True,
-                        client=active_client,
-                    )
-                )
-                existing_rec = self._index.load_from_index("FILES", norm_rel)
-                if existing_in_qdrant and existing_rec is not None and existing_rec.get("sha256") == sha256_hash:
-                    return {
-                        "status": "unchanged_sha256",
-                        "changed": False,
-                        "rel_path": norm_rel,
-                        "sha256": sha256_hash,
-                        "temporal_version": int(existing_rec.get("temporal_version", 1)),
-                    }
-
-                prev_sha = str(existing_rec.get("sha256", "")) if isinstance(existing_rec, dict) else ""
-                prev_ver = int(existing_rec.get("temporal_version", 0)) if isinstance(existing_rec, dict) else 0
-                new_ver = prev_ver + 1 if prev_sha and prev_sha != sha256_hash else max(1, prev_ver)
-                recorded_at = dt.datetime.now(dt.timezone.utc).isoformat()
-                doc_id = f"code_{uuid5_from_args(CODE_INDEX_NAMESPACE_UUID, norm_rel)[:16]}"
-
-                ast_meta = _parse_python_ast_metadata(content, norm_rel)
-                summary_embed_input = (
-                    f"module {ast_meta['module_name']} path {norm_rel} "
-                    f"classes {' '.join(ast_meta['classes'])} "
-                    f"functions {' '.join(ast_meta['functions'])} "
-                    f"imports {' '.join(ast_meta['imports'])}\n{content[:1200]}"
-                )
-                file_vec = self._encode_texts([summary_embed_input])[0]
-                poincare_coords = project_to_poincare_ball(
-                    file_vec, curvature=self.curvature, poincare_dim=16
-                )
-
-                chunks = self._chunk_source(content)
-                total_c = len(chunks)
-                point_ids = [
-                    uuid5_from_args(
-                        CODE_INDEX_NAMESPACE_UUID,
-                        self.collection_name,
-                        norm_rel,
-                        sha256_hash,
-                        idx,
-                    )
-                    for idx in range(total_c)
-                ]
-
-                chunk_texts = [
-                    f"[{norm_rel}#chunk={c['chunk_index']}] {c['chunk_text']}"
-                    for c in chunks
-                ]
-                chunk_vecs = self._encode_texts(chunk_texts)
-
-                chunk_payloads: list[dict[str, Any]] = []
-                for idx, c in enumerate(chunks):
-                    payload = {
-                        "point_id": point_ids[idx],
-                        "doc_id": doc_id,
-                        "doc_type": "code_file_chunk",
-                        "rel_path": norm_rel,
-                        "module_name": ast_meta["module_name"],
-                        "sha256": sha256_hash,
-                        "previous_sha256": prev_sha,
-                        "temporal_version": new_ver,
-                        "is_head": True,
-                        "size_bytes": size_bytes,
-                        "mtime_ns": mtime_ns,
-                        "line_count": len(content.splitlines()),
-                        "recorded_at": recorded_at,
-                        "classes": ast_meta["classes"],
-                        "functions": ast_meta["functions"],
-                        "methods": ast_meta["methods"],
-                        "imports": ast_meta["imports"],
-                        "called_symbols": ast_meta["called_symbols"],
-                        "base_classes": ast_meta["base_classes"],
-                        "poincare_coords": poincare_coords,
-                        "chunk_index": c["chunk_index"],
-                        "total_chunks": total_c,
-                        "char_start": c["char_start"],
-                        "char_end": c["char_end"],
-                        "core_start": c["core_start"],
-                        "core_end": c["core_end"],
-                        "overlap_prefix_len": c["overlap_prefix_len"],
-                        "chunk_text": c["chunk_text"],
-                        "non_overlapping_slice": c["non_overlapping_slice"],
-                        "prev_chunk_id": point_ids[idx - 1] if idx > 0 else None,
-                        "next_chunk_id": point_ids[idx + 1] if idx + 1 < total_c else None,
-                    }
-                    chunk_payloads.append(payload)
-
-                if active_client is not None:
-                    self._ensure_collection_and_sha256_index(active_client)
-                    if prev_sha and prev_sha != sha256_hash:
-                        # Mark previous head chunks for this rel_path as non-head in Qdrant
-                        try:
-                            active_client.set_payload(
-                                collection_name=self.collection_name,
-                                payload={"is_head": False},
-                                points=Filter(
-                                    must=[
-                                        FieldCondition(key="rel_path", match=MatchValue(value=norm_rel)),
-                                        FieldCondition(key="is_head", match=MatchValue(value=True)),
-                                    ]
-                                ),
-                            )
-                        except Exception:
-                            pass
-                    points = [
-                        PointStruct(
-                            id=pl["point_id"],
-                            vector=vec,
-                            payload=pl,
-                        )
-                        for pl, vec in zip(chunk_payloads, chunk_vecs)
-                    ]
-                    if points:
-                        active_client.upsert(collection_name=self.collection_name, points=points)
-
-                # Update in-memory SHA256_MAP & mark previous sha as non-head
-                if prev_sha and prev_sha != sha256_hash:
-                    old_entries = self._index.load_from_index("SHA256_MAP", prev_sha) or []
-                    for oe in old_entries:
-                        if oe.get("rel_path") == norm_rel:
-                            oe["is_head"] = False
-                    self._index.store_in_index("SHA256_MAP", prev_sha, old_entries)
-
-                record = CodeFileRecord(
-                    doc_id=doc_id,
+            # 1. Search PGVector for SHA-256 hash BEFORE saving
+            existing_in_pgvector = (
+                False
+                if skip_pgvector_sha_check
+                else self.has_sha256_in_pgvector(
+                    sha256_hash=sha256_hash,
                     rel_path=norm_rel,
-                    module_name=ast_meta["module_name"],
-                    sha256=sha256_hash,
-                    previous_sha256=prev_sha,
-                    temporal_version=new_ver,
-                    is_head=True,
-                    size_bytes=size_bytes,
-                    mtime_ns=mtime_ns,
-                    line_count=len(content.splitlines()),
-                    recorded_at=recorded_at,
-                    classes=ast_meta["classes"],
-                    functions=ast_meta["functions"],
-                    methods=ast_meta["methods"],
-                    imports=ast_meta["imports"],
-                    called_symbols=ast_meta["called_symbols"],
-                    base_classes=ast_meta["base_classes"],
-                    symbols=ast_meta["symbols"],
-                    poincare_coords=poincare_coords,
-                    chunk_count=total_c,
-                    content=content,
+                    only_head=True,
+                    client=active_client,
                 )
-                rec_dump = record.model_dump()
-                self._index.store_in_index("FILES", norm_rel, rec_dump)
-                self._index.store_in_index("CHUNKS_BY_FILE", norm_rel, chunk_payloads)
-
-                sha_entries = self._index.load_from_index("SHA256_MAP", sha256_hash) or []
-                sha_entries = [e for e in sha_entries if e.get("rel_path") != norm_rel]
-                sha_entries.append(
-                    {
-                        "doc_id": doc_id,
-                        "rel_path": norm_rel,
-                        "module_name": ast_meta["module_name"],
-                        "sha256": sha256_hash,
-                        "previous_sha256": prev_sha,
-                        "temporal_version": new_ver,
-                        "is_head": True,
-                        "recorded_at": recorded_at,
-                    }
-                )
-                self._index.store_in_index("SHA256_MAP", sha256_hash, sha_entries)
-
-                hist_Event = {
+            )
+            existing_rec = self._index.load_from_index("FILES", norm_rel)
+            if existing_in_pgvector and existing_rec is not None and existing_rec.get("sha256") == sha256_hash:
+                return {
+                    "status": "unchanged_sha256",
+                    "changed": False,
                     "rel_path": norm_rel,
+                    "sha256": sha256_hash,
+                    "temporal_version": int(existing_rec.get("temporal_version", 1)),
+                }
+
+            prev_sha = str(existing_rec.get("sha256", "")) if isinstance(existing_rec, dict) else ""
+            prev_ver = int(existing_rec.get("temporal_version", 0)) if isinstance(existing_rec, dict) else 0
+            new_ver = prev_ver + 1 if prev_sha and prev_sha != sha256_hash else max(1, prev_ver)
+            recorded_at = dt.datetime.now(dt.timezone.utc).isoformat()
+            doc_id = f"code_{uuid5_from_args(CODE_INDEX_NAMESPACE_UUID, norm_rel)[:16]}"
+
+            ast_meta = _parse_python_ast_metadata(content, norm_rel)
+            summary_embed_input = (
+                f"module {ast_meta['module_name']} path {norm_rel} "
+                f"classes {' '.join(ast_meta['classes'])} "
+                f"functions {' '.join(ast_meta['functions'])} "
+                f"imports {' '.join(ast_meta['imports'])}\n{content[:1200]}"
+            )
+            file_vec = self._encode_texts([summary_embed_input])[0]
+            poincare_coords = project_to_poincare_ball(
+                file_vec, curvature=self.curvature, poincare_dim=16
+            )
+
+            chunks = self._chunk_source(content)
+            total_c = len(chunks)
+            point_ids = [
+                uuid5_from_args(
+                    CODE_INDEX_NAMESPACE_UUID,
+                    self.collection_name,
+                    norm_rel,
+                    sha256_hash,
+                    idx,
+                )
+                for idx in range(total_c)
+            ]
+
+            chunk_texts = [
+                f"[{norm_rel}#chunk={c['chunk_index']}] {c['chunk_text']}"
+                for c in chunks
+            ]
+            chunk_vecs = self._encode_texts(chunk_texts)
+
+            chunk_payloads: list[dict[str, Any]] = []
+            for idx, c in enumerate(chunks):
+                payload = {
+                    "point_id": point_ids[idx],
+                    "doc_id": doc_id,
+                    "doc_type": "code_file_chunk",
+                    "rel_path": norm_rel,
+                    "module_name": ast_meta["module_name"],
                     "sha256": sha256_hash,
                     "previous_sha256": prev_sha,
                     "temporal_version": new_ver,
+                    "is_head": True,
+                    "size_bytes": size_bytes,
+                    "mtime_ns": mtime_ns,
+                    "line_count": len(content.splitlines()),
+                    "recorded_at": recorded_at,
+                    "classes": ast_meta["classes"],
+                    "functions": ast_meta["functions"],
+                    "methods": ast_meta["methods"],
+                    "imports": ast_meta["imports"],
+                    "called_symbols": ast_meta["called_symbols"],
+                    "base_classes": ast_meta["base_classes"],
+                    "poincare_coords": poincare_coords,
+                    "chunk_index": c["chunk_index"],
+                    "total_chunks": total_c,
+                    "char_start": c["char_start"],
+                    "char_end": c["char_end"],
+                    "core_start": c["core_start"],
+                    "core_end": c["core_end"],
+                    "overlap_prefix_len": c["overlap_prefix_len"],
+                    "chunk_text": c["chunk_text"],
+                    "non_overlapping_slice": c["non_overlapping_slice"],
+                    "prev_chunk_id": point_ids[idx - 1] if idx > 0 else None,
+                    "next_chunk_id": point_ids[idx + 1] if idx + 1 < total_c else None,
+                }
+                chunk_payloads.append(payload)
+
+            if active_client is not None:
+                self._ensure_collection_and_sha256_index(active_client)
+                if prev_sha and prev_sha != sha256_hash:
+                    active_client.set_payload(
+                        collection_name=self.collection_name,
+                        payload={"is_head": False},
+                        points=Filter(
+                            must=[
+                                FieldCondition(key="rel_path", match=MatchValue(value=norm_rel)),
+                                FieldCondition(key="is_head", match=MatchValue(value=True)),
+                            ]
+                        ),
+                    )
+                points = [
+                    PointStruct(
+                        id=pl["point_id"],
+                        vector=vec,
+                        payload=pl,
+                    )
+                    for pl, vec in zip(chunk_payloads, chunk_vecs)
+                ]
+                if points:
+                    active_client.upsert(collection_name=self.collection_name, points=points)
+
+            # Update in-memory SHA256_MAP & mark previous sha as non-head
+            if prev_sha and prev_sha != sha256_hash:
+                old_entries = self._index.load_from_index("SHA256_MAP", prev_sha) or []
+                for oe in old_entries:
+                    if oe.get("rel_path") == norm_rel:
+                        oe["is_head"] = False
+                self._index.store_in_index("SHA256_MAP", prev_sha, old_entries)
+
+            record = CodeFileRecord(
+                doc_id=doc_id,
+                rel_path=norm_rel,
+                module_name=ast_meta["module_name"],
+                sha256=sha256_hash,
+                previous_sha256=prev_sha,
+                temporal_version=new_ver,
+                is_head=True,
+                size_bytes=size_bytes,
+                mtime_ns=mtime_ns,
+                line_count=len(content.splitlines()),
+                recorded_at=recorded_at,
+                classes=ast_meta["classes"],
+                functions=ast_meta["functions"],
+                methods=ast_meta["methods"],
+                imports=ast_meta["imports"],
+                called_symbols=ast_meta["called_symbols"],
+                base_classes=ast_meta["base_classes"],
+                symbols=ast_meta["symbols"],
+                poincare_coords=poincare_coords,
+                chunk_count=total_c,
+                content=content,
+            )
+            rec_dump = record.model_dump()
+            self._index.store_in_index("FILES", norm_rel, rec_dump)
+            self._index.store_in_index("CHUNKS_BY_FILE", norm_rel, chunk_payloads)
+
+            sha_entries = self._index.load_from_index("SHA256_MAP", sha256_hash) or []
+            sha_entries = [e for e in sha_entries if e.get("rel_path") != norm_rel]
+            sha_entries.append(
+                {
+                    "doc_id": doc_id,
+                    "rel_path": norm_rel,
+                    "module_name": ast_meta["module_name"],
+                    "sha256": sha256_hash,
+                    "previous_sha256": prev_sha,
+                    "temporal_version": new_ver,
+                    "is_head": True,
                     "recorded_at": recorded_at,
                 }
-                file_hist = self._index.load_from_index("TEMPORAL_HISTORY", norm_rel) or []
-                file_hist.append(hist_Event)
-                self._index.store_in_index("TEMPORAL_HISTORY", norm_rel, file_hist)
-                self._history_list.append(hist_Event)
+            )
+            self._index.store_in_index("SHA256_MAP", sha256_hash, sha_entries)
 
-                if rebuild_graph:
-                    self._rebuild_code_graph()
+            hist_Event = {
+                "rel_path": norm_rel,
+                "sha256": sha256_hash,
+                "previous_sha256": prev_sha,
+                "temporal_version": new_ver,
+                "recorded_at": recorded_at,
+            }
+            file_hist = self._index.load_from_index("TEMPORAL_HISTORY", norm_rel) or []
+            file_hist.append(hist_Event)
+            self._index.store_in_index("TEMPORAL_HISTORY", norm_rel, file_hist)
+            self._history_list.append(hist_Event)
 
-                return {
-                    "status": "indexed",
-                    "changed": True,
-                    "rel_path": norm_rel,
-                    "sha256": sha256_hash,
-                    "previous_sha256": prev_sha,
-                    "temporal_version": new_ver,
-                    "chunk_count": total_c,
-                }
-            finally:
-                if owns and active_client is not None and hasattr(active_client, "close"):
-                    try:
-                        active_client.close()
-                    except Exception:
-                        pass
+            if rebuild_graph:
+                self._rebuild_code_graph()
+
+            return {
+                "status": "indexed",
+                "changed": True,
+                "rel_path": norm_rel,
+                "sha256": sha256_hash,
+                "previous_sha256": prev_sha,
+                "temporal_version": new_ver,
+                "chunk_count": total_c,
+            }
 
     def create_file(
         self,
@@ -813,7 +765,7 @@ class CodeCorpusIndex(Datasource):
     def get_file(
         self,
         rel_path: str,
-        rejoin_from_qdrant: bool = False,
+        rejoin_from_pgvector: bool = False,
     ) -> dict[str, Any] | None:
         """CRUD READ: Retrieve an indexed file record by relative path, optionally rejoining chunks."""
         norm_rel = rel_path.strip("/").replace("\\", "/")
@@ -821,14 +773,14 @@ class CodeCorpusIndex(Datasource):
         if rec is None:
             return None
         out = dict(rec)
-        if rejoin_from_qdrant:
+        if rejoin_from_pgvector:
             out["rejoined"] = self.rejoin_file(norm_rel)
         out["temporal_history"] = self._index.load_from_index("TEMPORAL_HISTORY", norm_rel) or []
         return out
 
     def get_by_sha256(self, sha256_hash: str) -> list[dict[str, Any]]:
-        """CRUD READ by SHA-256: Query Qdrant's `sha256` payload index and return matching records."""
-        return self.search_sha256_in_qdrant(sha256_hash=sha256_hash, only_head=False)
+        """CRUD READ by SHA-256: Query PGVector's `sha256` payload index and return matching records."""
+        return self.search_sha256_in_pgvector(sha256_hash=sha256_hash, only_head=False)
 
     def update_file(
         self,
@@ -844,8 +796,8 @@ class CodeCorpusIndex(Datasource):
         rel_path: str,
         delete_from_fs: bool = False,
     ) -> dict[str, Any]:
-        """CRUD DELETE: Remove a file from `Index`, Qdrant, and optionally disk via `FSBase`."""
-        from qdrant_client.models import FieldCondition, Filter, MatchValue
+        """CRUD DELETE: Remove a file from `Index`, PGVector, and optionally disk via `FSBase`."""
+        from procedural_phase_space import FieldCondition, Filter, MatchValue
 
         with self._lock:
             norm_rel = rel_path.strip("/").replace("\\", "/")
@@ -859,22 +811,14 @@ class CodeCorpusIndex(Datasource):
                 entries = [e for e in entries if e.get("rel_path") != norm_rel]
                 self._index.store_in_index("SHA256_MAP", sha, entries)
 
-            client, owns = self._open_qdrant_client()
-            if client is not None:
-                try:
-                    if client.collection_exists(self.collection_name):
-                        client.delete(
-                            collection_name=self.collection_name,
-                            points_selector=Filter(
-                                must=[FieldCondition(key="rel_path", match=MatchValue(value=norm_rel))]
-                            ),
-                        )
-                finally:
-                    if owns and hasattr(client, "close"):
-                        try:
-                            client.close()
-                        except Exception:
-                            pass
+            client = self._get_pgvector_client()
+            if client is not None and client.collection_exists(self.collection_name):
+                client.delete(
+                    collection_name=self.collection_name,
+                    points_selector=Filter(
+                        must=[FieldCondition(key="rel_path", match=MatchValue(value=norm_rel))]
+                    ),
+                )
 
             abs_path = self.repo_path / norm_rel
             if delete_from_fs and abs_path.is_file():
@@ -938,37 +882,34 @@ class CodeCorpusIndex(Datasource):
                         discovered.append(p)
         return discovered
 
-    def _fetch_qdrant_head_sha_map(self, client: Any | None) -> dict[str, set[str]]:
-        """Fetches all active `is_head=True` `(rel_path -> set[sha256])` pairs from Qdrant in a single scroll."""
-        from qdrant_client.models import FieldCondition, Filter, MatchValue
+    def _fetch_pgvector_head_sha_map(self, client: Any | None) -> dict[str, set[str]]:
+        """Fetches all active `is_head=True` `(rel_path -> set[sha256])` pairs from PGVector in a single scroll."""
+        from procedural_phase_space import FieldCondition, Filter, MatchValue
 
         out: dict[str, set[str]] = {}
         if client is None:
             return out
-        try:
-            self._ensure_collection_and_sha256_index(client)
-            offset = None
-            while True:
-                scrolled, offset = client.scroll(
-                    collection_name=self.collection_name,
-                    scroll_filter=Filter(
-                        must=[FieldCondition(key="is_head", match=MatchValue(value=True))]
-                    ),
-                    limit=1000,
-                    offset=offset,
-                    with_payload=["rel_path", "sha256"],
-                    with_vectors=False,
-                )
-                for pt in scrolled:
-                    pl = pt.payload or {}
-                    rp = str(pl.get("rel_path", ""))
-                    sh = str(pl.get("sha256", ""))
-                    if rp and sh:
-                        out.setdefault(rp, set()).add(sh)
-                if offset is None:
-                    break
-        except Exception:
-            pass
+        self._ensure_collection_and_sha256_index(client)
+        offset = None
+        while True:
+            scrolled, offset = client.scroll(
+                collection_name=self.collection_name,
+                scroll_filter=Filter(
+                    must=[FieldCondition(key="is_head", match=MatchValue(value=True))]
+                ),
+                limit=1000,
+                offset=offset,
+                with_payload=["rel_path", "sha256"],
+                with_vectors=False,
+            )
+            for pt in scrolled:
+                pl = pt.payload or {}
+                rp = str(pl.get("rel_path", ""))
+                sh = str(pl.get("sha256", ""))
+                if rp and sh:
+                    out.setdefault(rp, set()).add(sh)
+            if offset is None:
+                break
         return out
 
     def sync_corpus(
@@ -977,50 +918,43 @@ class CodeCorpusIndex(Datasource):
         record_as_baseline: bool = False,
     ) -> dict[str, Any]:
         """
-        Scans the repository via `FSBase`, checks Qdrant's `sha256` index before saving each file,
+        Scans the repository via `FSBase`, checks PGVector's `sha256` index before saving each file,
         only embeds/upserts changed files, rebuilds the AST + Poincare geodesic code graph,
         and persists the ledger if `ledger_path` is configured.
         """
         with self._lock:
             t0 = time.perf_counter()
             files = self._discover_repo_code_files(subdirs=subdirs)
-            client, owns = self._open_qdrant_client()
+            client = self._get_pgvector_client()
             indexed_count = 0
             unchanged_count = 0
             changed_paths: list[str] = []
 
-            try:
-                head_sha_map = self._fetch_qdrant_head_sha_map(client)
-                for abs_p in files:
-                    rel_p = abs_p.relative_to(self.repo_path).as_posix()
-                    existing_rec = self._index.load_from_index("FILES", rel_p)
-                    if existing_rec is not None:
-                        content = self._read_text_via_fsbase(abs_p)
-                        disk_sha = hashlib.sha256(content.encode("utf-8")).hexdigest()
-                        if (
-                            existing_rec.get("sha256") == disk_sha
-                            and disk_sha in head_sha_map.get(rel_p, set())
-                        ):
-                            unchanged_count += 1
-                            continue
-                    res = self.upsert_file(
-                        rel_path=rel_p,
-                        client=client,
-                        rebuild_graph=False,
-                        skip_qdrant_sha_check=bool(head_sha_map),
-                    )
-                    if res.get("changed"):
-                        indexed_count += 1
-                        changed_paths.append(rel_p)
-                    else:
+            head_sha_map = self._fetch_pgvector_head_sha_map(client)
+            for abs_p in files:
+                rel_p = abs_p.relative_to(self.repo_path).as_posix()
+                existing_rec = self._index.load_from_index("FILES", rel_p)
+                if existing_rec is not None:
+                    content = self._read_text_via_fsbase(abs_p)
+                    disk_sha = hashlib.sha256(content.encode("utf-8")).hexdigest()
+                    if (
+                        existing_rec.get("sha256") == disk_sha
+                        and disk_sha in head_sha_map.get(rel_p, set())
+                    ):
                         unchanged_count += 1
-                self._rebuild_code_graph()
-            finally:
-                if owns and client is not None and hasattr(client, "close"):
-                    try:
-                        client.close()
-                    except Exception:
-                        pass
+                        continue
+                res = self.upsert_file(
+                    rel_path=rel_p,
+                    client=client,
+                    rebuild_graph=False,
+                    skip_pgvector_sha_check=bool(head_sha_map),
+                )
+                if res.get("changed"):
+                    indexed_count += 1
+                    changed_paths.append(rel_p)
+                else:
+                    unchanged_count += 1
+            self._rebuild_code_graph()
 
             corpus_digest = self.compute_corpus_digest()
             if record_as_baseline or not self._baseline_corpus_digest:
@@ -1029,13 +963,6 @@ class CodeCorpusIndex(Datasource):
 
             if self.ledger_path is not None:
                 self.persist_ledger(self.ledger_path)
-
-            if (
-                self._external_client is None
-                and self.qdrant_path is not None
-                and self.repo_path == Path("/Users/jarek/IdeaProjects/neural_networks")
-            ):
-                self.sync_to_unified_staging()
 
             return {
                 "status": "synced",
@@ -1055,39 +982,23 @@ class CodeCorpusIndex(Datasource):
         staging_root: str | Path | None = None,
     ) -> dict[str, Any]:
         """
-        Synchronizes this `CodeCorpusIndex` Qdrant collection into the unified central
-        Qdrant staging directory (`/Users/jarek/IdeaProjects/qdrant_staging/storage`)
-        using the official `UnifiedQdrantStagingManager`.
+        Refreshes the unified PostgreSQL pgvector staging manifest (`/Users/jarek/IdeaProjects/vector_staging`)
+        using `UnifiedVectorStagingManager`.
         """
-        try:
-            from indexes.informational_index import (
-                DEFAULT_STAGING_ROOT,
-                UnifiedQdrantStagingManager,
-            )
+        from indexes.informational_index import (
+            DEFAULT_STAGING_ROOT,
+            UnifiedVectorStagingManager,
+        )
 
-            target_staging = Path(staging_root) if staging_root is not None else DEFAULT_STAGING_ROOT
-            mgr = UnifiedQdrantStagingManager(staging_root=target_staging)
-            if self.qdrant_path is not None:
-                src_sqlite = self.qdrant_path / "collection" / self.collection_name / "storage.sqlite"
-                dst_sqlite = mgr.storage_dir / "collection" / self.collection_name / "storage.sqlite"
-                if src_sqlite.is_file() and src_sqlite.resolve() != dst_sqlite.resolve():
-                    meta = mgr._load_meta_json(mgr.storage_dir)
-                    meta["collections"][self.collection_name] = mgr._default_collection_config(size=384)
-                    mgr._save_meta_json(mgr.storage_dir, meta)
-                    stats = mgr._merge_sqlite_points(src_sqlite, dst_sqlite)
-                    return {
-                        "status": "synced_to_staging",
-                        "collection_name": self.collection_name,
-                        "staging_storage_dir": str(mgr.storage_dir),
-                        **stats,
-                    }
-            return {
-                "status": "noop",
-                "collection_name": self.collection_name,
-                "staging_storage_dir": str(mgr.storage_dir),
-            }
-        except Exception as exc:
-            return {"status": "skipped", "reason": str(exc)}
+        target_staging = Path(staging_root) if staging_root is not None else DEFAULT_STAGING_ROOT
+        mgr = UnifiedVectorStagingManager(staging_root=target_staging, pgvector_dsn=self.pgvector_dsn)
+        manifest = mgr.unify_all_collections()
+        return {
+            "status": "synced_to_staging",
+            "collection_name": self.collection_name,
+            "staging_root": str(mgr.staging_root),
+            "total_collections": manifest.get("total_collections", 0),
+        }
 
     def compute_corpus_digest(self) -> str:
         """Computes a canonical aggregate SHA-256 digest over all indexed `(rel_path, sha256)` pairs."""
@@ -1097,7 +1008,7 @@ class CodeCorpusIndex(Datasource):
         return hashlib.sha256("\n".join(pairs).encode("utf-8")).hexdigest()
 
     def snapshot_temporal_baseline(self, subdirs: list[str] | None = None) -> dict[str, Any]:
-        """Indexes the current code corpus into Qdrant and locks the current state as the temporal baseline."""
+        """Indexes the current code corpus into PGVector and locks the current state as the temporal baseline."""
         return self.sync_corpus(subdirs=subdirs, record_as_baseline=True)
 
     def verify_code_unchanged(
@@ -1105,47 +1016,40 @@ class CodeCorpusIndex(Datasource):
         subdirs: list[str] | None = None,
     ) -> dict[str, Any]:
         """
-        Verifies via `FSBase` + Qdrant `sha256` lookup whether the existing code on disk
-        is 100% unchanged relative to the indexed Qdrant temporal state.
+        Verifies via `FSBase` + PGVector `sha256` lookup whether the existing code on disk
+        is 100% unchanged relative to the indexed PGVector temporal state.
         Used as Condition #1 of the model promotion gate (`unchanged == True`).
         """
         with self._lock:
             files = self._discover_repo_code_files(subdirs=subdirs)
-            client, owns = self._open_qdrant_client()
+            client = self._get_pgvector_client()
             modified_files: list[str] = []
             unindexed_files: list[str] = []
             verified_files: int = 0
 
-            try:
-                head_sha_map = self._fetch_qdrant_head_sha_map(client)
-                for abs_p in files:
-                    rel_p = abs_p.relative_to(self.repo_path).as_posix()
-                    content = self._read_text_via_fsbase(abs_p)
-                    disk_sha = hashlib.sha256(content.encode("utf-8")).hexdigest()
+            head_sha_map = self._fetch_pgvector_head_sha_map(client)
+            for abs_p in files:
+                rel_p = abs_p.relative_to(self.repo_path).as_posix()
+                content = self._read_text_via_fsbase(abs_p)
+                disk_sha = hashlib.sha256(content.encode("utf-8")).hexdigest()
 
-                    indexed_rec = self._index.load_from_index("FILES", rel_p)
-                    in_qdrant = (
-                        disk_sha in head_sha_map.get(rel_p, set())
-                        if head_sha_map
-                        else self.has_sha256_in_qdrant(
-                            sha256_hash=disk_sha,
-                            rel_path=rel_p,
-                            only_head=True,
-                            client=client,
-                        )
+                indexed_rec = self._index.load_from_index("FILES", rel_p)
+                in_pgvector = (
+                    disk_sha in head_sha_map.get(rel_p, set())
+                    if head_sha_map
+                    else self.has_sha256_in_pgvector(
+                        sha256_hash=disk_sha,
+                        rel_path=rel_p,
+                        only_head=True,
+                        client=client,
                     )
-                    if indexed_rec is None and not in_qdrant:
-                        unindexed_files.append(rel_p)
-                    elif (indexed_rec is not None and indexed_rec.get("sha256") != disk_sha) or not in_qdrant:
-                        modified_files.append(rel_p)
-                    else:
-                        verified_files += 1
-            finally:
-                if owns and client is not None and hasattr(client, "close"):
-                    try:
-                        client.close()
-                    except Exception:
-                        pass
+                )
+                if indexed_rec is None and not in_pgvector:
+                    unindexed_files.append(rel_p)
+                elif (indexed_rec is not None and indexed_rec.get("sha256") != disk_sha) or not in_pgvector:
+                    modified_files.append(rel_p)
+                else:
+                    verified_files += 1
 
             current_digest = self.compute_corpus_digest()
             baseline_matches = (
@@ -1414,7 +1318,7 @@ class CodeCorpusIndex(Datasource):
         }
 
     # ------------------------------------------------------------------
-    # Model Artifact Indexing in Qdrant
+    # Model Artifact Indexing in PGVector
     # ------------------------------------------------------------------
     def index_model_artifact(
         self,
@@ -1430,10 +1334,10 @@ class CodeCorpusIndex(Datasource):
         head_sha_map: dict[str, set[str]] | None = None,
     ) -> dict[str, Any]:
         """
-        Indexes a neural model architecture + parameter/source SHA-256 fingerprint into Qdrant
+        Indexes a neural model architecture + parameter/source SHA-256 fingerprint into PGVector
         (checking `sha256` first before saving).
         """
-        from qdrant_client.models import PointStruct
+        from procedural_phase_space import PointStruct
 
         with self._lock:
             norm_src = source_file.strip("/").replace("\\", "/")
@@ -1449,88 +1353,78 @@ class CodeCorpusIndex(Datasource):
                 )
             ).hexdigest()
 
-            owns = False
-            active_client = client
-            if active_client is None:
-                active_client, owns = self._open_qdrant_client()
-            try:
-                rel_key = f"model://{model_id}"
-                in_qdrant = (
-                    combined_sha in head_sha_map.get(rel_key, set())
-                    if head_sha_map is not None
-                    else self.has_sha256_in_qdrant(
-                        sha256_hash=combined_sha,
-                        rel_path=rel_key,
-                        only_head=True,
-                        client=active_client,
-                    )
+            active_client = client if client is not None else self._get_pgvector_client()
+            rel_key = f"model://{model_id}"
+            in_pgvector = (
+                combined_sha in head_sha_map.get(rel_key, set())
+                if head_sha_map is not None
+                else self.has_sha256_in_pgvector(
+                    sha256_hash=combined_sha,
+                    rel_path=rel_key,
+                    only_head=True,
+                    client=active_client,
                 )
-                if in_qdrant:
-                    existing_m = self._index.load_from_index("MODELS", model_id)
-                    if existing_m is not None:
-                        return {
-                            "status": "unchanged_sha256",
-                            "changed": False,
-                            "model_id": model_id,
-                            "sha256": combined_sha,
-                        }
+            )
+            if in_pgvector:
+                existing_m = self._index.load_from_index("MODELS", model_id)
+                if existing_m is not None:
+                    return {
+                        "status": "unchanged_sha256",
+                        "changed": False,
+                        "model_id": model_id,
+                        "sha256": combined_sha,
+                    }
 
-                recorded_at = dt.datetime.now(dt.timezone.utc).isoformat()
-                point_id = uuid5_from_args(
-                    CODE_INDEX_NAMESPACE_UUID,
-                    self.collection_name,
-                    "model",
-                    model_id,
-                    combined_sha,
+            recorded_at = dt.datetime.now(dt.timezone.utc).isoformat()
+            point_id = uuid5_from_args(
+                CODE_INDEX_NAMESPACE_UUID,
+                self.collection_name,
+                "model",
+                model_id,
+                combined_sha,
+            )
+            embed_text = (
+                f"model {model_id} {model_name} class {class_name} "
+                f"source {norm_src} params {num_params} metrics {json.dumps(metrics or {}, sort_keys=True)}"
+            )
+            vec = self._encode_texts([embed_text])[0]
+            poincare_coords = project_to_poincare_ball(
+                vec, curvature=self.curvature, poincare_dim=16
+            )
+            payload = {
+                "point_id": point_id,
+                "doc_id": f"model_artifact_{model_id}",
+                "doc_type": "indexed_model",
+                "rel_path": rel_key,
+                "model_id": model_id,
+                "model_name": model_name,
+                "class_name": class_name,
+                "source_file": norm_src,
+                "code_sha256": code_sha,
+                "weight_signature_sha256": weight_signature_sha256,
+                "sha256": combined_sha,
+                "num_params": int(num_params),
+                "is_promoted": bool(is_promoted),
+                "is_head": True,
+                "metrics": metrics or {},
+                "poincare_coords": poincare_coords,
+                "recorded_at": recorded_at,
+            }
+            if active_client is not None:
+                self._ensure_collection_and_sha256_index(active_client)
+                active_client.upsert(
+                    collection_name=self.collection_name,
+                    points=[PointStruct(id=point_id, vector=vec, payload=payload)],
                 )
-                embed_text = (
-                    f"model {model_id} {model_name} class {class_name} "
-                    f"source {norm_src} params {num_params} metrics {json.dumps(metrics or {}, sort_keys=True)}"
-                )
-                vec = self._encode_texts([embed_text])[0]
-                poincare_coords = project_to_poincare_ball(
-                    vec, curvature=self.curvature, poincare_dim=16
-                )
-                payload = {
-                    "point_id": point_id,
-                    "doc_id": f"model_artifact_{model_id}",
-                    "doc_type": "indexed_model",
-                    "rel_path": rel_key,
-                    "model_id": model_id,
-                    "model_name": model_name,
-                    "class_name": class_name,
-                    "source_file": norm_src,
-                    "code_sha256": code_sha,
-                    "weight_signature_sha256": weight_signature_sha256,
-                    "sha256": combined_sha,
-                    "num_params": int(num_params),
-                    "is_promoted": bool(is_promoted),
-                    "is_head": True,
-                    "metrics": metrics or {},
-                    "poincare_coords": poincare_coords,
-                    "recorded_at": recorded_at,
-                }
-                if active_client is not None:
-                    self._ensure_collection_and_sha256_index(active_client)
-                    active_client.upsert(
-                        collection_name=self.collection_name,
-                        points=[PointStruct(id=point_id, vector=vec, payload=payload)],
-                    )
-                self._index.store_in_index("MODELS", model_id, payload)
-                self._index.store_in_index("SHA256_MAP", combined_sha, [payload])
-                return {
-                    "status": "indexed",
-                    "changed": True,
-                    "model_id": model_id,
-                    "sha256": combined_sha,
-                    "code_sha256": code_sha,
-                }
-            finally:
-                if owns and active_client is not None and hasattr(active_client, "close"):
-                    try:
-                        active_client.close()
-                    except Exception:
-                        pass
+            self._index.store_in_index("MODELS", model_id, payload)
+            self._index.store_in_index("SHA256_MAP", combined_sha, [payload])
+            return {
+                "status": "indexed",
+                "changed": True,
+                "model_id": model_id,
+                "sha256": combined_sha,
+                "code_sha256": code_sha,
+            }
 
     def list_indexed_models(self) -> list[dict[str, Any]]:
         models = [dict(m) for _, m in self._index.range_index("MODELS")]
@@ -1609,7 +1503,7 @@ class CodeCorpusIndex(Datasource):
 class CodeCorpusPeriodicService(ServiceController, Datasource):
     """
     Periodic background service (`ServiceController` + `PeriodicProducer` + `QueueController`)
-    that watches a repository via `FSBase`, checks Qdrant's `sha256` index before saving,
+    that watches a repository via `FSBase`, checks PGVector's `sha256` index before saving,
     and updates the code corpus + hyperbolic geodesic code graph whenever code changes.
     """
 
@@ -1673,7 +1567,7 @@ class CodeCorpusPeriodicService(ServiceController, Datasource):
         return hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()
 
     def trigger_once(self) -> dict[str, Any]:
-        """Synchronously executes one poll + Qdrant SHA-256 check + sync cycle."""
+        """Synchronously executes one poll + PGVector SHA-256 check + sync cycle."""
         self._last_fs_sig = self._compute_fs_signature()
         res = self.code_index.sync_corpus(subdirs=self.subdirs)
         if res.get("changed_files_indexed", 0) > 0 and self.on_code_change is not None:

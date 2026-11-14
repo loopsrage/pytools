@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import uuid
 from pathlib import Path
+
+from procedural_phase_space import HyperbolicPGVectorClient
 
 from benchmark_ledger import (
     AntigravityBrainLedger,
@@ -56,7 +59,7 @@ def test_benchmark_ledger_scrape_and_save(tmp_path: Path) -> None:
     assert vcpu["avg_num_params"] == 751105
     assert "class CohesiveMonadicVCPUModel" in vcpu["source_code"]
     assert "class OmnipresentImplicitOpcodeVCPU" in vcpu["source_code"]
-    assert vcpu["source_file"].endswith("monadic_cavity_models.py")
+    assert vcpu["source_file"].endswith(("monadic_cavity_models.py", "implicit_vcpu.py"))
 
     post_gru = ledger.get_model("StageCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)")
     assert post_gru is not None
@@ -68,15 +71,9 @@ def test_benchmark_ledger_scrape_and_save(tmp_path: Path) -> None:
         "PolyphonicStageCompilerCascadeModel (ISA Spectral/AST Gate + Cohesive-Manifold Wave Cascade)"
     )
     assert isa_cascaded is not None
-    assert isa_cascaded["class_name"] in {
-        "PolyphonicStageCompilerCascadeModel",
-        "PolyphonicStageCompilerCascadeModel",
-    }
+    assert isa_cascaded["class_name"] == "PolyphonicStageCompilerCascadeModel"
     assert isa_cascaded["benchmarks_evaluated"] == 12
-    assert (
-        "class PolyphonicStageCompilerCascadeModel" in isa_cascaded["source_code"]
-        or "class PolyphonicStageCompilerCascadeModel" in isa_cascaded["source_code"]
-    )
+    assert "class PolyphonicStageCompilerCascadeModel" in isa_cascaded["source_code"]
     assert overview["timeseries_count"] >= 200
     assert len(overview["timeseries"]) == overview["timeseries_count"]
 
@@ -91,26 +88,34 @@ def test_benchmark_ledger_scrape_and_save(tmp_path: Path) -> None:
     assert lexical is not None
     assert lexical["best_primary_metric"] <= 0.2250
 
-    # Verify direct Qdrant sync and incremental SHA-256 diffing
-    qdrant_dir = tmp_path / "qdrant_direct"
-    sync_1 = ledger.sync_to_qdrant(qdrant_path=qdrant_dir, collection_name="test_neural_benchmarks")
-    assert sync_1["status"] == "synced"
-    assert sync_1["total_documents"] >= 16 + 12 + 6
-    assert sync_1["incremental_updated_documents"] == sync_1["total_documents"]
+    # Verify direct PostgreSQL pgvector sync (PPS embeddings) and incremental SHA-256 diffing
+    coll_name = f"test_neural_benchmarks_{uuid.uuid4().hex[:8]}"
+    try:
+        sync_1 = ledger.sync_to_pgvector(collection_name=coll_name)
+        assert sync_1["status"] == "synced"
+        assert sync_1["total_documents"] >= 16 + 12 + 6
+        assert sync_1["incremental_updated_documents"] == sync_1["total_documents"]
 
-    sync_2 = ledger.sync_to_qdrant(qdrant_path=qdrant_dir, collection_name="test_neural_benchmarks")
-    assert sync_2["status"] == "synced"
-    assert sync_2["incremental_updated_documents"] < sync_1["total_documents"]
+        sync_2 = ledger.sync_to_pgvector(collection_name=coll_name)
+        assert sync_2["status"] == "synced"
+        assert sync_2["incremental_updated_documents"] < sync_1["total_documents"]
+    finally:
+        cleanup = HyperbolicPGVectorClient()
+        try:
+            if cleanup.collection_exists(coll_name):
+                cleanup.delete_collection(coll_name)
+        finally:
+            cleanup.close()
 
-    # Verify Qdrant document generation
-    q_docs = ledger.build_qdrant_documents()
-    assert len(q_docs) >= 14 + 12 + 5
-    assert q_docs[0].doc_type == "benchmark_model"
-    assert q_docs[0].title in {
+    # Verify vector document generation
+    v_docs = ledger.build_vector_documents()
+    assert len(v_docs) >= 14 + 12 + 5
+    assert v_docs[0].doc_type == "benchmark_model"
+    assert v_docs[0].title in {
         "CohesiveUnifiedMonadicCavityModel (AnyGram 2-GRU + Unified Cavity)",
         "PolyphonicStageCompilerCascadeModel (Stage-1 Compiler + ISA Spectral-AST Gate + Cohesive-Manifold Wave Cascade)",
     }
-    assert q_docs[0].is_overall_best is True
+    assert v_docs[0].is_overall_best is True
 
     # Verify saving a new run via BenchmarkSaveRequest updates history and persists
     initial_runs = overview["total_runs"]
@@ -144,7 +149,7 @@ def test_benchmark_ledger_scrape_and_save(tmp_path: Path) -> None:
     assert abs(updated_shakespeare["best_primary_metric"] - 2.1145) < 1e-6
 
 
-def test_antigravity_brain_ledger_fsbase_and_qdrant_sync(tmp_path: Path) -> None:
+def test_antigravity_brain_ledger_fsbase_and_pgvector_sync(tmp_path: Path) -> None:
     brain_ledger_file = tmp_path / "antigravity_brain_ledger.json"
     brain_ledger = AntigravityBrainLedger(
         brain_root="/Users/jarek/.gemini/antigravity-cli/brain",
@@ -167,11 +172,18 @@ def test_antigravity_brain_ledger_fsbase_and_qdrant_sync(tmp_path: Path) -> None
     assert len(first_entry["relations"]["related_modules"]) >= 1
     assert len(first_entry["relations"]["related_kis"]) >= 1
 
-    q_docs = brain_ledger.build_qdrant_documents()
-    assert len(q_docs) == overview["total_entries"]
-    q_dir = tmp_path / "qdrant_brain"
-    sync_res = brain_ledger.sync_to_qdrant(qdrant_path=q_dir, collection_name="test_antigravity_brain")
-    assert sync_res["status"] == "SYNCED"
-    assert sync_res["total_documents"] == overview["total_entries"]
-    assert sync_res["qdrant_point_count"] >= sync_res["total_documents"]
-
+    v_docs = brain_ledger.build_vector_documents()
+    assert len(v_docs) == overview["total_entries"]
+    coll_name = f"test_antigravity_brain_{uuid.uuid4().hex[:8]}"
+    try:
+        sync_res = brain_ledger.sync_to_pgvector(collection_name=coll_name)
+        assert sync_res["status"] == "SYNCED"
+        assert sync_res["total_documents"] == overview["total_entries"]
+        assert sync_res["vector_point_count"] >= sync_res["total_documents"]
+    finally:
+        cleanup = HyperbolicPGVectorClient()
+        try:
+            if cleanup.collection_exists(coll_name):
+                cleanup.delete_collection(coll_name)
+        finally:
+            cleanup.close()

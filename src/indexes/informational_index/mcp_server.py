@@ -1,5 +1,5 @@
 """
-Model Context Protocol (MCP) Server for Unified Qdrant Search, Multi-System Discovery,
+Model Context Protocol (MCP) Server for Unified PostgreSQL pgvector Search, Multi-System Discovery,
 Full Lifecycle Management, and Design-Compiler-Code Geodesic Path Tracing.
 
 Supports both:
@@ -26,18 +26,19 @@ from indexes.informational_index.informational_index import (
     AgentInformationalGraphIndex,
 )
 
-MCP_SERVER_NAME = "qdrant-geodesic-lifecycle"
+MCP_SERVER_NAME = "pgvector-geodesic-lifecycle"
 MCP_SERVER_VERSION = "1.0.0"
 DEFAULT_MCP_PROTOCOL_VERSION = "2024-11-05"
 
 
-class QdrantGeodesicLifecycleMCPServer:
+class PgVectorGeodesicLifecycleMCPServer:
     """
     Spec-compliant MCP Server providing:
-    - `qdrant_search`: Search unified Qdrant collections with chunk rejoin & tri-layer juxtaposition.
+    - `pgvector_search`: Search unified PostgreSQL `pgvector` (`vectors` DB) collections with
+      Procedural Phase Space (PPS) embeddings, chunk rejoin, and tri-layer juxtaposition.
     - `list_systems`: List all systems (`portfolio`, `components`, `toolset`, `neural_networks`,
-      `large_tools`, `StageCompiler-development`, `qdrant_staging`), their Qdrant collections,
-      design/compiler/code entrypoints, and lifecycle status.
+      `playground`, `large_tools`, `StageCompiler-development`, `vector_staging`), their pgvector
+      collections, design/compiler/code entrypoints, and lifecycle status.
     - `manage_system_lifecycle`: Execute full lifecycles (`status`, `build`, `rebuild`, `sync`,
       `verify`, `promote_harness`, `snapshot`).
     - `get_design_compiler_code_juxtaposition`: Retrieve side-by-side Design Spec, Compiler
@@ -66,8 +67,11 @@ class QdrantGeodesicLifecycleMCPServer:
 
     def _ensure_fs_crud(self) -> FSBaseCrudService:
         if self._fs_crud is None:
+            promoted_dir = self.idea_projects_root / "PolyphonicModel" / "promoted"
+            if not promoted_dir.is_dir():
+                promoted_dir = self.idea_projects_root / "neural_networks" / "promoted"
             self._fs_crud = FSBaseCrudService(
-                promoted_root=self.idea_projects_root / "neural_networks" / "promoted",
+                promoted_root=promoted_dir,
                 staging_root=self.staging_root,
                 idea_projects_root=self.idea_projects_root,
             )
@@ -89,11 +93,12 @@ class QdrantGeodesicLifecycleMCPServer:
         """Returns the MCP `tools/list` schema definitions."""
         return [
             {
-                "name": "qdrant_search",
+                "name": "pgvector_search",
                 "description": (
-                    "Search across unified Qdrant collections (agent_informational_graph_index, "
-                    "portfolio_wiki_chunks, portfolio_neural_benchmarks, portfolio_antigravity_brain, "
-                    "neural_networks_code_corpus, code_corpus_temporal_index) with automatic chunk rejoin "
+                    "Search across unified PostgreSQL pgvector collections in `vectors` DB "
+                    "(agent_informational_graph_index, portfolio_wiki_chunks, portfolio_neural_benchmarks, "
+                    "portfolio_antigravity_brain, neural_networks_code_corpus, code_corpus_temporal_index) "
+                    "using Procedural Phase Space (PPS) embeddings with automatic chunk rejoin "
                     "and side-by-side Design, Compiler, and Code juxtaposition context."
                 ),
                 "inputSchema": {
@@ -106,7 +111,7 @@ class QdrantGeodesicLifecycleMCPServer:
                         "collection": {
                             "type": "string",
                             "description": (
-                                "Optional Qdrant collection filter ('all', 'agent_informational_graph_index', "
+                                "Optional pgvector collection filter ('all', 'agent_informational_graph_index', "
                                 "'unified_harness_benchmarks', 'corpus_tasks', 'corpus_qa_pairs', "
                                 "'corpus_topics', 'corpus_dedup_index', "
                                 "'portfolio_wiki_chunks', 'portfolio_neural_benchmarks', "
@@ -118,7 +123,7 @@ class QdrantGeodesicLifecycleMCPServer:
                             "type": "string",
                             "description": (
                                 "Optional system filter ('all', 'portfolio', 'components', 'toolset', "
-                                "'neural_networks', 'playground', 'large_tools', 'StageCompiler-development', 'qdrant_staging')."
+                                "'neural_networks', 'playground', 'large_tools', 'StageCompiler-development', 'vector_staging')."
                             ),
                         },
                         "layer": {
@@ -139,7 +144,7 @@ class QdrantGeodesicLifecycleMCPServer:
                         },
                         "rejoin_chunks": {
                             "type": "boolean",
-                            "description": "Whether to rejoin multi-chunk Qdrant documents in order (default: true).",
+                            "description": "Whether to rejoin multi-chunk pgvector documents in order (default: true).",
                             "default": True,
                         },
                     },
@@ -150,16 +155,16 @@ class QdrantGeodesicLifecycleMCPServer:
                 "name": "list_systems",
                 "description": (
                     "List every system across /Users/jarek/IdeaProjects (portfolio, components, toolset, "
-                    "neural_networks, large_tools, StageCompiler-development, qdrant_staging) with its Qdrant "
-                    "collections, point counts, design/compiler/code entrypoints, keep_in_place invariants, "
-                    "and lifecycle health."
+                    "neural_networks, playground, large_tools, StageCompiler-development, vector_staging) "
+                    "with its PostgreSQL pgvector collections, point counts, design/compiler/code entrypoints, "
+                    "keep_in_place invariants, and lifecycle health."
                 ),
                 "inputSchema": {
                     "type": "object",
                     "properties": {
                         "include_collections": {
                             "type": "boolean",
-                            "description": "Include detailed Qdrant collection metadata per system (default: true).",
+                            "description": "Include detailed pgvector collection metadata per system (default: true).",
                             "default": True,
                         },
                         "include_lifecycle": {
@@ -173,15 +178,15 @@ class QdrantGeodesicLifecycleMCPServer:
             {
                 "name": "manage_system_lifecycle",
                 "description": (
-                    "Manage full system and Qdrant lifecycles: 'status' (health & telemetry), "
-                    "'build' / 'rebuild' (rebuild Design-Compiler-Code informational graph & unify Qdrant), "
-                    "'sync' (bidirectional or directional Qdrant sync across repos/staging/environments), "
-                    "'verify' (verify SHA-256 disk-vs-Qdrant code integrity and keep_in_place invariants), "
+                    "Manage full system and PostgreSQL pgvector lifecycles: 'status' (health & telemetry), "
+                    "'build' / 'rebuild' (rebuild Design-Compiler-Code informational graph & unify pgvector), "
+                    "'sync' (bidirectional or directional pgvector sync across `vectors` DB, staging, and environments), "
+                    "'verify' (verify SHA-256 disk-vs-pgvector code integrity and keep_in_place invariants), "
                     "'promote_harness' (run status/learn/generate/memorize/reset_memory/predict_next on "
                     "PromotedModelHarness), 'learn' (unified text/tokens/continuous learning dispatcher), "
                     "'learn_topic' (async Pinhole Aperture topic training with 3-modality "
-                    "separation & Public/Internal bucket gating), 'train_qdrant_topics' (async post-benchmark "
-                    "Qdrant topic training), 'training_status' (async worker & relativistic proper-time tau telemetry), "
+                    "separation & Public/Internal bucket gating), 'train_pgvector_topics' (async post-benchmark "
+                    "pgvector topic training), 'training_status' (async worker & relativistic proper-time tau telemetry), "
                     "'blend_topics' (topic isolation + simultaneous Topic HRRF & Topic-Data HRRF with "
                     "Midpoint blending), 'topic_crud' (lock/unlock/delete/read/create topics "
                     "with ROOT_SCOPE_ID=1009 internal code immunity), and 'snapshot' (export JSONL snapshots)."
@@ -201,7 +206,7 @@ class QdrantGeodesicLifecycleMCPServer:
                                 "run_slot_benchmarks",
                                 "learn",
                                 "learn_topic",
-                                "train_qdrant_topics",
+                                "train_pgvector_topics",
                                 "training_status",
                                 "blend_topics",
                                 "topic_crud",
@@ -216,7 +221,7 @@ class QdrantGeodesicLifecycleMCPServer:
                         },
                         "target_environment": {
                             "type": "string",
-                            "description": "Optional target filesystem path or Qdrant URL when action='sync'.",
+                            "description": "Optional target filesystem path or PostgreSQL DSN when action='sync'.",
                         },
                         "direction": {
                             "type": "string",
@@ -264,7 +269,7 @@ class QdrantGeodesicLifecycleMCPServer:
                 "description": (
                     "Follow the complete Poincaré hyperbolic geodesic code path from start to finish "
                     "(1_DESIGN_SPECIFICATION -> 2_COMPILER_PIPELINE -> 3_NEURAL_COMPILER_AND_CAVITY_MODEL -> "
-                    "4_RUNTIME_CODE_AND_SERVICE -> 5_QDRANT_AND_TOOLSET_INDEX -> 6_UI_STREAMING_PRESENTATION), "
+                    "4_RUNTIME_CODE_AND_SERVICE -> 5_PGVECTOR_AND_TOOLSET_INDEX -> 6_UI_STREAMING_PRESENTATION), "
                     "or between any two specific start_query and target_query endpoints, returning every hop's "
                     "file path, exported symbols, SHA-256, juxtaposed Design/Compiler/Code context, and "
                     "hyperbolic geodesic distance."
@@ -299,11 +304,11 @@ class QdrantGeodesicLifecycleMCPServer:
                 "name": "fs_crud",
                 "description": (
                     "Perform FSBase-backed File System CRUD ('list', 'read', 'create', 'update', "
-                    "'upload', 'delete', 'mkdir', 'sync') on the Promoted Model & Staging Qdrant workspace "
-                    "(/Users/jarek/IdeaProjects/neural_networks/promoted and "
-                    "/Users/jarek/IdeaProjects/qdrant_staging/promoted_workspace), supporting text, code, "
+                    "'upload', 'delete', 'mkdir', 'sync') on the Promoted Model & Staging PGVector workspace "
+                    "(/Users/jarek/IdeaProjects/PolyphonicModel/promoted and "
+                    "/Users/jarek/IdeaProjects/vector_staging/promoted_workspace), supporting text, code, "
                     "markdown, and bidirectional multimedia (base64 images, audio, video, PDF) backed up via "
-                    "FSBase and indexed in staging Qdrant ('promoted_model_artifacts')."
+                    "FSBase and indexed in PostgreSQL pgvector ('promoted_model_artifacts')."
                 ),
                 "inputSchema": {
                     "type": "object",
@@ -366,19 +371,19 @@ class QdrantGeodesicLifecycleMCPServer:
         """Returns the MCP `resources/list` manifest."""
         return [
             {
-                "uri": "qdrant://systems/catalog",
-                "name": "Workspace Multi-System & Qdrant Catalog",
-                "description": "Complete catalog of all 7 systems, Qdrant collections, entrypoints, and keep_in_place invariants.",
+                "uri": "pgvector://systems/catalog",
+                "name": "Workspace Multi-System & PGVector Catalog",
+                "description": "Complete catalog of all 8 systems, PostgreSQL pgvector collections, entrypoints, and keep_in_place invariants.",
                 "mimeType": "application/json",
             },
             {
-                "uri": "qdrant://staging/manifest",
-                "name": "Unified Qdrant Staging Manifest",
-                "description": "Live unified Qdrant staging manifest from /Users/jarek/IdeaProjects/qdrant_staging/staging_manifest.json.",
+                "uri": "pgvector://staging/manifest",
+                "name": "Unified PGVector Staging Manifest",
+                "description": "Live unified PGVector staging manifest from /Users/jarek/IdeaProjects/vector_staging/staging_manifest.json.",
                 "mimeType": "application/json",
             },
             {
-                "uri": "qdrant://geodesic/design-compiler-code",
+                "uri": "pgvector://geodesic/design-compiler-code",
                 "name": "Start-to-Finish Design -> Compiler -> Code Geodesic Pipeline",
                 "description": "Complete end-to-end Poincaré hyperbolic geodesic code path from Design Spec through Stage-0/Stage-1 Compiler to Runtime vCPU, Neural Harness, FastAPI Service, and React UI.",
                 "mimeType": "application/json",
@@ -402,7 +407,7 @@ class QdrantGeodesicLifecycleMCPServer:
             },
             {
                 "name": "audit_system_lifecycle",
-                "description": "Verify SHA-256 code integrity, Qdrant collection unification, and keep_in_place invariants across all systems.",
+                "description": "Verify SHA-256 code integrity, PGVector collection unification, and keep_in_place invariants across all systems.",
                 "arguments": [
                     {
                         "name": "system_id",
@@ -414,12 +419,12 @@ class QdrantGeodesicLifecycleMCPServer:
         ]
 
     def call_tool(self, name: str, arguments: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """Executes one of the 5 MCP tools and returns the structured dictionary payload."""
+        """Executes one of the 6 MCP tools and returns the structured dictionary payload."""
         idx = self._ensure_index()
         args = dict(arguments or {})
 
-        if name == "qdrant_search":
-            return idx.search_qdrant_unified(
+        if name == "pgvector_search":
+            return idx.search_pgvector_unified(
                 query=str(args.get("query", "")),
                 collection=args.get("collection"),
                 system_id=args.get("system_id"),
@@ -475,13 +480,13 @@ class QdrantGeodesicLifecycleMCPServer:
         raise ValueError(f"Unknown MCP tool: {name!r}")
 
     def read_resource(self, uri: str) -> Dict[str, Any]:
-        """Reads an MCP resource URI (`qdrant://...`)."""
+        """Reads an MCP resource URI (`pgvector://...`)."""
         idx = self._ensure_index()
-        if uri == "qdrant://systems/catalog":
+        if uri == "pgvector://systems/catalog":
             data = idx.list_systems(include_collections=True, include_lifecycle=True)
-        elif uri == "qdrant://staging/manifest":
+        elif uri == "pgvector://staging/manifest":
             data = idx.get_staging_overview()
-        elif uri == "qdrant://geodesic/design-compiler-code":
+        elif uri == "pgvector://geodesic/design-compiler-code":
             data = idx.trace_full_geodesic_code_path(include_source_excerpts=True)
         else:
             raise ValueError(f"Unknown MCP resource URI: {uri!r}")
@@ -522,14 +527,14 @@ class QdrantGeodesicLifecycleMCPServer:
             sys_id = str(args.get("system_id") or "all")
             ver = idx.manage_system_lifecycle(action="verify", system_id=sys_id)
             return {
-                "description": f"Full SHA-256 and Qdrant lifecycle verification for {sys_id}",
+                "description": f"Full SHA-256 and PGVector lifecycle verification for {sys_id}",
                 "messages": [
                     {
                         "role": "user",
                         "content": {
                             "type": "text",
                             "text": (
-                                f"Verify full system lifecycle and Qdrant integrity for '{sys_id}':\n\n"
+                                f"Verify full system lifecycle and PGVector integrity for '{sys_id}':\n\n"
                                 f"{json.dumps(ver, indent=2)}"
                             ),
                         },
@@ -544,7 +549,6 @@ class QdrantGeodesicLifecycleMCPServer:
         req_id = request.get("id")
         params = request.get("params") or {}
 
-        # Notifications have no `id` and expect no response
         if req_id is None and method.startswith("notifications/"):
             return None
 
@@ -660,13 +664,11 @@ class QdrantGeodesicLifecycleMCPServer:
             if not stripped:
                 continue
 
-            # Support optional Content-Length header framing
             if stripped.lower().startswith(b"content-length:"):
                 try:
                     length = int(stripped.split(b":", 1)[1].strip())
                 except ValueError:
                     continue
-                # Consume blank header separator lines
                 while True:
                     hdr = stdin.readline()
                     if not hdr or hdr.strip() == b"":
@@ -697,7 +699,7 @@ class QdrantGeodesicLifecycleMCPServer:
 
 
 def main() -> None:
-    server = QdrantGeodesicLifecycleMCPServer(lazy_init=True)
+    server = PgVectorGeodesicLifecycleMCPServer(lazy_init=True)
     server.run_stdio()
 
 

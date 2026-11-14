@@ -73,7 +73,7 @@ MODEL_FAMILY_METADATA: dict[str, dict[str, Any]] = {
         ],
         "related_modules": ["benchmark_ledger", "llm_Fine_Tuning", "thread_safe", "async_queue"],
         "related_kis": [
-            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history",
+            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_pgvector_history",
             "ki_query_torch_model_torch_local",
         ],
     },
@@ -96,7 +96,7 @@ MODEL_FAMILY_METADATA: dict[str, dict[str, Any]] = {
         ],
         "related_modules": ["benchmark_ledger", "llm_Fine_Tuning", "thread_safe", "simple_functions"],
         "related_kis": [
-            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history",
+            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_pgvector_history",
             "ki_query_torch_model_torch_local",
         ],
     },
@@ -119,7 +119,7 @@ MODEL_FAMILY_METADATA: dict[str, dict[str, Any]] = {
         ],
         "related_modules": ["benchmark_ledger", "llm_Fine_Tuning", "thread_safe"],
         "related_kis": [
-            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history",
+            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_pgvector_history",
         ],
     },
     "PolyphaseResonantMonadicVCPUModel (Dual-Mirror 2-GRU + StageCompiler vCPU)": {
@@ -139,7 +139,7 @@ MODEL_FAMILY_METADATA: dict[str, dict[str, Any]] = {
         ],
         "related_modules": ["benchmark_ledger", "llm_Fine_Tuning", "thread_safe"],
         "related_kis": [
-            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history",
+            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_pgvector_history",
         ],
     },
     "StageCompilerInnerGRUModel (Full Compiler Wrapping Inner 2-GRU Cavity)": {
@@ -160,7 +160,7 @@ MODEL_FAMILY_METADATA: dict[str, dict[str, Any]] = {
         ],
         "related_modules": ["benchmark_ledger", "llm_Fine_Tuning", "thread_safe"],
         "related_kis": [
-            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history",
+            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_pgvector_history",
         ],
     },
     "StageCompilerOuterGRUModel (Outer 2-GRU + Full Compiler + Cavity)": {
@@ -180,7 +180,7 @@ MODEL_FAMILY_METADATA: dict[str, dict[str, Any]] = {
         ],
         "related_modules": ["benchmark_ledger", "llm_Fine_Tuning", "thread_safe"],
         "related_kis": [
-            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history",
+            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_pgvector_history",
         ],
     },
     "StageCompilerNoGRUModel (Full Compiler + Cavity, No GRU)": {
@@ -200,7 +200,7 @@ MODEL_FAMILY_METADATA: dict[str, dict[str, Any]] = {
         ],
         "related_modules": ["benchmark_ledger", "llm_Fine_Tuning", "thread_safe"],
         "related_kis": [
-            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history",
+            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_pgvector_history",
         ],
     },
     "StageCompilerPostGRUModel (Full Compiler + Cavity -> Post 2-GRU)": {
@@ -220,7 +220,7 @@ MODEL_FAMILY_METADATA: dict[str, dict[str, Any]] = {
         ],
         "related_modules": ["benchmark_ledger", "llm_Fine_Tuning", "thread_safe"],
         "related_kis": [
-            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history",
+            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_pgvector_history",
         ],
     },
     "StageCompilerSandwichGRUModel (Pre 2-GRU -> Full Compiler -> Post 2-GRU)": {
@@ -239,7 +239,7 @@ MODEL_FAMILY_METADATA: dict[str, dict[str, Any]] = {
         ],
         "related_modules": ["benchmark_ledger", "llm_Fine_Tuning", "thread_safe"],
         "related_kis": [
-            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history",
+            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_pgvector_history",
         ],
     },
     "StageCompilerPostHybridSpectralGRUModel (Compiler + vCPU SpecGRU -> Post 2-GRU + Post 2-SpecGRU)": {
@@ -258,7 +258,7 @@ MODEL_FAMILY_METADATA: dict[str, dict[str, Any]] = {
         ],
         "related_modules": ["benchmark_ledger", "llm_Fine_Tuning", "thread_safe"],
         "related_kis": [
-            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history",
+            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_pgvector_history",
         ],
     },
     "StageCompilerPostSpectralGRUModel (Full Compiler + vCPU SpecGRU -> Post 2-SpecGRU)": {
@@ -276,7 +276,7 @@ MODEL_FAMILY_METADATA: dict[str, dict[str, Any]] = {
         ],
         "related_modules": ["benchmark_ledger", "llm_Fine_Tuning", "thread_safe"],
         "related_kis": [
-            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history",
+            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_pgvector_history",
         ],
     },
     "StageCompilerOuterSpectralGRUModel (Outer 2-SpecGRU + Full Compiler + vCPU SpecGRU)": {
@@ -293,7 +293,7 @@ MODEL_FAMILY_METADATA: dict[str, dict[str, Any]] = {
         ],
         "related_modules": ["benchmark_ledger", "llm_Fine_Tuning", "thread_safe"],
         "related_kis": [
-            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history",
+            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_pgvector_history",
         ],
     },
     "StageCompilerInnerSpectralGRUModel (Compiler Wrapping Inner 2-SpecGRU + vCPU SpecGRU)": {
@@ -310,7 +310,7 @@ MODEL_FAMILY_METADATA: dict[str, dict[str, Any]] = {
         ],
         "related_modules": ["benchmark_ledger", "llm_Fine_Tuning", "thread_safe"],
         "related_kis": [
-            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history",
+            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_pgvector_history",
         ],
     },
     "StageCompilerDualSpectralGRUModel (Outer SpecGRU -> Compiler + vCPU SpecGRU -> Post SpecGRU)": {
@@ -327,7 +327,7 @@ MODEL_FAMILY_METADATA: dict[str, dict[str, Any]] = {
         ],
         "related_modules": ["benchmark_ledger", "llm_Fine_Tuning", "thread_safe"],
         "related_kis": [
-            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history",
+            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_pgvector_history",
         ],
     },
     "CohesiveCascadedSpectralGRUModel (Cohesive-Manifold Cascaded Hyperbolic/Spectral GRU Waves)": {
@@ -347,7 +347,7 @@ MODEL_FAMILY_METADATA: dict[str, dict[str, Any]] = {
         ],
         "related_modules": ["benchmark_ledger", "llm_Fine_Tuning", "thread_safe"],
         "related_kis": [
-            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history",
+            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_pgvector_history",
         ],
     },
     "CohesiveCascadedHybridGRUModel (Cohesive-Manifold Cascaded Euclidean + Spectral GRU Waves)": {
@@ -367,7 +367,7 @@ MODEL_FAMILY_METADATA: dict[str, dict[str, Any]] = {
         ],
         "related_modules": ["benchmark_ledger", "llm_Fine_Tuning", "thread_safe"],
         "related_kis": [
-            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history",
+            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_pgvector_history",
         ],
     },
     "StageISAASTGatedModel (AST Logic & ISA Spectral Anomaly Gated Internal Router)": {
@@ -387,7 +387,7 @@ MODEL_FAMILY_METADATA: dict[str, dict[str, Any]] = {
         ],
         "related_modules": ["benchmark_ledger", "llm_Fine_Tuning", "thread_safe"],
         "related_kis": [
-            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history",
+            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_pgvector_history",
         ],
     },
     "PolyphonicStageCompilerCascadeModel (Stage-1 Compiler + ISA Spectral-AST Gate + Cohesive-Manifold Wave Cascade)": {
@@ -409,7 +409,7 @@ MODEL_FAMILY_METADATA: dict[str, dict[str, Any]] = {
         ],
         "related_modules": ["benchmark_ledger", "llm_Fine_Tuning", "thread_safe"],
         "related_kis": [
-            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history",
+            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_pgvector_history",
             "ki_query_torch_model_torch_local",
         ],
     },
@@ -430,7 +430,7 @@ MODEL_FAMILY_METADATA: dict[str, dict[str, Any]] = {
         ],
         "related_modules": ["benchmark_ledger", "llm_Fine_Tuning", "thread_safe"],
         "related_kis": [
-            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history",
+            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_pgvector_history",
         ],
     },
     "CohesiveAnyGram + 2-Layer GRU": {
@@ -448,7 +448,7 @@ MODEL_FAMILY_METADATA: dict[str, dict[str, Any]] = {
         ],
         "related_modules": ["benchmark_ledger", "llm_Fine_Tuning", "thread_safe"],
         "related_kis": [
-            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history",
+            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_pgvector_history",
         ],
     },
     "Polyphase Resonant Cavity 2-Layer GRU (Dual-Mirror AnyGram)": {
@@ -466,7 +466,7 @@ MODEL_FAMILY_METADATA: dict[str, dict[str, Any]] = {
         ],
         "related_modules": ["benchmark_ledger", "llm_Fine_Tuning", "thread_safe"],
         "related_kis": [
-            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history",
+            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_pgvector_history",
         ],
     },
     "2-Layer GRU (nn.GRU)": {
@@ -483,7 +483,7 @@ MODEL_FAMILY_METADATA: dict[str, dict[str, Any]] = {
         ],
         "related_modules": ["benchmark_ledger", "llm_Fine_Tuning"],
         "related_kis": [
-            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history",
+            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_pgvector_history",
         ],
     },
     "2-Layer LSTM (nn.LSTM)": {
@@ -500,7 +500,7 @@ MODEL_FAMILY_METADATA: dict[str, dict[str, Any]] = {
         ],
         "related_modules": ["benchmark_ledger", "llm_Fine_Tuning"],
         "related_kis": [
-            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history",
+            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_pgvector_history",
         ],
     },
     "2-Layer Causal TCN / WaveNet": {
@@ -517,7 +517,7 @@ MODEL_FAMILY_METADATA: dict[str, dict[str, Any]] = {
         ],
         "related_modules": ["benchmark_ledger"],
         "related_kis": [
-            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history",
+            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_pgvector_history",
         ],
     },
     "2-Layer GPT Transformer (8H)": {
@@ -534,7 +534,7 @@ MODEL_FAMILY_METADATA: dict[str, dict[str, Any]] = {
         ],
         "related_modules": ["benchmark_ledger", "llm_Fine_Tuning"],
         "related_kis": [
-            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history",
+            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_pgvector_history",
         ],
     },
     "1D Spectral Neural Operator (SNO-1D)": {
@@ -551,7 +551,7 @@ MODEL_FAMILY_METADATA: dict[str, dict[str, Any]] = {
         ],
         "related_modules": ["benchmark_ledger"],
         "related_kis": [
-            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history",
+            "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_pgvector_history",
         ],
     },
 }
@@ -700,7 +700,7 @@ class BenchmarkSaveRequest(BaseModel):
     task_overrides: list[dict[str, Any]] = Field(default_factory=list)
 
 
-class BenchmarkQdrantDocument(BaseModel):
+class BenchmarkVectorDocument(BaseModel):
     doc_id: str
     doc_type: Literal["benchmark_model", "benchmark_task", "benchmark_run"]
     title: str
@@ -851,89 +851,126 @@ KNOWN_MODEL_PARAMS: dict[str, int] = {
 }
 
 
+def _resolve_benchmark_model_roots(repo_path: Path) -> list[Path]:
+    """
+    Resolve candidate model/benchmark roots. When `repo_path` points to `neural_networks`
+    or `PolyphonicModel` under `/Users/jarek/IdeaProjects`, also inspect the extracted
+    sibling model/cavity/vCPU/anygram/harness repositories while keeping custom test
+    repositories isolated.
+    """
+    primary = repo_path.resolve()
+    roots = [primary]
+    if primary.parent == Path("/Users/jarek/IdeaProjects") and primary.name in {
+        "neural_networks",
+        "PolyphonicModel",
+    }:
+        for sib_name in (
+            "PolyphonicModel",
+            "MonadicCavity",
+            "PolyphonicVCPU",
+            "PhaseSheafAnyGram",
+            "PolyphonicPipeline",
+            "harnesses",
+        ):
+            cand = primary.parent / sib_name
+            if cand.exists() and cand not in roots:
+                roots.append(cand)
+    return roots
+
+
+def _resolve_repo_file(repo_path: Path, *rel_parts: str) -> Path:
+    for root in _resolve_benchmark_model_roots(repo_path):
+        cand = root.joinpath(*rel_parts)
+        if cand.exists():
+            return cand
+    return repo_path.joinpath(*rel_parts)
+
+
 def _extract_class_sources_from_repo(repo_path: Path) -> dict[str, dict[str, Any]]:
-    """Scan Python files under repo_path/src with AST to extract class source code, display_name, and line numbers."""
+    """Scan Python files under candidate model roots with AST to extract class source code, display_name, and line numbers."""
     extracted: dict[str, dict[str, Any]] = {}
-    src_root = repo_path / "src"
-    if not src_root.exists():
-        return extracted
+    for root in _resolve_benchmark_model_roots(repo_path):
+        for subdir_name in ("src", "promoted"):
+            src_root = root / subdir_name
+            if not src_root.exists():
+                continue
 
-    for py_file in sorted(src_root.rglob("*.py")):
-        if "__pycache__" in py_file.parts:
-            continue
-        try:
-            raw_text = py_file.read_text(encoding="utf-8")
-            tree = ast.parse(raw_text, filename=str(py_file))
-        except Exception:
-            continue
+            for py_file in sorted(src_root.rglob("*.py")):
+                if "__pycache__" in py_file.parts:
+                    continue
+                try:
+                    raw_text = py_file.read_text(encoding="utf-8")
+                    tree = ast.parse(raw_text, filename=str(py_file))
+                except Exception:
+                    continue
 
-        lines = raw_text.splitlines()
-        rel_path = py_file.relative_to(repo_path).as_posix()
-        for node in tree.body:
-            if isinstance(node, ast.ClassDef):
-                start_line = getattr(node, "lineno", 1)
-                end_line = getattr(node, "end_lineno", start_line)
-                class_source = "\n".join(lines[max(0, start_line - 1) : end_line])
-                docstring = ast.get_docstring(node) or ""
-                methods = [
-                    sub.name
-                    for sub in node.body
-                    if isinstance(sub, (ast.FunctionDef, ast.AsyncFunctionDef))
-                ]
-                base_classes = [
-                    b.id
-                    for b in node.bases
-                    if isinstance(b, ast.Name)
-                    and b.id not in {"Module", "object", "BaseModel"}
-                ]
-                display_name = ""
-                model_id_attr = ""
-                for sub in node.body:
-                    if isinstance(sub, ast.AnnAssign) and isinstance(sub.target, ast.Name):
-                        if (
-                            sub.target.id == "display_name"
-                            and isinstance(sub.value, ast.Constant)
-                            and isinstance(sub.value.value, str)
-                        ):
-                            display_name = sub.value.value
-                        elif (
-                            sub.target.id == "model_id"
-                            and isinstance(sub.value, ast.Constant)
-                            and isinstance(sub.value.value, str)
-                        ):
-                            model_id_attr = sub.value.value
-                    elif isinstance(sub, ast.Assign):
-                        for t in sub.targets:
-                            if isinstance(t, ast.Name):
+                lines = raw_text.splitlines()
+                rel_path = py_file.relative_to(root).as_posix()
+                for node in tree.body:
+                    if isinstance(node, ast.ClassDef):
+                        start_line = getattr(node, "lineno", 1)
+                        end_line = getattr(node, "end_lineno", start_line)
+                        class_source = "\n".join(lines[max(0, start_line - 1) : end_line])
+                        docstring = ast.get_docstring(node) or ""
+                        methods = [
+                            sub.name
+                            for sub in node.body
+                            if isinstance(sub, (ast.FunctionDef, ast.AsyncFunctionDef))
+                        ]
+                        base_classes = [
+                            b.id
+                            for b in node.bases
+                            if isinstance(b, ast.Name)
+                            and b.id not in {"Module", "object", "BaseModel"}
+                        ]
+                        display_name = ""
+                        model_id_attr = ""
+                        for sub in node.body:
+                            if isinstance(sub, ast.AnnAssign) and isinstance(sub.target, ast.Name):
                                 if (
-                                    t.id == "display_name"
+                                    sub.target.id == "display_name"
                                     and isinstance(sub.value, ast.Constant)
                                     and isinstance(sub.value.value, str)
                                 ):
                                     display_name = sub.value.value
                                 elif (
-                                    t.id == "model_id"
+                                    sub.target.id == "model_id"
                                     and isinstance(sub.value, ast.Constant)
                                     and isinstance(sub.value.value, str)
                                 ):
                                     model_id_attr = sub.value.value
+                            elif isinstance(sub, ast.Assign):
+                                for t in sub.targets:
+                                    if isinstance(t, ast.Name):
+                                        if (
+                                            t.id == "display_name"
+                                            and isinstance(sub.value, ast.Constant)
+                                            and isinstance(sub.value.value, str)
+                                        ):
+                                            display_name = sub.value.value
+                                        elif (
+                                            t.id == "model_id"
+                                            and isinstance(sub.value, ast.Constant)
+                                            and isinstance(sub.value.value, str)
+                                        ):
+                                            model_id_attr = sub.value.value
 
-                rec = mask_restricted_vocabulary(
-                    {
-                        "class_name": mask_restricted_string(node.name),
-                        "display_name": mask_restricted_string(display_name),
-                        "model_id_attr": mask_restricted_string(model_id_attr),
-                        "base_class_name": mask_restricted_string(base_classes[0]) if base_classes else "",
-                        "source_file": mask_restricted_string(rel_path),
-                        "source_line_start": int(start_line),
-                        "source_line_end": int(end_line),
-                        "source_code": mask_restricted_string(class_source),
-                        "docstring": mask_restricted_string(docstring.strip()),
-                        "method_names": [mask_restricted_string(m) for m in methods],
-                    }
-                )
-                extracted[node.name] = rec
-                extracted[rec["class_name"]] = rec
+                        rec = mask_restricted_vocabulary(
+                            {
+                                "class_name": mask_restricted_string(node.name),
+                                "display_name": mask_restricted_string(display_name),
+                                "model_id_attr": mask_restricted_string(model_id_attr),
+                                "base_class_name": mask_restricted_string(base_classes[0]) if base_classes else "",
+                                "source_file": mask_restricted_string(rel_path),
+                                "source_line_start": int(start_line),
+                                "source_line_end": int(end_line),
+                                "source_code": mask_restricted_string(class_source),
+                                "docstring": mask_restricted_string(docstring.strip()),
+                                "method_names": [mask_restricted_string(m) for m in methods],
+                            }
+                        )
+                        extracted.setdefault(node.name, rec)
+                        extracted.setdefault(rec["class_name"], rec)
     return extracted
 
 
@@ -1108,7 +1145,7 @@ def _parse_live_active_benchmark_logs(repo_path: Path) -> dict[str, Any]:
     """
     Parse real-time stdout lines from any active in-flight benchmark task logs in the
     neural_networks agent workspace so in-progress benchmark evaluations appear immediately
-    in Qdrant and the Portfolio UI before the process finishes all 9-12 tasks.
+    in PGVector and the Portfolio UI before the process finishes all 9-12 tasks.
     Completed logs (containing `[SAVED] JSON ->` or older than `monadic_cavity_leaderboard.json`)
     are skipped so they never overwrite persisted leaderboard JSON files.
     """
@@ -1116,15 +1153,15 @@ def _parse_live_active_benchmark_logs(repo_path: Path) -> dict[str, Any]:
         "language_benchmarks": {},
         "continuous_benchmarks": {},
     }
-    mc_disk_path = (
-        repo_path
-        / "src"
-        / "models"
-        / "monadic_cavity"
-        / "results"
-        / "monadic_cavity_leaderboard.json"
+    mc_disk_path = _resolve_repo_file(
+        repo_path,
+        "src",
+        "models",
+        "monadic_cavity",
+        "results",
+        "monadic_cavity_leaderboard.json",
     )
-    if not (repo_path / "src" / "models" / "monadic_cavity").exists():
+    if not _resolve_repo_file(repo_path, "src", "models", "monadic_cavity").exists():
         return parsed
     if not NEURAL_NETWORKS_AGENT_TASKS_DIR.exists():
         return parsed
@@ -1232,21 +1269,21 @@ def _load_timeseries_stream(repo_path: Path) -> list[dict[str, Any]]:
     `src/models/monadic_cavity/results/benchmark_timeseries.jsonl` and
     `src/models/monadic_cavity/results/monadic_cavity_leaderboard.json["timeseries"]`.
     """
-    ts_jsonl_path = (
-        repo_path
-        / "src"
-        / "models"
-        / "monadic_cavity"
-        / "results"
-        / "benchmark_timeseries.jsonl"
+    ts_jsonl_path = _resolve_repo_file(
+        repo_path,
+        "src",
+        "models",
+        "monadic_cavity",
+        "results",
+        "benchmark_timeseries.jsonl",
     )
-    mc_json_path = (
-        repo_path
-        / "src"
-        / "models"
-        / "monadic_cavity"
-        / "results"
-        / "monadic_cavity_leaderboard.json"
+    mc_json_path = _resolve_repo_file(
+        repo_path,
+        "src",
+        "models",
+        "monadic_cavity",
+        "results",
+        "monadic_cavity_leaderboard.json",
     )
     points: list[dict[str, Any]] = []
     seen_keys: set[tuple[str, str, str, float]] = set()
@@ -1290,9 +1327,10 @@ def _load_timeseries_stream(repo_path: Path) -> list[dict[str, Any]]:
             pass
 
     for extra_json_path in (
-        repo_path / "src" / "models" / "monadic_cavity" / "results" / "realtime_qdrant_stream.json",
-        repo_path / "src" / "models" / "stage_compiler" / "results" / "stage_compiler_leaderboard.json",
-        repo_path / "src" / "models" / "phaselang_compiler" / "results" / "phaselang_compiler_leaderboard.json",
+        _resolve_repo_file(repo_path, "src", "models", "monadic_cavity", "results", "realtime_pgvector_stream.json"),
+        _resolve_repo_file(repo_path, "src", "models", "stage_compiler", "results", "stage_compiler_leaderboard.json"),
+        _resolve_repo_file(repo_path, "src", "models", "phaselang_compiler", "results", "stage_compiler_leaderboard.json"),
+        _resolve_repo_file(repo_path, "src", "models", "phaselang_compiler", "results", "phaselang_compiler_leaderboard.json"),
     ):
         if extra_json_path.exists():
             try:
@@ -1316,12 +1354,14 @@ def _build_canonical_worktree_suite(repo_path: Path, bundle: dict[str, Any]) -> 
          providing `tinyshakespeare_max`, `wikitext_encyclopedic`, `lorenz63_kuramoto_chaos`, and standalone
          `CohesiveAnyGram + 2-Layer GRU` + `Polyphase Resonant Cavity 2-Layer GRU` rows)
       3. StageCompiler Stage-1 Compiler suites (`task-9551`/`task-9578`, `task-9632` Post/Sandwich GRU,
-         `realtime_qdrant_stream.json`, and real-time in-flight benchmark logs from `task-9680+`)
+         `realtime_pgvector_stream.json`, and real-time in-flight benchmark logs from `task-9680+`)
     """
-    bm_disk_path = repo_path / "src" / "polyphonic_model" / "benchmarks" / "results" / "benchmark_leaderboard.json"
-    mc_disk_path = repo_path / "src" / "models" / "monadic_cavity" / "results" / "monadic_cavity_leaderboard.json"
-    plc_disk_path = repo_path / "src" / "models" / "stage_compiler" / "results" / "stage_compiler_leaderboard.json"
-    stream_disk_path = repo_path / "src" / "models" / "monadic_cavity" / "results" / "realtime_qdrant_stream.json"
+    bm_disk_path = _resolve_repo_file(repo_path, "src", "polyphonic_model", "benchmarks", "results", "benchmark_leaderboard.json")
+    mc_disk_path = _resolve_repo_file(repo_path, "src", "models", "monadic_cavity", "results", "monadic_cavity_leaderboard.json")
+    plc_disk_path = _resolve_repo_file(repo_path, "src", "models", "stage_compiler", "results", "stage_compiler_leaderboard.json")
+    if not plc_disk_path.exists():
+        plc_disk_path = _resolve_repo_file(repo_path, "src", "models", "phaselang_compiler", "results", "stage_compiler_leaderboard.json")
+    stream_disk_path = _resolve_repo_file(repo_path, "src", "models", "monadic_cavity", "results", "realtime_pgvector_stream.json")
 
     bm_raw = (
         json.loads(bm_disk_path.read_text(encoding="utf-8"))
@@ -1349,7 +1389,7 @@ def _build_canonical_worktree_suite(repo_path: Path, bundle: dict[str, Any]) -> 
     live_log_raw = _parse_live_active_benchmark_logs(repo_path)
 
     # If the caller passed a custom temp repo with only benchmark_leaderboard.json and no bundle match
-    if not (repo_path / "src" / "models" / "monadic_cavity").exists() and bm_disk_path.exists():
+    if not _resolve_repo_file(repo_path, "src", "models", "monadic_cavity").exists() and bm_disk_path.exists():
         return bm_raw
 
     combined: dict[str, Any] = {
@@ -1464,7 +1504,7 @@ def _git_post_audit_raw_runs(repo_path: Path, max_commits: int = 6) -> list[dict
     commits (53f105d, 2d063d1) that contained the 13 PolyphonicPipeline benchmark-path violations.
     """
     bundle = _load_authentic_bundle()
-    is_main_neural_repo = (repo_path / "src" / "models" / "monadic_cavity").exists()
+    is_main_neural_repo = _resolve_repo_file(repo_path, "src", "models", "monadic_cavity").exists()
     if is_main_neural_repo and bundle.get("historical_runs"):
         out: list[dict[str, Any]] = []
         for snap in bundle["historical_runs"]:
@@ -1571,7 +1611,7 @@ def _format_task_markdown_table(task: BenchmarkTaskRecord) -> str:
 
 def _load_promoted_manifest(repo_path: Path, fs: FSBase) -> dict[str, Any]:
     """Load `promoted/promoted_manifest.json` and harness metadata via FSBase if present."""
-    manifest_path = repo_path / "promoted" / "promoted_manifest.json"
+    manifest_path = _resolve_repo_file(repo_path, "promoted", "promoted_manifest.json")
     if not manifest_path.exists():
         return {}
     try:
@@ -1580,12 +1620,15 @@ def _load_promoted_manifest(repo_path: Path, fs: FSBase) -> dict[str, Any]:
         manifest = json.loads(buf.getvalue().decode("utf-8"))
         if not isinstance(manifest, dict):
             return {}
-        promoted_model_py = repo_path / "promoted" / "promoted_model.py"
-        split_harness_py = repo_path / "src" / "model_harness" / "core.py"
-        legacy_harness_py = repo_path / "promoted" / "harness.py"
+        promoted_model_py = _resolve_repo_file(repo_path, "promoted", "promoted_model.py")
+        split_harness_py = _resolve_repo_file(repo_path, "src", "agent_harnesses", "model_harness", "core.py")
+        local_harness_py = _resolve_repo_file(repo_path, "src", "model_harness", "core.py")
+        legacy_harness_py = _resolve_repo_file(repo_path, "promoted", "harness.py")
         manifest = mask_restricted_vocabulary(dict(manifest))
         manifest["promoted_model_file"] = "promoted/promoted_model.py" if promoted_model_py.exists() else ""
         if split_harness_py.exists():
+            manifest["harness_file"] = "src/agent_harnesses/model_harness/core.py"
+        elif local_harness_py.exists():
             manifest["harness_file"] = "src/model_harness/core.py"
         elif legacy_harness_py.exists():
             manifest["harness_file"] = "promoted/harness.py"
@@ -1625,12 +1668,12 @@ def _format_model_markdown(profile: ModelArchitectureProfile) -> str:
     ]
     if profile.is_promoted and profile.promoted_metadata:
         pm = profile.promoted_metadata
-        q_ver = pm.get("qdrant_code_verification") or {}
+        v_ver = pm.get("pgvector_code_verification") or {}
         geo_tr = pm.get("geodesic_code_trace") or {}
         lines.extend(
             [
-                f"| **Promoted Package** | `promoted/promoted_model.py` & `promoted/harness.py` (`PromotedModelHarness`) |",
-                f"| **Qdrant Code Verification** | `unchanged={q_ver.get('unchanged', True)}` (`{q_ver.get('verified_files_count', 0)}` verified files, digest `{str(q_ver.get('corpus_digest', ''))[:16]}...`) |",
+                f"| **Promoted Package** | `promoted/promoted_model.py` & `src/agent_harnesses/model_harness/core.py` (`PromotedModelHarness`) |",
+                f"| **PGVector Code Verification** | `unchanged={v_ver.get('unchanged', True)}` (`{v_ver.get('verified_files_count', 0)}` verified files, digest `{str(v_ver.get('corpus_digest', ''))[:16]}...`) |",
                 f"| **Poincare Geodesic Code Trace** | `{geo_tr.get('hop_count', geo_tr.get('num_hops', 0))}` hops (`total_geodesic_distance={geo_tr.get('total_geodesic_distance', 0.0)}`) |",
             ]
         )
@@ -1672,8 +1715,8 @@ class BenchmarkLedger:
     """
     Thread-safe Neural Benchmark Leaderboard and History Ledger.
     Scrapes authentic violation-free multi-domain benchmark results, post-audit run history,
-    and PyTorch model source code from the neural_networks repository, persists canonical
-    ledger snapshots via FSBase, and constructs Qdrant documents with relational metadata.
+    and PyTorch model source code from the neural_networks / PolyphonicModel repositories, persists
+    canonical ledger snapshots via FSBase, and constructs PGVector documents with relational metadata.
     """
 
     def __init__(
@@ -1715,13 +1758,13 @@ class BenchmarkLedger:
             saved = payload.get("custom_saved_runs", [])
             if isinstance(saved, list):
                 self._custom_saved_runs = saved
-            mc_json_path = (
-                self.repo_path
-                / "src"
-                / "models"
-                / "monadic_cavity"
-                / "results"
-                / "monadic_cavity_leaderboard.json"
+            mc_json_path = _resolve_repo_file(
+                self.repo_path,
+                "src",
+                "models",
+                "monadic_cavity",
+                "results",
+                "monadic_cavity_leaderboard.json",
             )
             is_worktree_newer = (
                 mc_json_path.exists()
@@ -1736,21 +1779,21 @@ class BenchmarkLedger:
 
     def scrape_and_build(self, include_git_history: bool = True, max_git_commits: int = 6) -> dict[str, Any]:
         """Scrape authentic post-audit worktree leaderboards, run progression, and AST model source code."""
-        leaderboard_json_path = (
-            self.repo_path
-            / "src"
-            / "polyphonic_model"
-            / "benchmarks"
-            / "results"
-            / "benchmark_leaderboard.json"
+        leaderboard_json_path = _resolve_repo_file(
+            self.repo_path,
+            "src",
+            "polyphonic_model",
+            "benchmarks",
+            "results",
+            "benchmark_leaderboard.json",
         )
-        monadic_json_path = (
-            self.repo_path
-            / "src"
-            / "models"
-            / "monadic_cavity"
-            / "results"
-            / "monadic_cavity_leaderboard.json"
+        monadic_json_path = _resolve_repo_file(
+            self.repo_path,
+            "src",
+            "models",
+            "monadic_cavity",
+            "results",
+            "monadic_cavity_leaderboard.json",
         )
         if (
             not leaderboard_json_path.exists()
@@ -2222,7 +2265,7 @@ class BenchmarkLedger:
                         meta.get(
                             "related_kis",
                             [
-                                "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history"
+                                "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_pgvector_history"
                             ],
                         )
                     ),
@@ -2259,6 +2302,32 @@ class BenchmarkLedger:
                 p.model_name,
             )
         )
+        if (
+            promoted_manifest
+            and raw_profiles
+            and not any(p.is_promoted for p in raw_profiles)
+        ):
+            fallback_promoted = next(
+                (
+                    p
+                    for p in raw_profiles
+                    if p.class_name and p.class_name in promoted_model_name
+                ),
+                raw_profiles[0],
+            )
+            fallback_promoted.is_promoted = True
+            fallback_promoted.promoted_metadata = promoted_manifest
+            raw_profiles.sort(
+                key=lambda p: (
+                    0 if p.is_promoted else 1,
+                    0 if p.benchmarks_evaluated >= total_tasks_count else 1,
+                    -p.composite_score,
+                    p.mean_rank,
+                    -p.wins_count,
+                    -p.top3_count,
+                    p.model_name,
+                )
+            )
         for rank_idx, profile in enumerate(raw_profiles, start=1):
             profile.overall_rank = rank_idx
             profile.is_overall_best = rank_idx == 1
@@ -2503,19 +2572,19 @@ class BenchmarkLedger:
                 return t.model_dump()
         return None
 
-    def build_qdrant_documents(self) -> list[BenchmarkQdrantDocument]:
+    def build_vector_documents(self) -> list[BenchmarkVectorDocument]:
         """
-        Construct Qdrant documents with rich markdown and metadata for every evaluated
+        Construct PGVector documents with rich markdown and metadata for every evaluated
         model architecture, benchmark leaderboard task, and historical run snapshot.
         """
         if not self._models or not self._tasks:
             self.scrape_and_build()
 
-        docs: list[BenchmarkQdrantDocument] = []
+        docs: list[BenchmarkVectorDocument] = []
 
         for model in self._models:
             docs.append(
-                BenchmarkQdrantDocument(
+                BenchmarkVectorDocument(
                     doc_id=model.model_id,
                     doc_type="benchmark_model",
                     title=model.model_name,
@@ -2546,7 +2615,7 @@ class BenchmarkLedger:
 
         for idx, task in enumerate(self._tasks, start=1):
             docs.append(
-                BenchmarkQdrantDocument(
+                BenchmarkVectorDocument(
                     doc_id=task.benchmark_id,
                     doc_type="benchmark_task",
                     title=task.title,
@@ -2571,7 +2640,7 @@ class BenchmarkLedger:
                     ),
                     related_modules=["benchmark_ledger", "llm_Fine_Tuning", "thread_safe"],
                     related_kis=[
-                        "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history"
+                        "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_pgvector_history"
                     ],
                     payload=task.model_dump(),
                 )
@@ -2604,7 +2673,7 @@ class BenchmarkLedger:
                     f"| `{m_name}` | `{run.model_win_counts.get(m_name, 0)}` | `{m_rank:.2f}` |"
                 )
             docs.append(
-                BenchmarkQdrantDocument(
+                BenchmarkVectorDocument(
                     doc_id=run.run_id,
                     doc_type="benchmark_run",
                     title=run.run_label,
@@ -2628,7 +2697,7 @@ class BenchmarkLedger:
                     last_tested_at=run.recorded_at,
                     related_modules=["benchmark_ledger", "thread_safe", "fsspecc"],
                     related_kis=[
-                        "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_qdrant_history"
+                        "ki_benchmark_ledger_ledger_neural_benchmark_leaderboard_pgvector_history"
                     ],
                     payload=run.model_dump(),
                 )
@@ -2642,13 +2711,14 @@ class BenchmarkLedger:
         so callers can detect real-time updates without re-scraping when unchanged.
         """
         watched = [
-            self.repo_path / "promoted" / "promoted_manifest.json",
-            self.repo_path / "promoted" / "harness.py",
-            self.repo_path / "src" / "models" / "stage_compiler" / "results" / "stage_compiler_leaderboard.json",
-            self.repo_path / "src" / "models" / "monadic_cavity" / "results" / "monadic_cavity_leaderboard.json",
-            self.repo_path / "src" / "models" / "monadic_cavity" / "results" / "benchmark_timeseries.jsonl",
-            self.repo_path / "src" / "models" / "monadic_cavity" / "results" / "realtime_qdrant_stream.json",
-            self.repo_path / "src" / "polyphonic_model" / "benchmarks" / "results" / "benchmark_leaderboard.json",
+            _resolve_repo_file(self.repo_path, "promoted", "promoted_manifest.json"),
+            _resolve_repo_file(self.repo_path, "src", "agent_harnesses", "model_harness", "core.py"),
+            _resolve_repo_file(self.repo_path, "src", "models", "stage_compiler", "results", "stage_compiler_leaderboard.json"),
+            _resolve_repo_file(self.repo_path, "src", "models", "phaselang_compiler", "results", "stage_compiler_leaderboard.json"),
+            _resolve_repo_file(self.repo_path, "src", "models", "monadic_cavity", "results", "monadic_cavity_leaderboard.json"),
+            _resolve_repo_file(self.repo_path, "src", "models", "monadic_cavity", "results", "benchmark_timeseries.jsonl"),
+            _resolve_repo_file(self.repo_path, "src", "models", "monadic_cavity", "results", "realtime_pgvector_stream.json"),
+            _resolve_repo_file(self.repo_path, "src", "polyphonic_model", "benchmarks", "results", "benchmark_leaderboard.json"),
         ]
         if self.ledger_path is not None:
             watched.append(self.ledger_path)
@@ -2672,98 +2742,71 @@ class BenchmarkLedger:
                 continue
         return "|".join(parts)
 
-    def sync_to_qdrant(
+    def sync_to_pgvector(
         self,
-        qdrant_client: Any | None = None,
-        qdrant_path: str | Path | None = None,
+        pgvector_client: Any | None = None,
+        pgvector_dsn: str | None = None,
         collection_name: str = "portfolio_neural_benchmarks",
-        embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2",
+        embedding_model: str = "procedural_phase_space",
         chunk_size: int = 380,
         chunk_overlap: int = 64,
         encode_fn: Any | None = None,
         chunk_fn: Any | None = None,
         force_recreate: bool = False,
         include_git_history: bool = True,
+        ephemeral: bool | None = None,
     ) -> dict[str, Any]:
         """
         Scrape the latest benchmark state (including real-time in-flight benchmark streams)
-        and index directly into Qdrant (`portfolio_neural_benchmarks`) using incremental
-        SHA-256 document diffing so only changed or newly added documents are embedded/upserted.
+        and index directly into Minikube PostgreSQL pgvector (`portfolio_neural_benchmarks`
+        in `vectors` DB) using incremental SHA-256 document diffing and Procedural Phase Space
+        (PPS) embeddings.
         """
         t0 = time.perf_counter()
         overview = self.scrape_and_build(include_git_history=include_git_history)
-        docs = self.build_qdrant_documents()
+        docs = self.build_vector_documents()
 
-        from indexes.informational_index import (
-            DEFAULT_STAGING_ROOT,
-            UnifiedQdrantStagingManager,
-        )
-        from qdrant_client import QdrantClient
-        from qdrant_client.models import (
+        from procedural_phase_space import (
             Distance,
             FieldCondition,
             Filter,
+            HyperbolicPGVectorClient,
             MatchValue,
             PointStruct,
             VectorParams,
-        )
-
-        staging_mgr = UnifiedQdrantStagingManager(staging_root=DEFAULT_STAGING_ROOT)
-        default_staging_storage = staging_mgr.storage_dir
-        target_qdrant_path = (
-            Path(qdrant_path).resolve()
-            if qdrant_path is not None
-            else default_staging_storage
+            embed_phase_space_text,
         )
 
         owns_client = False
-        client = qdrant_client
+        client = pgvector_client
         if client is None:
-            target_qdrant_path.mkdir(parents=True, exist_ok=True)
-            try:
-                from procedural_phase_space import HyperbolicQdrantClient
-
-                client = HyperbolicQdrantClient(QdrantClient(path=str(target_qdrant_path)))
-                owns_client = True
-            except Exception:
-                client = None
+            is_eph = bool(ephemeral) if ephemeral is not None else False
+            client = HyperbolicPGVectorClient(dsn=pgvector_dsn, c=1.0, ephemeral=is_eph)
+            owns_client = True
 
         try:
             vector_dim = 384
             existing_doc_hashes: dict[str, str] = {}
             existing_doc_meta: dict[str, dict[str, Any]] = {}
 
-            if client is not None:
-                collection_exists = client.collection_exists(collection_name)
-                if collection_exists and force_recreate:
-                    client.delete_collection(collection_name)
-                    collection_exists = False
+            collection_exists = client.collection_exists(collection_name)
+            if collection_exists and force_recreate:
+                client.delete_collection(collection_name)
+                collection_exists = False
 
-                if not collection_exists:
-                    client.create_collection(
-                        collection_name=collection_name,
-                        vectors_config=VectorParams(size=vector_dim, distance=Distance.DOT),
-                    )
-                else:
-                    try:
-                        scrolled, _ = client.scroll(
-                            collection_name=collection_name,
-                            limit=2000,
-                            with_payload=True,
-                            with_vectors=False,
-                        )
-                        for pt in scrolled:
-                            pl = pt.payload or {}
-                            if int(pl.get("chunk_index", -1)) == 0 and pl.get("doc_id"):
-                                d_id = str(pl["doc_id"])
-                                existing_doc_meta[d_id] = dict(pl)
-                                if pl.get("text_sha256") or pl.get("content_sha256"):
-                                    existing_doc_hashes[d_id] = str(pl.get("text_sha256") or pl.get("content_sha256"))
-                    except Exception:
-                        existing_doc_hashes = {}
-                        existing_doc_meta = {}
-            elif not force_recreate:
-                for pt in staging_mgr.read_points_lockfree(target_qdrant_path, collection_name):
+            if not collection_exists:
+                client.create_collection(
+                    collection_name=collection_name,
+                    vectors_config=VectorParams(size=vector_dim, distance=Distance.DOT),
+                )
+            else:
+                scrolled, _ = client.scroll(
+                    collection_name=collection_name,
+                    limit=2000,
+                    with_payload=True,
+                    with_vectors=False,
+                )
+                for pt in scrolled:
                     pl = pt.payload or {}
                     if int(pl.get("chunk_index", -1)) == 0 and pl.get("doc_id"):
                         d_id = str(pl["doc_id"])
@@ -2773,17 +2816,13 @@ class BenchmarkLedger:
 
             active_doc_ids = {doc.doc_id for doc in docs}
             stale_doc_ids = [d_id for d_id in existing_doc_meta if d_id not in active_doc_ids]
-            if stale_doc_ids and client is not None:
-                for stale_id in stale_doc_ids:
-                    try:
-                        client.delete(
-                            collection_name=collection_name,
-                            points_selector=Filter(
-                                must=[FieldCondition(key="doc_id", match=MatchValue(value=stale_id))]
-                            ),
-                        )
-                    except Exception:
-                        pass
+            for stale_id in stale_doc_ids:
+                client.delete(
+                    collection_name=collection_name,
+                    points_selector=Filter(
+                        must=[FieldCondition(key="doc_id", match=MatchValue(value=stale_id))]
+                    ),
+                )
 
             def _default_chunk_text(text: str, c_size: int, c_overlap: int) -> list[dict[str, Any]]:
                 cleaned = text.strip()
@@ -2792,8 +2831,6 @@ class BenchmarkLedger:
             def _default_encode_texts(texts: list[str]) -> list[list[float]]:
                 if not texts:
                     return []
-                from procedural_phase_space import embed_phase_space_text
-
                 return [embed_phase_space_text(t, dim=vector_dim, normalize=False) for t in texts]
 
             active_chunk_fn = chunk_fn or _default_chunk_text
@@ -2879,18 +2916,15 @@ class BenchmarkLedger:
                             f"{doc.title} | {doc.subtitle} | {doc.category}\n{c['text']}"
                         )
 
-            if changed_doc_ids and existing_doc_hashes and client is not None:
+            if changed_doc_ids and existing_doc_hashes:
                 for d_id in changed_doc_ids:
                     if d_id in existing_doc_hashes:
-                        try:
-                            client.delete(
-                                collection_name=collection_name,
-                                points_selector=Filter(
-                                    must=[FieldCondition(key="doc_id", match=MatchValue(value=d_id))]
-                                ),
-                            )
-                        except Exception:
-                            pass
+                        client.delete(
+                            collection_name=collection_name,
+                            points_selector=Filter(
+                                must=[FieldCondition(key="doc_id", match=MatchValue(value=d_id))]
+                            ),
+                        )
 
             points: list[PointStruct] = []
             if changed_chunk_records:
@@ -2904,39 +2938,7 @@ class BenchmarkLedger:
                     for rec, vec in zip(changed_chunk_records, vectors)
                 ]
                 if points:
-                    if client is not None:
-                        client.upsert(collection_name=collection_name, points=points)
-                    else:
-                        staging_mgr.upsert_points_lockfree(
-                            storage_path=target_qdrant_path,
-                            collection_name=collection_name,
-                            points=points,
-                            vector_size=vector_dim,
-                            recreate=force_recreate,
-                        )
-
-            # Mirror to unified central Qdrant staging (`/Users/jarek/IdeaProjects/qdrant_staging/storage`)
-            # when qdrant_client was not a mock/custom client or when syncing default collection
-            if qdrant_client is None and points and not collection_name.startswith("test_"):
-                if target_qdrant_path != default_staging_storage and default_staging_storage.parent.is_dir():
-                    staging_mgr.upsert_points_lockfree(
-                        storage_path=default_staging_storage,
-                        collection_name=collection_name,
-                        points=points,
-                        vector_size=vector_dim,
-                        recreate=force_recreate,
-                    )
-                agent_brain_qdrant = Path(
-                    "/Users/jarek/IdeaProjects/agent_brain/data/.qdrant_options"
-                )
-                if target_qdrant_path != agent_brain_qdrant and agent_brain_qdrant.is_dir():
-                    staging_mgr.upsert_points_lockfree(
-                        storage_path=agent_brain_qdrant,
-                        collection_name=collection_name,
-                        points=points,
-                        vector_size=vector_dim,
-                        recreate=False,
-                    )
+                    client.upsert(collection_name=collection_name, points=points)
 
             elapsed_ms = round((time.perf_counter() - t0) * 1000.0, 2)
             return {
@@ -2962,10 +2964,7 @@ class BenchmarkLedger:
             }
         finally:
             if owns_client and hasattr(client, "close"):
-                try:
-                    client.close()
-                except Exception:
-                    pass
+                client.close()
 
 
 def scrape_neural_networks_benchmarks(
@@ -2978,17 +2977,17 @@ def scrape_neural_networks_benchmarks(
     return ledger.scrape_and_build(include_git_history=include_git_history)
 
 
-def sync_neural_networks_benchmarks_to_qdrant(
+def sync_neural_networks_benchmarks_to_pgvector(
     repo_path: str | Path = "/Users/jarek/IdeaProjects/neural_networks",
     ledger_path: str | Path | None = "/Users/jarek/IdeaProjects/agent_brain/data/benchmark_history_ledger.json",
-    qdrant_path: str | Path | None = "/Users/jarek/IdeaProjects/qdrant_staging/storage",
+    pgvector_dsn: str | None = None,
     collection_name: str = "portfolio_neural_benchmarks",
     force_recreate: bool = False,
 ) -> dict[str, Any]:
-    """Convenience entrypoint to scrape neural_networks benchmarks and sync directly to Qdrant."""
+    """Convenience entrypoint to scrape neural_networks benchmarks and sync directly to PGVector."""
     ledger = BenchmarkLedger(repo_path=repo_path, ledger_path=ledger_path)
-    res = ledger.sync_to_qdrant(
-        qdrant_path=qdrant_path,
+    res = ledger.sync_to_pgvector(
+        pgvector_dsn=pgvector_dsn,
         collection_name=collection_name,
         force_recreate=force_recreate,
     )

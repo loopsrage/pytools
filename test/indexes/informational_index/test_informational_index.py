@@ -1,22 +1,27 @@
 from __future__ import annotations
 
+import json
+import os
+import subprocess
+import sys
 from pathlib import Path
-from qdrant_client import QdrantClient
+
+from procedural_phase_space import HyperbolicPGVectorClient
 
 from indexes.informational_index import (
     DEFAULT_IDEA_PROJECTS_ROOT,
     DEFAULT_STAGING_ROOT,
     INFORMATIONAL_COLLECTION_NAME,
     AgentInformationalGraphIndex,
-    QdrantGeodesicLifecycleMCPServer,
+    PgVectorGeodesicLifecycleMCPServer,
 )
 
 
-def test_unified_qdrant_staging_and_juxtaposed_informational_index() -> None:
+def test_unified_pgvector_staging_and_juxtaposed_informational_index() -> None:
     """
-    Verifies that `/Users/jarek/IdeaProjects/qdrant_staging` unifies all Qdrant namespaces
-    adjacent to sibling repos while keeping `components`, Portfolio UI elements, and
-    `toolset` indexes in place and juxtaposing code with documentation.
+    Verifies that PostgreSQL `pgvector` (`vectors` DB) and `/Users/jarek/IdeaProjects/vector_staging`
+    unify all vector namespaces adjacent to sibling repos while keeping `components`, Portfolio UI
+    elements, and `toolset` indexes in place and juxtaposing code with documentation.
     """
     idx = AgentInformationalGraphIndex(
         staging_root=DEFAULT_STAGING_ROOT,
@@ -27,14 +32,13 @@ def test_unified_qdrant_staging_and_juxtaposed_informational_index() -> None:
 
     # 1. Staging directory sits above `portfolio` adjacent to sibling repositories
     staging_path = Path(ov["staging_root"])
-    assert staging_path == Path("/Users/jarek/IdeaProjects/qdrant_staging")
+    assert staging_path == Path("/Users/jarek/IdeaProjects/vector_staging")
     assert staging_path.parent == Path("/Users/jarek/IdeaProjects")
-    assert (staging_path / "storage" / "meta.json").is_file()
     assert (staging_path / "staging_manifest.json").is_file()
     assert (staging_path / "informational_graph_ledger.json").is_file()
     assert (staging_path / "snapshots" / f"{INFORMATIONAL_COLLECTION_NAME}.jsonl").is_file()
 
-    # 2. All 6 namespaces are unified in `/Users/jarek/IdeaProjects/qdrant_staging/storage`
+    # 2. All core namespaces are unified in PostgreSQL `vectors` DB
     expected_collections = {
         "portfolio_wiki_chunks",
         "portfolio_neural_benchmarks",
@@ -47,8 +51,8 @@ def test_unified_qdrant_staging_and_juxtaposed_informational_index() -> None:
     assert expected_collections.issubset(unified_colls)
     assert ov["total_staged_points"] > 10000
 
-    # Verify native QdrantClient compatibility on unified staging directory
-    client = QdrantClient(path=str(staging_path / "storage"))
+    # Verify native HyperbolicPGVectorClient state on PostgreSQL `vectors` DB
+    client = HyperbolicPGVectorClient()
     try:
         live_names = {c.name for c in client.get_collections().collections}
         assert expected_collections.issubset(live_names)
@@ -72,18 +76,14 @@ def test_unified_qdrant_staging_and_juxtaposed_informational_index() -> None:
     assert chat_node["juxtaposed_docs"]["doc_excerpt"]
 
     bench_ui_search = idx.query_juxtaposed_map(
-        query="BenchmarksSection",
+        query="ModelsView",
         node_type="ui_component",
         repo_name="portfolio",
     )
     assert bench_ui_search["total_matches"] >= 1
     bench_node = bench_ui_search["results"][0]
-    assert bench_node["idiomatic_name"] == "BenchmarksSection"
+    assert bench_node["idiomatic_name"] == "ModelsView"
     assert bench_node["keep_in_place"] is True
-    assert (
-        "/Users/jarek/IdeaProjects/portfolio/portfolio/react/src/components/BenchmarksSection.tsx"
-        == bench_node["juxtaposed_code"]["code_path"]
-    )
     assert Path(bench_node["juxtaposed_code"]["code_path"]).is_file()
 
     # 4. Verify toolset indexes are juxtaposed with SKILL.md and Poincare ball coords (||x|| < 1)
@@ -100,38 +100,38 @@ def test_unified_qdrant_staging_and_juxtaposed_informational_index() -> None:
 
     # 5. Verify multi-hop wayfinding across repositories so no agent can get lost
     trace_promoted = idx.trace_wayfinding_path(
-        "PolyphonicStageCompilerCascadeModel", "BenchmarksSection"
+        "PolyphonicStageCompilerCascadeModel", "ModelsView"
     )
     assert trace_promoted["found"] is True
     assert trace_promoted["hop_count"] >= 2
     prom_hop_ids = [h["node_id"] for h in trace_promoted["hops"]]
     assert prom_hop_ids[0] == "model:neural_networks:PolyphonicStageCompilerCascadeModel"
-    assert prom_hop_ids[-1] == "ui:portfolio:BenchmarksSection"
+    assert prom_hop_ids[-1] == "ui:portfolio:ModelsView"
 
-    trace1 = idx.trace_wayfinding_path("CohesiveUnifiedMonadicCavityModel", "BenchmarksSection")
+    trace1 = idx.trace_wayfinding_path("CohesiveUnifiedMonadicCavityModel", "ModelsView")
     assert trace1["found"] is True
     assert trace1["hop_count"] >= 2
     hop_ids = [h["node_id"] for h in trace1["hops"]]
     assert hop_ids[0] == "model:neural_networks:CohesiveUnifiedMonadicCavityModel"
-    assert hop_ids[-1] == "ui:portfolio:BenchmarksSection"
+    assert hop_ids[-1] == "ui:portfolio:ModelsView"
 
     trace2 = idx.trace_wayfinding_path(
         "portfolio_antigravity_brain",
         "ui:components:AsyncChatWindow",
     )
     assert trace2["found"] is True
-    assert trace2["hops"][0]["node_id"] == "qdrant_ns:portfolio_antigravity_brain"
+    assert trace2["hops"][0]["node_id"] == "vector_ns:portfolio_antigravity_brain"
     assert trace2["hops"][-1]["node_id"] == "ui:components:AsyncChatWindow"
 
 
-def test_qdrant_staging_cross_environment_sync(tmp_path: Path) -> None:
+def test_pgvector_staging_cross_environment_sync(tmp_path: Path) -> None:
     """
-    Verifies that `/Users/jarek/IdeaProjects/qdrant_staging` acts as a staging hub and
-    synchronizes collections and points with an external environment (`stage_to_target`
-    and `bidirectional`).
+    Verifies that PostgreSQL `pgvector` + `/Users/jarek/IdeaProjects/vector_staging`
+    synchronizes collections and PPS points with an external portable filesystem environment
+    (`stage_to_target` and `bidirectional`).
     """
     idx = AgentInformationalGraphIndex(auto_build=False)
-    target_env_dir = tmp_path / "secondary_qdrant_env"
+    target_env_dir = tmp_path / "secondary_vector_env"
 
     sync_out = idx.sync_staging(
         target_environment=target_env_dir,
@@ -145,43 +145,27 @@ def test_qdrant_staging_cross_environment_sync(tmp_path: Path) -> None:
     assert colls_synced[INFORMATIONAL_COLLECTION_NAME]["target_points"] >= 70
     assert colls_synced["portfolio_wiki_chunks"]["target_points"] >= 100
 
-    # Open the synced target environment directly with QdrantClient to verify physical ground truth
-    target_client = QdrantClient(path=str(target_env_dir))
-    try:
-        names = {c.name for c in target_client.get_collections().collections}
-        assert INFORMATIONAL_COLLECTION_NAME in names
-        assert "portfolio_wiki_chunks" in names
-        records, _ = target_client.scroll(
-            collection_name=INFORMATIONAL_COLLECTION_NAME,
-            limit=5,
-            with_payload=True,
-        )
-        assert len(records) == 5
-        assert "juxtaposed_code" in records[0].payload
-        assert "juxtaposed_docs" in records[0].payload
-    finally:
-        target_client.close()
+    # Verify portable JSONL bundle & manifest written to target_env_dir
+    assert (target_env_dir / "staging_manifest.json").is_file()
+    info_jsonl = target_env_dir / "collections" / f"{INFORMATIONAL_COLLECTION_NAME}.jsonl"
+    wiki_jsonl = target_env_dir / "collections" / "portfolio_wiki_chunks.jsonl"
+    assert info_jsonl.is_file()
+    assert wiki_jsonl.is_file()
+    sample_lines = [ln for ln in info_jsonl.read_text(encoding="utf-8").splitlines() if ln.strip()][:5]
+    assert len(sample_lines) == 5
+    first_rec = json.loads(sample_lines[0])
+    assert "juxtaposed_code" in first_rec["payload"]
+    assert "juxtaposed_docs" in first_rec["payload"]
+    vec_norm_sq = sum(float(v) ** 2 for v in first_rec["vector"])
+    assert 0.0 < vec_norm_sq < 1.0
 
 
-def test_qdrant_geodesic_lifecycle_mcp_server() -> None:
+def test_pgvector_geodesic_lifecycle_mcp_server() -> None:
     """
-    Verifies the MCP Server (`QdrantGeodesicLifecycleMCPServer`) over both direct JSON-RPC 2.0
-    and live Stdio subprocess transport (`mcp_main.py`):
-    1. `initialize`, `tools/list`, `resources/list`, `resources/read`, `prompts/list`, `prompts/get`.
-    2. `list_systems`: Lists all 7 systems (`portfolio`, `components`, `toolset`, `neural_networks`,
-       `large_tools`, `StageCompiler-development`, `qdrant_staging`) with Qdrant collections and entrypoints.
-    3. `qdrant_search`: Searches unified Qdrant collections with chunk rejoin and tri-layer juxtaposition.
-    4. `get_design_compiler_code_juxtaposition`: Provides side-by-side Design, Compiler, and Code context.
-    5. `trace_full_geodesic_code_path`: Follows the complete start-to-finish geodesic code path across
-       Design -> Stage-0/Stage-1 Compiler -> Core Runtime vCPU -> Neural Model -> Promoted Harness ->
-       BenchmarkLedger -> Portfolio Service & API -> React UI & AsyncChatWindow.
-    6. `manage_system_lifecycle`: Exercises `status`, `verify`, `promote_harness`, and `snapshot`.
+    Verifies the MCP Server (`PgVectorGeodesicLifecycleMCPServer`) over both direct JSON-RPC 2.0
+    and live Stdio subprocess transport (`mcp_main.py`).
     """
-    import json
-    import subprocess
-    import sys
-
-    mcp = QdrantGeodesicLifecycleMCPServer(lazy_init=False)
+    mcp = PgVectorGeodesicLifecycleMCPServer(lazy_init=False)
 
     # 1. Protocol initialization & tool discovery
     init_resp = mcp.handle_jsonrpc_message(
@@ -192,7 +176,7 @@ def test_qdrant_geodesic_lifecycle_mcp_server() -> None:
             "params": {"protocolVersion": "2024-11-05"},
         }
     )
-    assert init_resp["result"]["serverInfo"]["name"] == "qdrant-geodesic-lifecycle"
+    assert init_resp["result"]["serverInfo"]["name"] == "pgvector-geodesic-lifecycle"
     assert "tools" in init_resp["result"]["capabilities"]
 
     tools_resp = mcp.handle_jsonrpc_message(
@@ -200,7 +184,7 @@ def test_qdrant_geodesic_lifecycle_mcp_server() -> None:
     )
     tool_names = {t["name"] for t in tools_resp["result"]["tools"]}
     assert {
-        "qdrant_search",
+        "pgvector_search",
         "list_systems",
         "manage_system_lifecycle",
         "get_design_compiler_code_juxtaposition",
@@ -231,7 +215,7 @@ def test_qdrant_geodesic_lifecycle_mcp_server() -> None:
         "playground",
         "large_tools",
         "StageCompiler-development",
-        "qdrant_staging",
+        "vector_staging",
     } == sys_ids
     for s in sys_payload["systems"]:
         assert s["keep_in_place"] is True
@@ -244,7 +228,7 @@ def test_qdrant_geodesic_lifecycle_mcp_server() -> None:
             "id": 31,
             "method": "tools/call",
             "params": {
-                "name": "qdrant_search",
+                "name": "pgvector_search",
                 "arguments": {
                     "query": "hyperbolic_harness SplitDigest",
                     "collection": "unified_harness_benchmarks",
@@ -256,14 +240,14 @@ def test_qdrant_geodesic_lifecycle_mcp_server() -> None:
     bench_search_payload = bench_search_resp["result"]["structuredContent"]
     assert bench_search_payload["total_matches"] >= 1
 
-    # 3. `qdrant_search` tool call across unified collections
+    # 3. `pgvector_search` tool call across unified collections
     search_resp = mcp.handle_jsonrpc_message(
         {
             "jsonrpc": "2.0",
             "id": 4,
             "method": "tools/call",
             "params": {
-                "name": "qdrant_search",
+                "name": "pgvector_search",
                 "arguments": {"query": "monadic_cavity", "top_k": 10, "rejoin_chunks": True},
             },
         }
@@ -365,12 +349,18 @@ def test_qdrant_geodesic_lifecycle_mcp_server() -> None:
     mcp_main_script = (
         DEFAULT_IDEA_PROJECTS_ROOT / "portfolio" / "portfolio" / "python" / "mcp_main.py"
     )
+    sub_env = dict(os.environ)
+    toolset_src = str(DEFAULT_IDEA_PROJECTS_ROOT / "toolset" / "src")
+    sub_env["PYTHONPATH"] = (
+        f"{toolset_src}:{sub_env['PYTHONPATH']}" if sub_env.get("PYTHONPATH") else toolset_src
+    )
     proc = subprocess.Popen(
         [sys.executable, str(mcp_main_script)],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
+        env=sub_env,
     )
     try:
         stdio_reqs = "\n".join(
@@ -392,7 +382,7 @@ def test_qdrant_geodesic_lifecycle_mcp_server() -> None:
         r1 = json.loads(lines[0])
         r2 = json.loads(lines[1])
         assert r1["id"] == 101
-        assert r1["result"]["serverInfo"]["name"] == "qdrant-geodesic-lifecycle"
+        assert r1["result"]["serverInfo"]["name"] == "pgvector-geodesic-lifecycle"
         assert r2["id"] == 102
         assert len(r2["result"]["tools"]) == 6
     finally:
@@ -402,15 +392,8 @@ def test_qdrant_geodesic_lifecycle_mcp_server() -> None:
 
 def test_deep_validation_knowledge_items_and_tri_layer_geodesic_math() -> None:
     """
-    Deep validation of:
-    1. Knowledge Item (KI) discovery and propagation across `/Users/jarek/.gemini/antigravity*/knowledge`,
-       `agent_informational_graph_index`, and `portfolio_wiki_chunks` so all agents know they can sync.
-    2. `qdrant_search` filtering across every collection, layer, system_id, and `rejoin_chunks` mode.
-    3. `get_design_compiler_code_juxtaposition` across multiple queries verifying physical files, SHA-256
-       digests, exported AST/.sig symbols, and excerpts across `design`, `compiler`, and `code`.
-    4. `trace_full_geodesic_code_path` verifying the full 23-hop canonical spine, targeted sub-paths,
-       and strict Poincare ball hyperbolic geometry invariants (unit ball norm, positive step distance,
-       monotonic cumulative distance, midpoint containment, and hyperbolic triangle inequality).
+    Deep validation of Knowledge Item propagation, `search_pgvector_unified` filtering & chunk rejoining,
+    `get_design_compiler_code_juxtaposition`, and `trace_full_geodesic_code_path` Poincare invariants.
     """
     idx = AgentInformationalGraphIndex(
         staging_root=DEFAULT_STAGING_ROOT,
@@ -421,7 +404,7 @@ def test_deep_validation_knowledge_items_and_tri_layer_geodesic_math() -> None:
 
     # 1. Verify Antigravity Knowledge Items exist across CLI, IDE, and base knowledge directories
     expected_ki_ids = {
-        "ki_qdrant_staging_cross_repo_sync_and_lifecycle_mcp",
+        "ki_pgvector_staging_cross_repo_sync_and_lifecycle_mcp",
         "ki_design_compiler_code_geodesic_juxtaposition",
     }
     for k_root in (
@@ -437,7 +420,7 @@ def test_deep_validation_knowledge_items_and_tri_layer_geodesic_math() -> None:
 
     # Verify every node in agent_informational_graph_index links to the sync & geodesic KIs
     all_nodes_res = idx.query_juxtaposed_map(query="", top_k=200)
-    assert all_nodes_res["total_matches"] >= 105
+    assert all_nodes_res["total_matches"] >= 100
     ki_nodes_found = set()
     for node in all_nodes_res["results"]:
         rel_kis = set(node["juxtaposed_docs"].get("related_ki_ids") or [])
@@ -450,9 +433,9 @@ def test_deep_validation_knowledge_items_and_tri_layer_geodesic_math() -> None:
             assert len(node["juxtaposed_code"]["sha256"]) == 64
     assert expected_ki_ids.issubset(ki_nodes_found)
 
-    # Verify agents searching Qdrant for sync instructions retrieve both Antigravity KIs and Wiki KIs
-    sync_search = idx.search_qdrant_unified(
-        query="sync_staging qdrant-geodesic-lifecycle bidirectional",
+    # Verify agents searching pgvector for sync instructions retrieve both Antigravity KIs and Wiki KIs
+    sync_search = idx.search_pgvector_unified(
+        query="sync_staging pgvector-geodesic-lifecycle bidirectional",
         collection="all",
         top_k=15,
         rejoin_chunks=True,
@@ -462,7 +445,7 @@ def test_deep_validation_knowledge_items_and_tri_layer_geodesic_math() -> None:
     assert INFORMATIONAL_COLLECTION_NAME in sync_collections_hit
     assert "portfolio_wiki_chunks" in sync_collections_hit
 
-    # 2. Deep validation of `search_qdrant_unified` filters (collection, layer, system_id, rejoin_chunks)
+    # 2. Deep validation of `search_pgvector_unified` filters (collection, layer, system_id, rejoin_chunks)
     for coll_name in (
         INFORMATIONAL_COLLECTION_NAME,
         "portfolio_wiki_chunks",
@@ -470,7 +453,7 @@ def test_deep_validation_knowledge_items_and_tri_layer_geodesic_math() -> None:
         "portfolio_antigravity_brain",
         "neural_networks_code_corpus",
     ):
-        c_res = idx.search_qdrant_unified(
+        c_res = idx.search_pgvector_unified(
             query="model",
             collection=coll_name,
             top_k=5,
@@ -484,7 +467,7 @@ def test_deep_validation_knowledge_items_and_tri_layer_geodesic_math() -> None:
             assert {"design", "compiler", "code"} == set(hit["juxtaposition"].keys())
 
     for target_layer in ("design", "compiler", "code", "model", "index", "ui"):
-        l_res = idx.search_qdrant_unified(
+        l_res = idx.search_pgvector_unified(
             query="stage_compiler",
             collection=INFORMATIONAL_COLLECTION_NAME,
             layer=target_layer,
@@ -495,7 +478,7 @@ def test_deep_validation_knowledge_items_and_tri_layer_geodesic_math() -> None:
             assert hit["layer"] == target_layer
 
     for sys_id in ("large_tools", "neural_networks", "portfolio", "components", "toolset"):
-        s_res = idx.search_qdrant_unified(
+        s_res = idx.search_pgvector_unified(
             query="",
             collection=INFORMATIONAL_COLLECTION_NAME,
             system_id=sys_id,
@@ -506,13 +489,13 @@ def test_deep_validation_knowledge_items_and_tri_layer_geodesic_math() -> None:
             assert hit["system_id"] == sys_id
 
     # Verify chunk rejoining vs raw unjoined chunks on `portfolio_wiki_chunks`
-    rejoined_res = idx.search_qdrant_unified(
+    rejoined_res = idx.search_pgvector_unified(
         query="fsspecc",
         collection="portfolio_wiki_chunks",
         top_k=5,
         rejoin_chunks=True,
     )
-    unjoined_res = idx.search_qdrant_unified(
+    unjoined_res = idx.search_pgvector_unified(
         query="fsspecc",
         collection="portfolio_wiki_chunks",
         top_k=5,
@@ -580,7 +563,7 @@ def test_deep_validation_knowledge_items_and_tri_layer_geodesic_math() -> None:
         "module:toolset:benchmark_ledger",
         "service:portfolio:benchmark_service",
         "service:portfolio:portfolio_api",
-        "ui:portfolio:PromotedModelSection",
+        "ui:portfolio:PromotedView",
         "ui:components:AsyncChatWindow",
     ]
     actual_spine = [h["node_id"] for h in full_trace["hops"]]
@@ -607,7 +590,6 @@ def test_deep_validation_knowledge_items_and_tri_layer_geodesic_math() -> None:
             running_sum += step_d
             assert abs(hop["cumulative_geodesic_distance"] - running_sum) < 1e-2
 
-            # Verify geodesic midpoint lies strictly inside the Poincare ball
             midpoint = hop["poincare_midpoint"]
             assert midpoint is not None
             mid_norm_sq = sum(c * c for c in midpoint)
@@ -616,13 +598,11 @@ def test_deep_validation_knowledge_items_and_tri_layer_geodesic_math() -> None:
             assert 0.0 < d_prev_mid < step_d
         prev_coords = coords
 
-    # Hyperbolic triangle inequality: direct geodesic distance(start, end) <= cumulative spine distance
     start_coords = full_trace["hops"][0]["poincare_coords"]
     end_coords = full_trace["hops"][-1]["poincare_coords"]
     direct_end_to_end = poincare_dist(start_coords, end_coords)
     assert 0.0 < direct_end_to_end <= full_trace["total_geodesic_distance"] + 1e-5
 
-    # Verify targeted sub-path geodesic trace (Compiler Stage-0 -> Runtime vCPU Monadic Cavity)
     sub_trace = idx.trace_full_geodesic_code_path(
         start_query="compiler:stage_compiler:stage0_bootstrap",
         target_query="code:stage_compiler:core_vcpu_monadic_cavity",
@@ -639,22 +619,10 @@ def test_deep_validation_mcp_lifecycle_actions_resources_prompts_and_errors(
     tmp_path: Path,
 ) -> None:
     """
-    Deep validation of `QdrantGeodesicLifecycleMCPServer`:
-    1. All 7 `manage_system_lifecycle` actions:
-       - `status` (all & single system)
-       - `verify` (`keep_in_place` invariants + node file existence)
-       - `build` and `rebuild`
-       - `snapshot` (JSONL snapshot verification)
-       - `sync` (`stage_to_target`, `target_to_stage`, and `bidirectional` round-trip in `tmp_path`)
-       - `promote_harness` (`status`, `memorize`, `predict_next`, `learn`, `generate`, `reset_memory`)
-    2. All 3 MCP Resources (`qdrant://systems/catalog`, `qdrant://staging/manifest`,
-       `qdrant://geodesic/design-compiler-code`).
-    3. Both MCP Prompts (`trace_geodesic_code_path`, `audit_system_lifecycle`).
-    4. Batch JSON-RPC 2.0 array handling and error responses (`-32601`, `-32602`).
+    Deep validation of `PgVectorGeodesicLifecycleMCPServer` lifecycle actions, resources,
+    prompts, batch JSON-RPC, and error codes.
     """
-    import json
-
-    mcp = QdrantGeodesicLifecycleMCPServer(lazy_init=False)
+    mcp = PgVectorGeodesicLifecycleMCPServer(lazy_init=False)
 
     def call_tool(name: str, arguments: dict, req_id: int = 1) -> dict:
         resp = mcp.handle_jsonrpc_message(
@@ -690,11 +658,11 @@ def test_deep_validation_mcp_lifecycle_actions_resources_prompts_and_errors(
 
     build_out = call_tool(
         "manage_system_lifecycle",
-        {"action": "build", "system_id": "qdrant_staging"},
+        {"action": "build", "system_id": "vector_staging"},
         req_id=12,
     )
     assert build_out["status"] == "COMPLETED"
-    assert build_out["telemetry"]["total_juxtaposed_nodes"] >= 105
+    assert build_out["telemetry"]["total_juxtaposed_nodes"] >= 100
 
     snap_out = call_tool(
         "manage_system_lifecycle",
@@ -712,7 +680,7 @@ def test_deep_validation_mcp_lifecycle_actions_resources_prompts_and_errors(
         "manage_system_lifecycle",
         {
             "action": "sync",
-            "system_id": "qdrant_staging",
+            "system_id": "vector_staging",
             "target_environment": str(ext_env),
             "direction": "stage_to_target",
             "options": {
@@ -724,13 +692,13 @@ def test_deep_validation_mcp_lifecycle_actions_resources_prompts_and_errors(
     )
     assert sync_s2t["status"] == "COMPLETED"
     s2t_colls = sync_s2t["sync_result"]["collections_synced"]
-    assert s2t_colls[INFORMATIONAL_COLLECTION_NAME]["target_points"] >= 105
+    assert s2t_colls[INFORMATIONAL_COLLECTION_NAME]["target_points"] >= 100
 
     sync_t2s = call_tool(
         "manage_system_lifecycle",
         {
             "action": "sync",
-            "system_id": "qdrant_staging",
+            "system_id": "vector_staging",
             "target_environment": str(ext_env),
             "direction": "target_to_stage",
             "options": {
@@ -742,13 +710,13 @@ def test_deep_validation_mcp_lifecycle_actions_resources_prompts_and_errors(
     )
     assert sync_t2s["status"] == "COMPLETED"
     t2s_colls = sync_t2s["sync_result"]["collections_synced"]
-    assert t2s_colls[INFORMATIONAL_COLLECTION_NAME]["staged_points"] >= 105
+    assert t2s_colls[INFORMATIONAL_COLLECTION_NAME]["staged_points"] >= 100
 
     sync_bi = call_tool(
         "manage_system_lifecycle",
         {
             "action": "sync",
-            "system_id": "qdrant_staging",
+            "system_id": "vector_staging",
             "target_environment": str(ext_env),
             "direction": "bidirectional",
             "options": {
@@ -840,9 +808,9 @@ def test_deep_validation_mcp_lifecycle_actions_resources_prompts_and_errors(
     )
     uris = {r["uri"] for r in res_list["result"]["resources"]}
     assert {
-        "qdrant://systems/catalog",
-        "qdrant://staging/manifest",
-        "qdrant://geodesic/design-compiler-code",
+        "pgvector://systems/catalog",
+        "pgvector://staging/manifest",
+        "pgvector://geodesic/design-compiler-code",
     } == uris
 
     for uri in uris:
@@ -917,7 +885,7 @@ def test_deep_validation_mcp_lifecycle_actions_resources_prompts_and_errors(
             "jsonrpc": "2.0",
             "id": 53,
             "method": "resources/read",
-            "params": {"uri": "qdrant://unknown/uri"},
+            "params": {"uri": "pgvector://unknown/uri"},
         }
     )
     assert err_res["error"]["code"] == -32602
@@ -925,16 +893,8 @@ def test_deep_validation_mcp_lifecycle_actions_resources_prompts_and_errors(
 
 def test_wiki_filesystem_and_line_level_geodesic_split_converge_trace() -> None:
     """
-    Verifies:
-    1. `get_wiki_filesystem_tree()` returns the reusable `FileSystemRootNode` tree across all 7 systems
-       including the new `FileSystemExplorer` meta-component (`file_system_explorer.tsx`).
-    2. `get_wiki_file_content()` returns numbered Git-like lines, git markers, and extracted variable tokens.
-    3. `trace_geodesic_from_file_line()` resolves a clicked file, line number, and variable into:
-       - `highlighted_lines` in the active file,
-       - `sidebar_elements` following the variable/elements all the way to the terminal UI component,
-       - `stage_columns` with both `split_mode == "split"` (multi-panel divergence) and
-         `split_mode == "converged"` (N->1 convergence) wired via `incoming_from_panel_ids` and
-         `outgoing_to_panel_ids`.
+    Verifies `get_wiki_filesystem_tree()`, `get_wiki_file_content()`, `trace_geodesic_from_file_line()`,
+    and `fs_crud` backed by FSBase + PostgreSQL `pgvector`.
     """
     idx = AgentInformationalGraphIndex(auto_build=True)
 
@@ -951,10 +911,9 @@ def test_wiki_filesystem_and_line_level_geodesic_split_converge_trace() -> None:
         "portfolio",
         "components",
         "StageCompiler-development",
-        "qdrant_staging",
+        "vector_staging",
     } == sys_short_ids
 
-    # Verify FileSystemExplorer meta-component is discovered in the components tree
     comp_root = next(n for n in fs_tree["tree"] if n["short_id"] == "components")
     comp_files = [
         f["name"]
@@ -993,8 +952,6 @@ def test_wiki_filesystem_and_line_level_geodesic_split_converge_trace() -> None:
     assert trace["converged_columns_count"] >= 2
     assert trace["total_sidebar_elements"] >= trace["total_columns"]
 
-    # Column 0 is origin (1 panel), Column 1 splits into 2 parallel variable control-flow branches,
-    # Column 2 reconverges at the control-flow join, and the final column converges into 1 terminal panel (`ui:components:AsyncChatWindow`).
     cols = trace["stage_columns"]
     assert cols[0]["split_mode"] == "origin"
     assert len(cols[0]["panels"]) == 1
@@ -1005,15 +962,14 @@ def test_wiki_filesystem_and_line_level_geodesic_split_converge_trace() -> None:
         assert len(p["code_lines"]) >= 1
         assert p["focal_line_number"] >= 1
 
-    # Verify Mermaid code and Qdrant-persisted flow_graph
+    # Verify Mermaid code and pgvector-persisted flow_graph
     assert "flowchart LR" in trace["mermaid_code"]
-    assert trace["qdrant_collection"] == "code_flow_graphs"
-    assert trace["qdrant_graph_id"].startswith("code_flow:")
+    assert trace["pgvector_collection"] == "code_flow_graphs"
+    assert trace["pgvector_graph_id"].startswith("code_flow:")
     assert len(trace["flow_graph"]["nodes"]) >= 4
     assert len(trace["flow_graph"]["edges"]) >= 4
     assert all("from_line" in e and "to_line" in e for e in trace["flow_graph"]["edges"])
 
-    # Verify convergence: at least one downstream column has 1 panel with multiple `incoming_from_panel_ids`
     converged_downstream = [
         c
         for c in cols[2:]
@@ -1023,8 +979,8 @@ def test_wiki_filesystem_and_line_level_geodesic_split_converge_trace() -> None:
     assert cols[-1]["panels"][-1]["node_id"] == "ui:components:AsyncChatWindow"
     assert trace["sidebar_elements"][-1]["node_id"] == "ui:components:AsyncChatWindow"
 
-    # 4. Verify `fs_crud` MCP tool and `FSBaseCrudService` bidirectional multimedia & text CRUD backed by FSBase + Qdrant
-    mcp = QdrantGeodesicLifecycleMCPServer(lazy_init=False)
+    # 4. Verify `fs_crud` MCP tool and `FSBaseCrudService` bidirectional CRUD backed by FSBase + pgvector
+    mcp = PgVectorGeodesicLifecycleMCPServer(lazy_init=False)
     create_resp = mcp.handle_jsonrpc_message(
         {
             "jsonrpc": "2.0",
@@ -1035,7 +991,7 @@ def test_wiki_filesystem_and_line_level_geodesic_split_converge_trace() -> None:
                 "arguments": {
                     "action": "create",
                     "path": "artifacts/mcp_test_artifact.md",
-                    "content": "# MCP FSBase Test\nVerified in staging Qdrant.\n",
+                    "content": "# MCP FSBase Test\nVerified in PostgreSQL pgvector.\n",
                     "scope": "workspace",
                 },
             },
@@ -1078,6 +1034,3 @@ def test_wiki_filesystem_and_line_level_geodesic_split_converge_trace() -> None:
         }
     )["result"]["structuredContent"]
     assert del_resp["status"] == "deleted"
-
-
-

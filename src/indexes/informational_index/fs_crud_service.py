@@ -1,14 +1,14 @@
 """
 Reusable FSBase-Backed File System CRUD & Bidirectional Multimedia Service
-Coupled with Unified Qdrant Staging (`promoted_model_artifacts`) and MCP (`fs_crud`).
+Coupled with PostgreSQL pgvector (`promoted_model_artifacts`) and MCP (`fs_crud`).
 
 Provides:
 1. Solidified `FSBase` (`fsspecc.base_fsspecfs.base_fsspecfs.FSBase`) read/write/append/mkdir/delete
-   operations over `/Users/jarek/IdeaProjects/neural_networks/promoted` and
-   `/Users/jarek/IdeaProjects/qdrant_staging/promoted_workspace`.
+   operations over `/Users/jarek/IdeaProjects/PolyphonicModel/promoted` and
+   `/Users/jarek/IdeaProjects/vector_staging/promoted_workspace`.
 2. Bidirectional multimedia & artifact support (images, audio, video, PDF, markdown, Python/TS code,
-   JSON/JSONL) backed up via `FSBase` to disk and indexed in `/Users/jarek/IdeaProjects/qdrant_staging/storage`
-   (`promoted_model_artifacts` collection).
+   JSON/JSONL) backed up via `FSBase` to disk and indexed in PostgreSQL `vectors` DB
+   (`promoted_model_artifacts` collection) with Procedural Phase Space (PPS) embeddings.
 3. Direct JSON schema compatibility with the reusable `FileSystemExplorer` frontend component
    (`FileSystemRootNode`, `FileSystemFolderNode`, `FileSystemFileItem`) and the `fs_crud` MCP tool.
 """
@@ -19,25 +19,21 @@ import base64
 import datetime as dt
 import hashlib
 import io
-import json
 import mimetypes
-import pickle
-import sqlite3
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from qdrant_client.models import PointStruct
+from procedural_phase_space import PointStruct
 
-from benchmark_ledger.vocab_mask import mask_restricted_string, mask_restricted_vocabulary
+from benchmark_ledger.vocab_mask import mask_restricted_string
 from fsspecc.base_fsspecfs.base_fsspecfs import FSBase
 from indexes.informational_index.informational_index import (
     DEFAULT_IDEA_PROJECTS_ROOT,
     DEFAULT_STAGING_ROOT,
     INFORMATIONAL_NAMESPACE_UUID,
-    UnifiedQdrantStagingManager,
+    UnifiedVectorStagingManager,
     _deterministic_384d_vector,
-    _encode_sqlite_point_id,
 )
 from simple_functions.simple_functions import uuid5_from_args
 
@@ -78,16 +74,17 @@ def is_multimedia_or_binary_type(file_type: str, ext: str) -> bool:
 
 class FSBaseCrudService:
     """
-    Reusable `FSBase` File System CRUD service coupled with Qdrant Staging (`promoted_model_artifacts`)
-    and `FileSystemExplorer`.
+    Reusable `FSBase` File System CRUD service coupled with PostgreSQL `pgvector`
+    (`promoted_model_artifacts`) and `FileSystemExplorer`.
     """
 
     def __init__(
         self,
-        promoted_root: str | Path = DEFAULT_IDEA_PROJECTS_ROOT / "neural_networks" / "promoted",
+        promoted_root: str | Path = DEFAULT_IDEA_PROJECTS_ROOT / "PolyphonicModel" / "promoted",
         staging_root: str | Path = DEFAULT_STAGING_ROOT,
         idea_projects_root: str | Path = DEFAULT_IDEA_PROJECTS_ROOT,
         collection_name: str = PROMOTED_ARTIFACTS_COLLECTION,
+        pgvector_dsn: Optional[str] = None,
     ) -> None:
         self.promoted_root = Path(promoted_root).resolve()
         self.staging_root = Path(staging_root).resolve()
@@ -112,9 +109,10 @@ class FSBaseCrudService:
         ):
             self.fs.make_dirs(str(directory), exist_ok=True)
 
-        self.staging_manager = UnifiedQdrantStagingManager(
+        self.staging_manager = UnifiedVectorStagingManager(
             staging_root=self.staging_root,
             idea_projects_root=self.idea_projects_root,
+            pgvector_dsn=pgvector_dsn,
         )
         self._ensure_default_artifacts_seeded()
 
@@ -128,22 +126,8 @@ class FSBaseCrudService:
         buf = io.BytesIO(data)
         self.fs.write(str(file_path), buf)
 
-    def _delete_point_from_staging_sqlite(self, point_id: str) -> None:
-        sqlite_path = (
-            self.staging_manager.storage_dir
-            / "collection"
-            / self.collection_name
-            / "storage.sqlite"
-        )
-        if not sqlite_path.is_file():
-            return
-        enc_id = _encode_sqlite_point_id(str(point_id))
-        try:
-            with sqlite3.connect(str(sqlite_path), timeout=5.0) as conn:
-                conn.execute("DELETE FROM points WHERE id = ?", (enc_id,))
-                conn.commit()
-        except Exception:
-            pass
+    def _delete_point_from_pgvector(self, point_id: str) -> None:
+        self.staging_manager.delete_points(self.collection_name, [str(point_id)])
 
     def _ensure_default_artifacts_seeded(self) -> None:
         """
@@ -155,9 +139,9 @@ class FSBaseCrudService:
             md_content = (
                 "# Promoted Model Workspace & Artifact Ledger\n\n"
                 "This workspace is managed via `FSBase` (`fsspecc.base_fsspecfs.base_fsspecfs.FSBase`) "
-                "and synchronized to staging Qdrant (`promoted_model_artifacts`).\n\n"
-                "- **Primary Promoted Path**: `/Users/jarek/IdeaProjects/neural_networks/promoted`\n"
-                "- **Staging Workspace Path**: `/Users/jarek/IdeaProjects/qdrant_staging/promoted_workspace`\n"
+                "and synchronized to PostgreSQL pgvector (`promoted_model_artifacts`).\n\n"
+                f"- **Primary Promoted Path**: `{self.promoted_root}`\n"
+                f"- **Staging Workspace Path**: `{self.workspace_root}`\n"
                 "- **MCP Tool**: `fs_crud` (`list`, `read`, `create`, `update`, `upload`, `delete`)\n"
                 "- **Bidirectional Multimedia**: Upload images, audio, video, PDFs, markdown, or code via the File System Explorer.\n"
             ).encode("utf-8")
@@ -174,13 +158,13 @@ class FSBaseCrudService:
                 '<path d="M 137 90 C 185 45, 225 135, 275 90" fill="none" stroke="#58a6ff" stroke-width="2.5"/>'
                 '<rect x="275" y="56" width="170" height="68" rx="6" fill="#11161f" stroke="#58a6ff" stroke-width="2"/>'
                 '<text x="360" y="86" fill="#e6edf3" font-family="monospace" font-size="11" text-anchor="middle">6-Scale Any-Gram</text>'
-                '<text x="360" y="104" fill="#9ca3af" font-family="monospace" font-size="10" text-anchor="middle">FSBase + Qdrant Staging</text>'
+                '<text x="360" y="104" fill="#9ca3af" font-family="monospace" font-size="10" text-anchor="middle">FSBase + PGVector</text>'
                 "</svg>"
             ).encode("utf-8")
             self._write_bytes_via_fsbase(svg_path, svg_content)
             self._write_bytes_via_fsbase(self.staging_multimedia_dir / svg_path.name, svg_content)
 
-        self.sync_files_to_staging_qdrant()
+        self.sync_files_to_pgvector()
 
     def _resolve_target_path(
         self,
@@ -202,13 +186,12 @@ class FSBaseCrudService:
                 or self.workspace_root in resolved.parents
             ):
                 return resolved
-            # If outside, place safely inside the target root's default folder by filename
             raw = candidate.name
 
         clean_rel = raw.lstrip("/").replace("..", "_")
         base_root = (
             self.workspace_root
-            if root_id in ("promoted_staging", "staging", "qdrant_staging")
+            if root_id in ("promoted_staging", "staging", "vector_staging")
             else self.promoted_root
         )
         direct_candidate = (base_root / clean_rel).resolve()
@@ -282,14 +265,14 @@ class FSBaseCrudService:
             "has_mermaid": False,
             "has_code_blocks": file_type in ("code", "markdown", "json"),
             "entry_id": point_id,
-            "qdrant_point_id": point_id,
+            "vector_point_id": point_id,
             "protected": file_path.name in PROTECTED_FILENAMES and folder == "root",
         }
 
-    def sync_files_to_staging_qdrant(self) -> Dict[str, Any]:
+    def sync_files_to_pgvector(self) -> Dict[str, Any]:
         """
-        Indexes all files across `promoted_root` and `workspace_root` into staging Qdrant
-        (`/Users/jarek/IdeaProjects/qdrant_staging/storage`, collection `promoted_model_artifacts`).
+        Indexes all files across `promoted_root` and `workspace_root` into PostgreSQL `pgvector`
+        (`vectors` database, collection `promoted_model_artifacts`) using PPS embeddings.
         """
         points: List[PointStruct] = []
         roots = [
@@ -329,21 +312,20 @@ class FSBaseCrudService:
                     )
                     points.append(
                         PointStruct(
-                            id=meta["qdrant_point_id"],
+                            id=meta["vector_point_id"],
                             vector=vec,
                             payload=meta,
                         )
                     )
 
-        total_staged = self.staging_manager.upsert_points_lockfree(
-            storage_path=self.staging_manager.storage_dir,
+        total_staged = self.staging_manager.upsert_points(
             collection_name=self.collection_name,
             points=points,
             recreate=True,
         )
         return {
             "collection": self.collection_name,
-            "staging_storage_dir": str(self.staging_manager.storage_dir),
+            "staging_root": str(self.staging_root),
             "indexed_files_count": len(points),
             "staged_points_count": total_staged,
         }
@@ -351,23 +333,22 @@ class FSBaseCrudService:
     def list_tree(self, query: str = "") -> Dict[str, Any]:
         """
         Returns the `FileSystemExplorer`-compatible directory tree and flat artifact catalog
-        for `/Users/jarek/IdeaProjects/neural_networks/promoted` and
-        `/Users/jarek/IdeaProjects/qdrant_staging/promoted_workspace`.
+        for `promoted_root` and `vector_staging/promoted_workspace`.
         """
         q_low = (query or "").strip().lower()
         roots_spec = [
             (
                 "promoted_repo",
                 "promoted",
-                "Promoted Model Repository (neural_networks/promoted)",
-                "neural_networks",
+                "Promoted Model Repository (PolyphonicModel/promoted)",
+                "PolyphonicModel",
                 self.promoted_root,
             ),
             (
                 "promoted_staging",
                 "staging",
-                "Staging Qdrant Workspace (qdrant_staging/promoted_workspace)",
-                "qdrant_staging",
+                "Staging Vector Workspace (vector_staging/promoted_workspace)",
+                "vector_staging",
                 self.workspace_root,
             ),
         ]
@@ -472,7 +453,6 @@ class FSBaseCrudService:
         """
         target = self._resolve_target_path(path_or_rel, root_id=root_id, default_folder="")
         if not self.fs.client.exists(str(target)):
-            # Try under artifacts/ or multimedia/ across both roots
             for cand_root in (self.promoted_root, self.workspace_root):
                 for sub in ("", "artifacts", "multimedia", "conversations"):
                     cand = (cand_root / sub / Path(path_or_rel).name).resolve() if sub else (cand_root / path_or_rel.lstrip("/")).resolve()
@@ -529,8 +509,8 @@ class FSBaseCrudService:
     ) -> Dict[str, Any]:
         """
         Creates or updates a text or binary/multimedia file via `FSBase`, backs it up across
-        both `neural_networks/promoted` and `qdrant_staging/promoted_workspace`, and indexes
-        it into staging Qdrant (`promoted_model_artifacts`).
+        both `promoted_root` and `vector_staging/promoted_workspace`, and indexes
+        it into PostgreSQL `pgvector` (`promoted_model_artifacts`).
         """
         target = self._resolve_target_path(
             path_or_rel,
@@ -552,7 +532,6 @@ class FSBaseCrudService:
 
         self._write_bytes_via_fsbase(target, raw_bytes)
 
-        # Mirror backup to the sibling FSBase root so promoted_repo and qdrant_staging stay backed up
         file_type = classify_file_type(target.name, media_type or "")
         is_media = is_multimedia_or_binary_type(file_type, target.suffix)
         if target == self.promoted_root or self.promoted_root in target.parents:
@@ -563,14 +542,14 @@ class FSBaseCrudService:
             backup_target = self.promoted_artifacts_dir / target.name
             self._write_bytes_via_fsbase(backup_target, raw_bytes)
 
-        qdrant_sync = self.sync_files_to_staging_qdrant()
+        pgvector_sync = self.sync_files_to_pgvector()
         file_info = self.read_file(str(target), root_id=root_id)
         return {
             "status": "saved",
             "path": str(target),
             "file": file_info,
             "backup_path": str(backup_target),
-            "qdrant_staging": qdrant_sync,
+            "pgvector_staging": pgvector_sync,
         }
 
     def delete_file(
@@ -579,7 +558,7 @@ class FSBaseCrudService:
         root_id: str = "promoted_repo",
     ) -> Dict[str, Any]:
         """
-        Deletes a file from `FSBase` and removes its point from staging Qdrant
+        Deletes a file from `FSBase` and removes its point from PostgreSQL `pgvector`
         (while protecting core harness files `promoted_model.py`, `harness.py`, `promoted_manifest.json`).
         """
         target = self._resolve_target_path(path_or_rel, root_id=root_id, default_folder="")
@@ -601,9 +580,8 @@ class FSBaseCrudService:
         )
         meta = self._build_file_metadata(target, eff_root_base, eff_root_id)
         self.fs.client.rm(str(target))
-        self._delete_point_from_staging_sqlite(meta["qdrant_point_id"])
+        self._delete_point_from_pgvector(meta["vector_point_id"])
 
-        # Also remove mirror backup if present
         for mirror_cand in (
             self.promoted_artifacts_dir / target.name,
             self.staging_artifacts_dir / target.name,
@@ -615,12 +593,12 @@ class FSBaseCrudService:
                 except Exception:
                     pass
 
-        qdrant_sync = self.sync_files_to_staging_qdrant()
+        pgvector_sync = self.sync_files_to_pgvector()
         return {
             "status": "deleted",
             "deleted_path": str(target),
             "deleted_name": target.name,
-            "qdrant_staging": qdrant_sync,
+            "pgvector_staging": pgvector_sync,
         }
 
     def execute_crud(self, action: str, **kwargs: Any) -> Dict[str, Any]:
@@ -633,7 +611,7 @@ class FSBaseCrudService:
         raw_root_id = str(kwargs.get("root_id") or "").strip()
         if raw_root_id:
             root_id = raw_root_id
-        elif scope in ("workspace", "staging", "promoted_staging"):
+        elif scope in ("workspace", "staging", "promoted_staging", "vector_staging"):
             root_id = "promoted_staging"
         else:
             root_id = "promoted_repo"
@@ -666,7 +644,7 @@ class FSBaseCrudService:
             self.fs.make_dirs(str(target), exist_ok=True)
             return {"status": "mkdir_ok", "path": str(target)}
         if act == "sync":
-            return self.sync_files_to_staging_qdrant()
+            return self.sync_files_to_pgvector()
         raise ValueError(
             f"Unsupported fs_crud action '{action}'. Use 'list', 'read', 'create', 'update', 'upload', 'delete', 'mkdir', or 'sync'."
         )
